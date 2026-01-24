@@ -55,34 +55,60 @@ pub fn init_command(folder: &str) -> Result<(), String> {
     fs::rename(folder, &temp_name)
         .map_err(|e| format!("Failed to move folder temporarily: {}", e))?;
 
-    fs::create_dir_all(format!("{}/main", folder))
-        .map_err(|e| format!("Failed to create main directory: {}", e))?;
+    let rollback = |temp: &str, target: &str| {
+        let _ = fs::remove_dir_all(target);
+        let _ = fs::rename(temp, target);
+    };
 
-    fs::rename(&temp_name, format!("{}/main/{}", folder, folder))
-        .map_err(|e| format!("Failed to move repo to main: {}", e))?;
+    if let Err(e) = fs::create_dir_all(format!("{}/main", folder)) {
+        rollback(&temp_name, folder);
+        return Err(format!("Failed to create main directory: {}", e));
+    }
+
+    if let Err(e) = fs::rename(&temp_name, format!("{}/main/{}", folder, folder)) {
+        rollback(&temp_name, folder);
+        return Err(format!("Failed to move repo to main: {}", e));
+    }
 
     let main_repo_path = format!("{}/main/{}", folder, folder);
 
-    for color in COLORS {
-        let color_project_path = format!("{}/{}/{}", folder, color, folder);
-        fs::create_dir_all(&color_project_path)
-            .map_err(|e| format!("Failed to create {} directory: {}", color, e))?;
+    let rollback_after_move = |folder: &str| {
+        for color in COLORS {
+            let worktree_path = format!("{}/{}/{}", folder, color, folder);
+            if Path::new(&worktree_path).exists() {
+                let _ = Command::new("git")
+                    .args(["worktree", "remove", "--force", &worktree_path])
+                    .current_dir(&format!("{}/main/{}", folder, folder))
+                    .output();
+            }
+            let _ = fs::remove_dir_all(format!("{}/{}", folder, color));
+        }
+        let main_repo = format!("{}/main/{}", folder, folder);
+        let _ = fs::rename(&main_repo, folder);
+        let _ = fs::remove_dir_all(format!("{}/main", folder));
+    };
 
+    for color in COLORS {
         let worktree_path = format!("../../{}/{}", color, folder);
         let output = Command::new("git")
             .args(["worktree", "add", "-b", color, &worktree_path, &main_branch])
             .current_dir(&main_repo_path)
-            .output()
-            .map_err(|e| format!("Failed to run git worktree add for {}: {}", color, e))?;
+            .output();
 
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to create worktree for {}: {}",
-                color,
-                String::from_utf8_lossy(&output.stderr)
-            ));
+        match output {
+            Ok(o) if o.status.success() => {
+                println!("Created worktree: {}", color);
+            }
+            Ok(o) => {
+                let err_msg = String::from_utf8_lossy(&o.stderr);
+                rollback_after_move(folder);
+                return Err(format!("Failed to create worktree for {}: {}", color, err_msg));
+            }
+            Err(e) => {
+                rollback_after_move(folder);
+                return Err(format!("Failed to run git worktree add for {}: {}", color, e));
+            }
         }
-        println!("Created worktree: {}", color);
     }
 
     println!(

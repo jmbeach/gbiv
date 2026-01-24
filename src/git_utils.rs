@@ -2,7 +2,11 @@ use std::path::Path;
 use std::process::Command as ProcessCommand;
 
 pub fn is_git_repo(path: &Path) -> bool {
-    path.join(".git").exists()
+    let output = ProcessCommand::new("git")
+        .args(["rev-parse", "--git-dir"])
+        .current_dir(path)
+        .output();
+    matches!(output, Ok(o) if o.status.success())
 }
 
 pub fn has_commits(path: &Path) -> bool {

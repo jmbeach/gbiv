@@ -1,6 +1,5 @@
 use clap::{Arg, Command};
 use commands::init::init_command;
-use std::path::Path;
 
 mod commands;
 mod git_utils;
