@@ -1,6 +1,8 @@
 use clap::{Arg, Command};
 use commands::init::init_command;
+use commands::status::status_command;
 
+mod colors;
 mod commands;
 mod git_utils;
 
@@ -19,6 +21,10 @@ fn cli() -> Command {
                         .index(1),
                 ),
         )
+        .subcommand(
+            Command::new("status")
+                .about("Show status of all ROYGBIV worktrees"),
+        )
 }
 
 fn main() {
@@ -28,6 +34,12 @@ fn main() {
         Some(("init", sub_matches)) => {
             let folder = sub_matches.get_one::<String>("folder").unwrap();
             if let Err(e) = init_command(folder) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(("status", _)) => {
+            if let Err(e) = status_command() {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
