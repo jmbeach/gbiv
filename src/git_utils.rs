@@ -67,46 +67,48 @@ pub fn find_gbiv_root(start: &Path) -> Option<PathBuf> {
     }
 }
 
-pub fn get_current_branch(path: &Path) -> Option<String> {
-    let output = ProcessCommand::new("git")
-        .args(["symbolic-ref", "--short", "HEAD"])
-        .current_dir(path)
-        .output()
-        .ok()?;
-    if output.status.success() {
-        Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
-    } else {
-        None
-    }
+pub struct QuickStatus {
+    pub branch: Option<String>,
+    pub is_dirty: bool,
+    pub ahead_behind: Option<(u32, u32)>,
 }
 
-pub fn is_dirty(path: &Path) -> bool {
+pub fn get_quick_status(path: &Path) -> QuickStatus {
     let output = ProcessCommand::new("git")
-        .args(["status", "--porcelain"])
+        .args(["status", "--porcelain=v2", "--branch"])
         .current_dir(path)
         .output();
-    match output {
-        Ok(o) if o.status.success() => !o.stdout.is_empty(),
-        _ => false,
+
+    let mut branch = None;
+    let mut is_dirty = false;
+    let mut ahead_behind = None;
+
+    if let Ok(o) = output {
+        if o.status.success() {
+            for line in String::from_utf8_lossy(&o.stdout).lines() {
+                if line.starts_with("# branch.head ") {
+                    branch = Some(line.trim_start_matches("# branch.head ").to_string());
+                } else if line.starts_with("# branch.ab ") {
+                    let ab = line.trim_start_matches("# branch.ab ");
+                    let parts: Vec<&str> = ab.split_whitespace().collect();
+                    if parts.len() == 2 {
+                        let ahead: u32 = parts[0].trim_start_matches('+').parse().unwrap_or(0);
+                        let behind: u32 = parts[1].trim_start_matches('-').parse().unwrap_or(0);
+                        ahead_behind = Some((ahead, behind));
+                    }
+                } else if !line.starts_with('#') && !line.is_empty() {
+                    is_dirty = true;
+                }
+            }
+        }
     }
+
+    QuickStatus { branch, is_dirty, ahead_behind }
 }
 
-pub fn get_ahead_behind(path: &Path) -> Option<(u32, u32)> {
-    let upstream = {
-        let output = ProcessCommand::new("git")
-            .args(["rev-parse", "--abbrev-ref", "@{upstream}"])
-            .current_dir(path)
-            .output()
-            .ok()?;
-        if output.status.success() {
-            String::from_utf8_lossy(&output.stdout).trim().to_string()
-        } else {
-            get_remote_main_branch(path)?
-        }
-    };
-
+pub fn get_ahead_behind_vs(path: &Path, target: &str) -> Option<(u32, u32)> {
     let output = ProcessCommand::new("git")
-        .args(["rev-list", "--left-right", "--count", &format!("HEAD...{}", upstream)])
+        .args(["rev-list", "--left-right", "--count", &format!("HEAD...{}", target)])
         .current_dir(path)
         .output()
         .ok()?;
@@ -120,6 +122,14 @@ pub fn get_ahead_behind(path: &Path) -> Option<(u32, u32)> {
         }
     }
     None
+}
+
+pub fn is_merged_into(path: &Path, branch: &str, target: &str) -> bool {
+    let output = ProcessCommand::new("git")
+        .args(["merge-base", "--is-ancestor", branch, target])
+        .current_dir(path)
+        .output();
+    matches!(output, Ok(o) if o.status.success())
 }
 
 pub fn get_last_commit_age(path: &Path) -> Option<Duration> {
@@ -156,12 +166,3 @@ pub fn get_remote_main_branch(path: &Path) -> Option<String> {
     None
 }
 
-pub fn is_merged_into_remote_main(path: &Path, branch: &str) -> Option<bool> {
-    let remote_main = get_remote_main_branch(path)?;
-    let output = ProcessCommand::new("git")
-        .args(["merge-base", "--is-ancestor", branch, &remote_main])
-        .current_dir(path)
-        .output()
-        .ok()?;
-    Some(output.status.success())
-}

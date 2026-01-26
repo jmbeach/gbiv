@@ -2,10 +2,10 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
-use crate::colors::{ansi_color, COLORS, DIM, RESET, YELLOW};
+use crate::colors::{ansi_color, COLORS, DIM, GREEN, RED, RESET, YELLOW};
 use crate::git_utils::{
-    find_gbiv_root, get_ahead_behind, get_current_branch, get_last_commit_age,
-    is_dirty, is_merged_into_remote_main,
+    find_gbiv_root, get_ahead_behind_vs, get_last_commit_age,
+    get_quick_status, get_remote_main_branch, is_merged_into,
 };
 
 struct WorktreeStatus {
@@ -30,12 +30,20 @@ fn format_age(duration: Duration) -> String {
 }
 
 fn collect_worktree_status(color: &'static str, repo_path: PathBuf) -> WorktreeStatus {
-    let branch = get_current_branch(&repo_path);
-    let is_dirty = is_dirty(&repo_path);
+    let quick = get_quick_status(&repo_path);
+    let branch = quick.branch;
+    let is_dirty = quick.is_dirty;
+
     let (merged, age, ahead_behind) = if branch.as_deref() != Some(color) {
-        let merged = branch.as_ref().and_then(|b| is_merged_into_remote_main(&repo_path, b));
+        let remote_main = get_remote_main_branch(&repo_path);
+        let merged = match (&branch, &remote_main) {
+            (Some(b), Some(rm)) => Some(is_merged_into(&repo_path, b, rm)),
+            _ => None,
+        };
         let age = get_last_commit_age(&repo_path);
-        let ahead_behind = get_ahead_behind(&repo_path);
+        let ahead_behind = quick.ahead_behind.or_else(|| {
+            remote_main.as_ref().and_then(|rm| get_ahead_behind_vs(&repo_path, rm))
+        });
         (merged, age, ahead_behind)
     } else {
         (None, None, None)
@@ -64,7 +72,10 @@ pub fn status_command() -> Result<(), String> {
         })
         .collect();
 
-    let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+    let results: Vec<_> = handles
+        .into_iter()
+        .map(|h| h.join().unwrap_or(None))
+        .collect();
 
     for (i, result) in results.into_iter().enumerate() {
         let color = COLORS[i];
@@ -97,12 +108,12 @@ pub fn status_command() -> Result<(), String> {
                     let ab_str = match status.ahead_behind {
                         Some((ahead, behind)) => {
                             let ahead_fmt = if ahead > 0 {
-                                format!("{}↑{}{}", YELLOW, ahead, RESET)
+                                format!("{}↑{}{}", GREEN, ahead, RESET)
                             } else {
                                 format!("{}↑{}{}", DIM, ahead, RESET)
                             };
                             let behind_fmt = if behind > 0 {
-                                format!("{}↓{}{}", YELLOW, behind, RESET)
+                                format!("{}↓{}{}", RED, behind, RESET)
                             } else {
                                 format!("{}↓{}{}", DIM, behind, RESET)
                             };
