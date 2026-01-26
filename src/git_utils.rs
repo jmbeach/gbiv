@@ -91,18 +91,22 @@ pub fn is_dirty(path: &Path) -> bool {
     }
 }
 
-pub fn get_ahead_behind(path: &Path) -> Option<Result<(u32, u32), ()>> {
-    let output = ProcessCommand::new("git")
-        .args(["rev-parse", "--abbrev-ref", "@{upstream}"])
-        .current_dir(path)
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return Some(Err(()));
-    }
+pub fn get_ahead_behind(path: &Path) -> Option<(u32, u32)> {
+    let upstream = {
+        let output = ProcessCommand::new("git")
+            .args(["rev-parse", "--abbrev-ref", "@{upstream}"])
+            .current_dir(path)
+            .output()
+            .ok()?;
+        if output.status.success() {
+            String::from_utf8_lossy(&output.stdout).trim().to_string()
+        } else {
+            get_remote_main_branch(path)?
+        }
+    };
 
     let output = ProcessCommand::new("git")
-        .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
+        .args(["rev-list", "--left-right", "--count", &format!("HEAD...{}", upstream)])
         .current_dir(path)
         .output()
         .ok()?;
@@ -112,10 +116,10 @@ pub fn get_ahead_behind(path: &Path) -> Option<Result<(u32, u32), ()>> {
         if parts.len() == 2 {
             let ahead = parts[0].parse().unwrap_or(0);
             let behind = parts[1].parse().unwrap_or(0);
-            return Some(Ok((ahead, behind)));
+            return Some((ahead, behind));
         }
     }
-    Some(Err(()))
+    None
 }
 
 pub fn get_last_commit_age(path: &Path) -> Option<Duration> {
