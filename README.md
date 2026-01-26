@@ -92,6 +92,35 @@ projects/
     └── violet/myproject/   # New worktree (violet branch)
 ```
 
+### Check worktree status
+
+Run from **any worktree** within a gbiv-structured repository:
+
+```bash
+gbiv status
+```
+
+Output:
+```
+red      red                      clean
+orange   feature/login            dirty  merged  3 days  ↑2 ↓0
+yellow   yellow                   clean
+green    fix/bug-123              clean  not merged  12 days  no upstream
+blue     blue                     dirty
+indigo   missing
+violet   violet                   clean
+```
+
+For each worktree, shows:
+- **Color name** (in color!)
+- **Branch name**
+- **Clean/dirty status** (unstaged, staged, or untracked changes)
+
+If the branch differs from the worktree color, also shows:
+- **Merged status** - whether merged into remote main/master/develop
+- **Commit age** - how long since the last commit
+- **Ahead/behind** - commits ahead/behind upstream (or "no upstream")
+
 ### Requirements
 
 Before running `init`, ensure:
