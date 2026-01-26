@@ -2,11 +2,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use crate::colors::COLORS;
 use crate::git_utils::{get_existing_branches, get_main_branch, has_commits, is_git_repo};
-
-const COLORS: [&str; 7] = [
-    "red", "orange", "yellow", "green", "blue", "indigo", "violet",
-];
 
 fn check_color_branches(path: &Path) -> Vec<String> {
     let branches = get_existing_branches(path);
@@ -78,7 +75,7 @@ pub fn init_command(folder: &str) -> Result<(), String> {
             if Path::new(&worktree_path).exists() {
                 let _ = Command::new("git")
                     .args(["worktree", "remove", "--force", &worktree_path])
-                    .current_dir(&format!("{}/main/{}", folder, folder))
+                    .current_dir(format!("{}/main/{}", folder, folder))
                     .output();
             }
             let _ = fs::remove_dir_all(format!("{}/{}", folder, color));
@@ -102,11 +99,17 @@ pub fn init_command(folder: &str) -> Result<(), String> {
             Ok(o) => {
                 let err_msg = String::from_utf8_lossy(&o.stderr);
                 rollback_after_move(folder);
-                return Err(format!("Failed to create worktree for {}: {}", color, err_msg));
+                return Err(format!(
+                    "Failed to create worktree for {}: {}",
+                    color, err_msg
+                ));
             }
             Err(e) => {
                 rollback_after_move(folder);
-                return Err(format!("Failed to run git worktree add for {}: {}", color, e));
+                return Err(format!(
+                    "Failed to run git worktree add for {}: {}",
+                    color, e
+                ));
             }
         }
     }
