@@ -1,0 +1,27 @@
+prd.json
+  dc8e9f9014283c3f 31
+progress.txt
+  dc8e9f9014283c3f 5
+src/commands/tmux/clean.rs
+  dc8e9f9014283c3f 2-3,5,13-44,47-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "3bd94e088f08683a3278cfc7322c93b0e75e8e5a",
+  "prompts": {
+    "dc8e9f9014283c3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6efcc0c1-36a5-428e-b70a-a4bad76645f5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 67,
+      "total_deletions": 1,
+      "accepted_lines": 67,
+      "overriden_lines": 0
+    }
+  }
+}
