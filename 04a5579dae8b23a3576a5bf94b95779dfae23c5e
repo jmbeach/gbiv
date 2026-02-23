@@ -1,0 +1,23 @@
+ralph/prd.json
+  7c33ded46bfd05f1 1-2,4-16,20-34,38-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "04a5579dae8b23a3576a5bf94b95779dfae23c5e",
+  "prompts": {
+    "7c33ded46bfd05f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f94e4932-6dc8-432c-9943-f158c3735c65",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 231,
+      "total_deletions": 2,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    }
+  }
+}
