@@ -1,11 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 
 use crate::colors::{ansi_color, COLORS, DIM, GREEN, RED, RESET, YELLOW};
 use crate::gbiv_md::parse_gbiv_md;
 use crate::git_utils::{
-    find_gbiv_root, get_ahead_behind_vs, get_last_commit_age,
+    find_gbiv_root, find_repo_in_worktree, get_ahead_behind_vs, get_last_commit_age,
     get_quick_status, get_remote_main_branch, is_merged_into,
 };
 
@@ -158,17 +158,6 @@ fn format_gbiv_features(features: &[crate::gbiv_md::GbivFeature]) -> String {
         }
     }
     out
-}
-
-fn find_repo_in_worktree(worktree_dir: &Path) -> Option<std::path::PathBuf> {
-    for entry in std::fs::read_dir(worktree_dir).ok()? {
-        let entry = entry.ok()?;
-        let path = entry.path();
-        if path.is_dir() && path.join(".git").exists() {
-            return Some(path);
-        }
-    }
-    None
 }
 
 #[cfg(test)]

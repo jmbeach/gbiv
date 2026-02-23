@@ -171,6 +171,42 @@ pub fn get_remote_main_branch(path: &Path) -> Option<String> {
     None
 }
 
+pub fn find_repo_in_worktree(worktree_dir: &Path) -> Option<PathBuf> {
+    for entry in std::fs::read_dir(worktree_dir).ok()? {
+        let Ok(entry) = entry else { continue };
+        let path = entry.path();
+        if path.is_dir() && path.join(".git").exists() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+/// Resolves the actual git directory for a repo, handling both the normal case
+/// (`.git/` is a directory) and the gitlink case (`.git` is a file containing
+/// `gitdir: <path>`, as produced by `git worktree add`).
+pub fn resolve_git_dir(repo: &Path) -> Option<PathBuf> {
+    let dot_git = repo.join(".git");
+    if dot_git.is_dir() {
+        return Some(dot_git);
+    }
+    if dot_git.is_file() {
+        let contents = std::fs::read_to_string(&dot_git).ok()?;
+        for line in contents.lines() {
+            if let Some(gitdir) = line.strip_prefix("gitdir:") {
+                let gitdir = gitdir.trim();
+                let resolved = if std::path::Path::new(gitdir).is_absolute() {
+                    PathBuf::from(gitdir)
+                } else {
+                    repo.join(gitdir)
+                };
+                return resolved.canonicalize().ok();
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
