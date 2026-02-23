@@ -1,0 +1,33 @@
+openspec/changes/gbiv-md-support/proposal.md
+  7c33ded46bfd05f1 1-23
+openspec/changes/gbiv-md-support/design.md
+  7c33ded46bfd05f1 1-50
+openspec/changes/gbiv-md-support/specs/gbiv-md-support/spec.md
+  7c33ded46bfd05f1 1-56
+openspec/changes/gbiv-md-support/tasks.md
+  7c33ded46bfd05f1 1-18
+ralph/prd.json
+  7c33ded46bfd05f1 1-2,4-16,20-34,38-44
+openspec/changes/gbiv-md-support/specs/status/spec.md
+  7c33ded46bfd05f1 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "2e719ed1bf1d8e51a3bba14d7eb05881960fc11a",
+  "prompts": {
+    "7c33ded46bfd05f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f94e4932-6dc8-432c-9943-f158c3735c65",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 214,
+      "total_deletions": 0,
+      "accepted_lines": 211,
+      "overriden_lines": 3
+    }
+  }
+}
