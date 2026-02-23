@@ -1,0 +1,29 @@
+openspec/changes/gbiv-cleanup-command/design.md
+  f5b9b5178b8fb7d9 1-56
+openspec/changes/gbiv-cleanup-command/proposal.md
+  f5b9b5178b8fb7d9 1-28
+openspec/changes/gbiv-cleanup-command/tasks.md
+  f5b9b5178b8fb7d9 1-25
+openspec/changes/gbiv-cleanup-command/specs/gbiv-cleanup/spec.md
+  f5b9b5178b8fb7d9 1-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "9eef5427e9783a59e563df7b30a02760c54c340f",
+  "prompts": {
+    "f5b9b5178b8fb7d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f02b02e3-89b0-4db2-b247-b415d8ee9b74",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 194,
+      "total_deletions": 2,
+      "accepted_lines": 192,
+      "overriden_lines": 0
+    }
+  }
+}
