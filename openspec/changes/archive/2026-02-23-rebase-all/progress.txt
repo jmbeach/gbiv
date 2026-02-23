@@ -1,0 +1,48 @@
+# Ralph Progress Log
+Started: Mon Feb 23 06:06:05 EST 2026
+---
+
+[US-001] Move find_repo_in_worktree to git_utils - DONE
+  - Added pub fn find_repo_in_worktree to src/git_utils.rs
+  - Updated src/commands/status.rs to import from crate::git_utils
+  - Removed private definition and unused Path import from status.rs
+  - cargo build passes with no errors or warnings
+
+[US-002] Create rebase_all.rs with scaffold and pull-main logic - DONE
+  - Created src/commands/rebase_all.rs with pub fn rebase_all_command() -> Result<(), String>
+  - Function calls find_gbiv_root to locate the repo root
+  - Function locates the main worktree using find_repo_in_worktree on the main/ directory
+  - Function runs git pull in the main worktree directory
+  - Returns Err with descriptive message if git pull fails
+  - Added pub mod rebase_all to src/commands/mod.rs so it compiles
+  - cargo build passes
+
+[US-003] Implement color worktree rebase loop and result output - DONE
+  - Iterates COLORS in order: red, orange, yellow, green, blue, indigo, violet
+  - Skips any color whose worktree directory does not exist on disk
+  - Runs git rebase origin/main in each color worktree
+  - On rebase conflict, runs git rebase --abort then continues to next color
+  - Prints color-coded result line per worktree using ansi_color/GREEN/RED/RESET helpers
+  - Returns Err if one or more worktrees failed to rebase
+  - cargo build passes (dead_code warning expected until US-004 wires CLI)
+
+[US-004] Wire rebase-all subcommand into the CLI - DONE
+  - pub mod rebase_all already present in src/commands/mod.rs (added in US-002)
+  - Added use commands::rebase_all::rebase_all_command import to src/main.rs
+  - Registered rebase-all subcommand with about text in cli() in src/main.rs
+  - Added Some(("rebase-all", _)) dispatch arm in main() calling rebase_all_command()
+  - Err case handled with eprintln + process::exit(1)
+  - cargo build passes with no errors or warnings
+
+[US-003] Implement color worktree rebase loop and result output - REVISED
+  - Removed git rebase --abort on conflict; worktree is now left in conflicted state
+  - Added mid-rebase detection: checks .git/rebase-merge and .git/rebase-apply before rebasing
+  - Skips worktrees already mid-rebase with SKIP (rebase in progress) status line
+  - On conflict, prints FAILED ✗ and continues to next color without aborting
+  - cargo build passes with no errors or warnings; all 29 tests pass
+
+[US-005] Verify rebase-all builds and runs correctly - DONE
+  - cargo build completes with zero errors and zero warnings
+  - gbiv rebase-all --help displays the subcommand description
+  - Running gbiv rebase-all in gbiv repo prints color-coded result line for each color worktree
+  - Conflicts (e.g. orange) are correctly aborted and reported as FAILED; successes show OK

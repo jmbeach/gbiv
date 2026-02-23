@@ -150,6 +150,32 @@ Worktree directories that don't exist are skipped with a warning. The command er
 - you are not inside a gbiv-structured repository
 - a session with that name already exists
 
+
+### Rebase all worktrees
+
+Run from **any worktree** within a gbiv-structured repository:
+
+```bash
+gbiv rebase-all
+```
+
+Pulls the latest changes into the main worktree, then rebases every color worktree onto the remote main branch (`origin/main`, `origin/master`, or `origin/develop`):
+
+```
+Pulling main worktree (origin/main)...
+[red]    OK ✓
+[orange] SKIP (no worktree)
+[yellow] SKIP (rebase in progress)
+[green]  FAILED ✗
+[blue]   OK ✓
+[indigo] SKIP (no worktree)
+[violet] OK ✓
+```
+
+- Worktrees that don't exist are skipped
+- Worktrees already mid-rebase are skipped (resolve manually and re-run)
+- Worktrees with conflicts are left in the conflicted state for you to resolve
+
 ### GBIV.md
 
 `gbiv init` automatically creates a `GBIV.md` in the root of your repository inside the `main/` worktree (e.g., `main/myproject/GBIV.md`). Add features to it and they will appear at the bottom of `gbiv status`.

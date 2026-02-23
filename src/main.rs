@@ -1,5 +1,6 @@
 use clap::{Arg, Command};
 use commands::init::init_command;
+use commands::rebase_all::rebase_all_command;
 use commands::status::status_command;
 use commands::tmux;
 
@@ -28,6 +29,10 @@ fn cli() -> Command {
                 .about("Show status of all ROYGBIV worktrees"),
         )
         .subcommand(tmux::tmux_command())
+        .subcommand(
+            Command::new("rebase-all")
+                .about("Pull the remote main branch into the main worktree then rebase all color worktrees onto it"),
+        )
 }
 
 fn main() {
@@ -49,6 +54,12 @@ fn main() {
         }
         Some(("tmux", sub_matches)) => {
             if let Err(e) = tmux::dispatch(sub_matches) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(("rebase-all", _)) => {
+            if let Err(e) = rebase_all_command() {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }

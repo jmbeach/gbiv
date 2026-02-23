@@ -23,8 +23,8 @@ pub fn parse_gbiv_md(path: &std::path::Path) -> Vec<GbivFeature> {
         if let Some(rest) = line.strip_prefix("- ") {
             let (tag, description) = if rest.starts_with('[') {
                 if let Some(close) = rest.find(']') {
-                    let tag = rest[1..close].to_string();
-                    let desc = rest[close + 1..].trim_start().to_string();
+                    let tag = rest.get(1..close).unwrap_or("").to_string();
+                    let desc = rest.get(close + 1..).unwrap_or("").trim_start().to_string();
                     (Some(tag), desc)
                 } else {
                     (None, rest.to_string())
