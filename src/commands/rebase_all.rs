@@ -89,6 +89,10 @@ pub fn rebase_all_command() -> Result<(), String> {
             continue;
         }
 
+        // Print the label before rebasing so the user knows which worktree's
+        // git output (conflicts etc.) they are looking at.
+        println!("{}{:<8}{}  rebasing {}{}{}...", color_code, color, RESET, "\x1b[2m", remote_main, RESET);
+
         match rebase_onto(&repo_path, &remote_main) {
             Ok(()) => {
                 println!("{}{:<8}{}  {}rebased onto {}{}",
@@ -97,7 +101,7 @@ pub fn rebase_all_command() -> Result<(), String> {
             }
             Err(e) => {
                 println!(
-                    "{}{:<8}{}  {}rebase failed: {}{}",
+                    "{}{:<8}{}  {}{}{}",
                     color_code, color, RESET, RED, e, RESET
                 );
                 failed += 1;

@@ -282,21 +282,22 @@ pub fn pull(path: &Path) -> Result<(), String> {
 }
 
 pub fn rebase_onto(path: &Path, upstream: &str) -> Result<(), String> {
-    let output = ProcessCommand::new("git")
+    // Use .status() so git's output (including conflict details) flows directly
+    // to the terminal rather than being captured and silently discarded.
+    let status = ProcessCommand::new("git")
         .args(["rebase", upstream])
         .current_dir(path)
-        .output()
+        .status()
         .map_err(|e| format!("Failed to run git rebase: {}", e))?;
-    if output.status.success() {
+    if status.success() {
         return Ok(());
     }
-    let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
     // Abort the failed rebase to leave the worktree clean
     let _ = ProcessCommand::new("git")
         .args(["rebase", "--abort"])
         .current_dir(path)
-        .output();
-    Err(err)
+        .status();
+    Err("rebase conflict — see output above".to_string())
 }
 
 #[cfg(test)]
