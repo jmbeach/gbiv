@@ -1,0 +1,37 @@
+openspec/changes/ralph-worktree-integration/proposal.md
+  e6b96de03aa9fa05 1-26
+src/commands/prd.rs
+  e6b96de03aa9fa05 1-283
+Cargo.toml
+  e6b96de03aa9fa05 8-9
+openspec/changes/ralph-worktree-integration/specs/prd-lock/spec.md
+  e6b96de03aa9fa05 1-65
+openspec/changes/ralph-worktree-integration/design.md
+  e6b96de03aa9fa05 1-103
+src/commands/mod.rs
+  e6b96de03aa9fa05 2
+openspec/changes/ralph-worktree-integration/tasks.md
+  e6b96de03aa9fa05 1-48
+src/main.rs
+  e6b96de03aa9fa05 3,29-55,75-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "124005c68253564c118bac05e7279a7d4e033bd6",
+  "prompts": {
+    "e6b96de03aa9fa05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2e244d8b-c48d-40bb-854b-ec5eca9861ad",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 604,
+      "total_deletions": 31,
+      "accepted_lines": 573,
+      "overriden_lines": 0
+    }
+  }
+}
