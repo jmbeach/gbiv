@@ -1,0 +1,25 @@
+openspec/specs/gbiv-cleanup/spec.md
+  f5b9b5178b8fb7d9 1-81
+openspec/changes/archive/2026-02-23-gbiv-cleanup-command/tasks.md
+  f5b9b5178b8fb7d9 3-4,8,12-14,18-19,23-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "c394c8dc80e414f8d70d0ee3fe724c419873abcb",
+  "prompts": {
+    "f5b9b5178b8fb7d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f02b02e3-89b0-4db2-b247-b415d8ee9b74",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 92,
+      "total_deletions": 11,
+      "accepted_lines": 92,
+      "overriden_lines": 0
+    }
+  }
+}
