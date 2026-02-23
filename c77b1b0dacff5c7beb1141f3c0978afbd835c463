@@ -1,0 +1,25 @@
+src/git_utils.rs
+  b21ee1a6723c631b 1,4-26,70-134
+progress.txt
+  b21ee1a6723c631b 10-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "c77b1b0dacff5c7beb1141f3c0978afbd835c463",
+  "prompts": {
+    "b21ee1a6723c631b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc0efba4-9d6f-4f64-9664-516261fefba9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 98,
+      "total_deletions": 1,
+      "accepted_lines": 98,
+      "overriden_lines": 0
+    }
+  }
+}
