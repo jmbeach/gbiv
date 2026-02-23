@@ -1,0 +1,107 @@
+{
+  "project": "gbiv",
+  "branchName": "ralph/gbiv-tmux-refresh",
+  "description": "Add `gbiv tmux refresh` command that syncs an existing tmux session's windows to the active color set from GBIV.md and reorders them into canonical ROYGBIV order.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create refresh.rs with clap subcommand definition",
+      "description": "As a developer, I need to scaffold the `refresh` subcommand entry point so that clap can route `gbiv tmux refresh` to the new handler.",
+      "acceptanceCriteria": [
+        "`src/commands/tmux/refresh.rs` exists and exports `refresh_subcommand()` returning a `clap::Command` named `refresh`",
+        "`refresh_subcommand()` is registered in the tmux subcommand group in `src/commands/tmux/mod.rs`",
+        "Running `gbiv tmux refresh --help` prints usage without panicking",
+        "Running `gbiv tmux` with no subcommand prints help listing `refresh` as an available subcommand",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Covers tasks 1.1, 1.2, 1.3"
+    },
+    {
+      "id": "US-002",
+      "title": "Implement precondition guards in refresh_command()",
+      "description": "As a developer, I need `refresh_command()` to validate that tmux is installed, that the CWD is inside a gbiv project, and that the target session exists, so that the command fails fast with actionable errors.",
+      "acceptanceCriteria": [
+        "When tmux is not on PATH, the command returns an error containing 'tmux not found. Please install tmux.'",
+        "When run outside a gbiv project, the command returns an error explaining no gbiv project was found",
+        "When the session named after the folder does not exist, the command returns an error suggesting `gbiv tmux new-session`",
+        "All error paths exit with non-zero status",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Covers tasks 2.1, 2.2, 2.3, 4.2"
+    },
+    {
+      "id": "US-003",
+      "title": "Derive active color set from GBIV.md",
+      "description": "As a developer, I need to parse GBIV.md and collect the distinct set of recognized ROYGBIV color tags, always including `main`, so that subsequent steps know which windows to manage.",
+      "acceptanceCriteria": [
+        "Colors present as tags on feature entries in GBIV.md are included in the active set",
+        "`main` is always in the active set regardless of GBIV.md content",
+        "Tags that are not in the ROYGBIV list (e.g., `purple`) are excluded from the active set",
+        "When GBIV.md is missing or has no tagged features, the active set contains only `main`",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Covers tasks 2.4, 2.5"
+    },
+    {
+      "id": "US-004",
+      "title": "Create missing windows for active colors",
+      "description": "As a developer, I need the refresh command to create a tmux window for each active color not already present in the session, so that the session reflects current GBIV.md state.",
+      "acceptanceCriteria": [
+        "Existing session windows are queried by name via `tmux list-windows -F '#{window_name}'`",
+        "A window is created with `tmux new-window` for each active color not already in the session",
+        "Each new window's working directory is set to `<gbiv-root>/<color>/<folder-name>/`",
+        "If a worktree path does not exist on disk, a warning is printed to stderr and that window is skipped",
+        "Windows that already exist in the session are not re-created",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Covers tasks 2.6, 2.7"
+    },
+    {
+      "id": "US-005",
+      "title": "Reorder session windows into canonical ROYGBIV order",
+      "description": "As a developer, I need the refresh command to move managed windows into canonical order (`main` first, then active colors in ROYGBIV sequence) with unmanaged windows appended at the end, so that the session layout is consistent.",
+      "acceptanceCriteria": [
+        "After refresh, managed windows appear in order: `main`, then active colors in ROYGBIV sequence",
+        "Windows not in the managed set (user-created) appear after all managed windows, preserving their relative order",
+        "When windows are already in canonical order, the command completes without error",
+        "Reordering uses `tmux move-window` (does not destroy existing windows or their shell state)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Covers tasks 3.1, 3.2, 3.3"
+    },
+    {
+      "id": "US-006",
+      "title": "Print success summary and wire up all tests",
+      "description": "As a developer, I need the refresh command to print a success summary on completion and have full unit test coverage, so that users get clear feedback and regressions are caught.",
+      "acceptanceCriteria": [
+        "On success, the command prints a message indicating how many windows were created and exits with status 0",
+        "Unit test: `refresh_command` errors when tmux is not on PATH",
+        "Unit test: `refresh_command` errors when not inside a gbiv project",
+        "Unit test: active color derivation — unrecognized tags excluded, `main` always present",
+        "Unit test: window creation skipped for colors already in the session",
+        "Unit test: warning emitted and window skipped when worktree path missing",
+        "Unit test: window order after reorder matches canonical ROYGBIV sequence with unmanaged windows at end",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Covers tasks 4.1, 5.1–5.6"
+    }
+  ]
+}
