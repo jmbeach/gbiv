@@ -1,0 +1,25 @@
+README.md
+  29f130ef6da12202 120-162
+progress.txt
+  29f130ef6da12202 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "9f8d9e89963d6ff40d664a3557b01229086b760d",
+  "prompts": {
+    "29f130ef6da12202": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "feeb3083-17ab-42f4-93c5-88ccbb3db315",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 44,
+      "total_deletions": 0,
+      "accepted_lines": 44,
+      "overriden_lines": 0
+    }
+  }
+}
