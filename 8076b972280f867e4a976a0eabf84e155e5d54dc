@@ -1,0 +1,29 @@
+src/main.rs
+  d51d872471f2441e 7
+progress.txt
+  d51d872471f2441e 4
+Cargo.toml
+  d51d872471f2441e 8-10
+src/gbiv_md.rs
+  d51d872471f2441e 1-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "8076b972280f867e4a976a0eabf84e155e5d54dc",
+  "prompts": {
+    "d51d872471f2441e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0763c9b1-e3f2-481c-a08f-317a95a60cb6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 126,
+      "total_deletions": 0,
+      "accepted_lines": 126,
+      "overriden_lines": 0
+    }
+  }
+}
