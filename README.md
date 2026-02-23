@@ -117,6 +117,49 @@ If the branch differs from the worktree color, also shows:
 - **Commit age** - how long since the last commit
 - **Ahead/behind** - commits ahead/behind upstream (or "no upstream")
 
+### GBIV.md
+
+Place a `GBIV.md` file inside your repository in the `main/` worktree (e.g., `main/myproject/GBIV.md`) to surface a feature backlog at the bottom of `gbiv status`.
+
+**File format:**
+
+- Lines starting with `- ` are feature entries.
+- An optional `[color]` tag at the start of a feature line maps it to a rainbow color.
+- Any non-blank line that does NOT start with `- ` is treated as a note attached to the preceding feature.
+- A `---` line stops parsing — everything below it is ignored.
+- The file is optional. When absent or empty, `gbiv status` output is unchanged.
+
+**Example `GBIV.md`:**
+
+```markdown
+- [red] Fix critical auth bug
+  Blocking release — must ship this week
+- [green] Refactor database layer
+- Add dark mode
+  Low priority, nice to have
+---
+Old notes below here are ignored
+```
+
+**Example `gbiv status` output with GBIV.md:**
+
+```
+red      feat/auth-fix            dirty  not merged  1 day   ↑3 ↓0
+orange   orange                   clean
+yellow   yellow                   clean
+green    refactor/db              clean  not merged  2 days  ↑1 ↓0
+blue     blue                     clean
+indigo   missing
+violet   violet                   clean
+
+GBIV.md
+  red       Fix critical auth bug
+  green     Refactor database layer
+  backlog   Add dark mode
+```
+
+Tagged features display in their matching ANSI color. Untagged features show a dim `backlog` label.
+
 ### Requirements
 
 Before running `init`, ensure:
