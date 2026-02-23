@@ -1,0 +1,43 @@
+# Ralph Progress Log
+Started: Mon Feb 23 05:43:36 EST 2026
+---
+
+## US-001: Scaffold tmux command module [DONE]
+- Created src/commands/tmux/mod.rs with tmux_command() and dispatch()
+- Created src/commands/tmux/new_session.rs with new_session_command stub
+- Added pub mod tmux; to src/commands/mod.rs
+- cargo build succeeds (4 expected dead_code warnings only)
+
+## US-002: Add GbivRoot detection utility to git_utils [DONE]
+- Added GbivRoot struct (root: PathBuf, folder_name: String) to src/git_utils.rs
+- Added find_gbiv_root(start: &Path) -> Option<GbivRoot> walking up from start
+- Returns Some when P/main/<basename(P)>/ exists and is a git repo
+- Returns None when no gbiv root found up to filesystem root
+- Added 3 unit tests: Some from root, Some from nested path, None for non-gbiv dir
+- cargo test passes: 15/15 tests ok
+
+## US-003: Implement guard checks in new_session_command [DONE]
+- Guard 1: runs `tmux -V`; returns Err containing 'tmux not found' if it fails
+- Guard 2: calls find_gbiv_root(cwd); returns Err suggesting `gbiv init` if None
+- Guard 3: runs `tmux has-session -t <name>`; returns Err suggesting `tmux attach -t <name>` or `--session-name` if session exists
+- Session name defaults to GbivRoot.folder_name when not supplied
+- Unit test: test_new_session_command_tmux_not_found verifies Err with 'tmux not found'
+- cargo test passes: 16/16 tests ok
+
+## US-004: Implement tmux session and window creation [DONE]
+- Builds list of 8 worktree paths in ROYGBIV order: main, red, orange, yellow, green, blue, indigo, violet
+- Skips paths that don't exist on disk and prints a warning to stderr
+- Creates session: `tmux new-session -d -s <name> -c <main-path> -n main`
+- Creates additional windows: `tmux new-window -t <name> -n <color> -c <path>` for each existing path
+- Prints session name and window count on success
+- Session name defaults to GbivRoot.folder_name
+- cargo build succeeds; cargo test commands::tmux passes: 1/1 ok
+
+## US-005: Wire tmux subcommand into the gbiv CLI [DONE]
+- Added `use commands::tmux;` import to src/main.rs
+- Added `.subcommand(tmux::tmux_command())` to cli() builder
+- Added `Some(("tmux", sub_matches))` arm dispatching to `tmux::dispatch(sub_matches)` in main()
+- `gbiv tmux new-session --help` exits 0 and shows `--session-name` in usage
+- `gbiv tmux` with no subcommand exits 2 and prints usage help
+- `gbiv tmux unknown-cmd` exits 2 and prints unrecognized subcommand error
+- cargo build succeeds with no errors; cargo test commands::tmux passes: 1/1 ok
