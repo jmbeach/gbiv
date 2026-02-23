@@ -119,7 +119,7 @@ If the branch differs from the worktree color, also shows:
 
 ### GBIV.md
 
-Place a `GBIV.md` file inside your repository in the `main/` worktree (e.g., `main/myproject/GBIV.md`) to surface a feature backlog at the bottom of `gbiv status`.
+`gbiv init` automatically creates a `GBIV.md` in the root of your repository inside the `main/` worktree (e.g., `main/myproject/GBIV.md`). Add features to it and they will appear at the bottom of `gbiv status`.
 
 **File format:**
 
