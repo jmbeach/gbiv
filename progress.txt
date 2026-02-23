@@ -1,0 +1,8 @@
+# Ralph Progress Log
+Started: Mon Feb 23 07:49:34 EST 2026
+---
+US-001 DONE: Created src/commands/tmux/clean.rs with clean_subcommand() and clean_command() stub. Added `pub mod clean;` to mod.rs. All 33 tests pass.
+US-002 DONE: Implemented guard sequence in clean_command(): tmux check, find_gbiv_root, session existence check. Added test_clean_command_tmux_not_found. All 34 tests pass.
+US-003 DONE: Implemented window enumeration (tmux list-windows), GBIV.md parsing, HashSet of active colors, orphan filtering via is_orphaned_window(), kill loop with per-window error handling, and "Nothing to clean." output. Added 3 pure-logic unit tests. All 37 tests pass.
+US-004 DONE: Wired clean subcommand into tmux command group. Added .subcommand(clean::clean_subcommand()) to tmux_command() and Some(("clean", _)) => clean::clean_command() arm to dispatch(). All 37 tests pass.
+US-005 DONE: Added test_clean_command_session_not_found (creates a fake gbiv project in /tmp, sets CWD, asserts error mentions "gbiv tmux new-session"; skips gracefully when tmux not available). All prior orphan-filtering and tmux-not-found tests already in place. All 38 tests pass.
