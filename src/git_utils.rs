@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 use std::time::Duration;
@@ -205,6 +206,97 @@ pub fn resolve_git_dir(repo: &Path) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// Returns the common git directory for the given path.
+/// For linked worktrees, this is the main .git directory (not the
+/// worktree-specific subdirectory). Git reads info/exclude from the
+/// common dir, so this is the correct location for ignore entries.
+pub fn get_git_dir(path: &Path) -> Option<PathBuf> {
+    let output = ProcessCommand::new("git")
+        .args(["rev-parse", "--git-common-dir"])
+        .current_dir(path)
+        .output()
+        .ok()?;
+    if output.status.success() {
+        let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let p = PathBuf::from(&raw);
+        if p.is_absolute() {
+            Some(p)
+        } else {
+            Some(path.join(p).canonicalize().ok()?)
+        }
+    } else {
+        None
+    }
+}
+
+pub fn ensure_gitignore_entry(git_dir: &Path, entry: &str) -> Result<(), String> {
+    let info_dir = git_dir.join("info");
+    fs::create_dir_all(&info_dir)
+        .map_err(|e| format!("Failed to create {}: {}", info_dir.display(), e))?;
+    let exclude_path = info_dir.join("exclude");
+    let existing = if exclude_path.exists() {
+        fs::read_to_string(&exclude_path)
+            .map_err(|e| format!("Failed to read {}: {}", exclude_path.display(), e))?
+    } else {
+        String::new()
+    };
+    if existing.lines().any(|l| l.trim() == entry) {
+        return Ok(());
+    }
+    let mut content = existing;
+    if !content.ends_with('\n') && !content.is_empty() {
+        content.push('\n');
+    }
+    content.push_str(entry);
+    content.push('\n');
+    fs::write(&exclude_path, content)
+        .map_err(|e| format!("Failed to write {}: {}", exclude_path.display(), e))
+}
+
+pub fn fetch_remote(path: &Path) -> Result<(), String> {
+    let output = ProcessCommand::new("git")
+        .args(["fetch", "origin"])
+        .current_dir(path)
+        .output()
+        .map_err(|e| format!("Failed to run git fetch: {}", e))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
+pub fn pull(path: &Path) -> Result<(), String> {
+    let output = ProcessCommand::new("git")
+        .args(["pull"])
+        .current_dir(path)
+        .output()
+        .map_err(|e| format!("Failed to run git pull: {}", e))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
+pub fn rebase_onto(path: &Path, upstream: &str) -> Result<(), String> {
+    let output = ProcessCommand::new("git")
+        .args(["rebase", upstream])
+        .current_dir(path)
+        .output()
+        .map_err(|e| format!("Failed to run git rebase: {}", e))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    // Abort the failed rebase to leave the worktree clean
+    let _ = ProcessCommand::new("git")
+        .args(["rebase", "--abort"])
+        .current_dir(path)
+        .output();
+    Err(err)
 }
 
 #[cfg(test)]
