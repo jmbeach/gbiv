@@ -175,6 +175,27 @@ Pulling main worktree (origin/main)...
 - Worktrees that don't exist are skipped
 - Worktrees already mid-rebase are skipped (resolve manually and re-run)
 - Worktrees with conflicts are left in the conflicted state for you to resolve
+
+### Clean up a worktree
+
+Run from **any worktree** within a gbiv-structured repository:
+
+```bash
+gbiv cleanup [<color>]
+```
+
+Once a feature branch has been merged into remote main, this command checks out the color branch, pulls the latest, and removes the matching entry from `GBIV.md`. Omit `<color>` to process all worktrees.
+
+```bash
+gbiv cleanup red      # clean up a single worktree
+gbiv cleanup          # clean up all worktrees
+```
+
+- Worktrees already on their color branch are skipped
+- Worktrees whose feature branch is not yet merged are skipped with a warning
+- Worktrees with no remote configured are skipped with a warning
+- The `GBIV.md` entry tagged `[<color>]` is removed from the main worktree after a successful checkout and pull
+
 ### GBIV.md
 
 `gbiv init` automatically creates a `GBIV.md` in the root of your repository inside the `main/` worktree (e.g., `main/myproject/GBIV.md`). Add features to it and they will appear at the bottom of `gbiv status`.
