@@ -1,0 +1,27 @@
+src/git_utils.rs
+  8295e25db3e737c4 5-6,17-18,197-198,218-219
+src/commands/tmux/new_session.rs
+  8295e25db3e737c4 5,55,57-58,83-84,86-88,99-101,118,121,127
+src/commands/tmux/mod.rs
+  8295e25db3e737c4 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "5433bb062f0a918f5eeb3a2f291ff9e890f08f43",
+  "prompts": {
+    "8295e25db3e737c4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8189eef7-81a3-4944-9370-6933f36fb8cc",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 32,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    }
+  }
+}
