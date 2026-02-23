@@ -1,4 +1,4 @@
-use crate::colors::{ansi_color, COLORS, GREEN, RED, RESET, YELLOW};
+use crate::colors::{ansi_color, COLORS, DIM, GREEN, RED, RESET, YELLOW};
 use crate::git_utils::{
     ensure_gitignore_entry, fetch_remote, find_gbiv_root, find_repo_in_worktree,
     get_ahead_behind_vs, get_git_dir, get_remote_main_branch, pull, rebase_onto, resolve_git_dir,
@@ -91,7 +91,7 @@ pub fn rebase_all_command() -> Result<(), String> {
 
         // Print the label before rebasing so the user knows which worktree's
         // git output (conflicts etc.) they are looking at.
-        println!("{}{:<8}{}  rebasing {}{}{}...", color_code, color, RESET, "\x1b[2m", remote_main, RESET);
+        println!("{}{:<8}{}  rebasing {}{}{}...", color_code, color, RESET, DIM, remote_main, RESET);
 
         match rebase_onto(&repo_path, &remote_main) {
             Ok(()) => {
@@ -101,7 +101,7 @@ pub fn rebase_all_command() -> Result<(), String> {
             }
             Err(e) => {
                 println!(
-                    "{}{:<8}{}  {}{}{}",
+                    "{}{:<8}{}  {}rebase failed: {}{}",
                     color_code, color, RESET, RED, e, RESET
                 );
                 failed += 1;
