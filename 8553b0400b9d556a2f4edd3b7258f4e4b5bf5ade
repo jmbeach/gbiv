@@ -1,0 +1,27 @@
+README.md
+  7c33ded46bfd05f1 122
+openspec/changes/gbiv-md-support/tasks.md
+  7c33ded46bfd05f1 3-8,12,16-18
+src/gbiv_md.rs
+  7c33ded46bfd05f1 114-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "8553b0400b9d556a2f4edd3b7258f4e4b5bf5ade",
+  "prompts": {
+    "7c33ded46bfd05f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f94e4932-6dc8-432c-9943-f158c3735c65",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 11,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}
