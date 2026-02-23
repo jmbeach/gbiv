@@ -1,0 +1,41 @@
+src/commands/tmux/new_session.rs
+  6c7f75114b7ff525 2-3,5,18-45,47-53,56-82
+progress.txt
+  6c7f75114b7ff525 18-25
+prd.json
+  b21ee1a6723c631b 35
+  6c7f75114b7ff525 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "659442ff0f171f1893633b3961807a9ca74564c3",
+  "prompts": {
+    "6c7f75114b7ff525": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bba046c7-706e-49fa-a74a-f1f3bdec6cfb",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 79,
+      "total_deletions": 4,
+      "accepted_lines": 77,
+      "overriden_lines": 0
+    },
+    "b21ee1a6723c631b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc0efba4-9d6f-4f64-9664-516261fefba9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
