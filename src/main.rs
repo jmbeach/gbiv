@@ -1,4 +1,6 @@
 use clap::{Arg, Command};
+use colors::COLORS;
+use commands::cleanup::cleanup_command;
 use commands::init::init_command;
 use commands::rebase_all::rebase_all_command;
 use commands::status::status_command;
@@ -33,6 +35,17 @@ fn cli() -> Command {
             Command::new("rebase-all")
                 .about("Pull the remote main branch into the main worktree then rebase all color worktrees onto it"),
         )
+        .subcommand(
+            Command::new("cleanup")
+                .about("Check out color branch and remove GBIV.md entry after feature branch is merged")
+                .arg(
+                    Arg::new("color")
+                        .help("The color worktree to clean up (omit to clean up all)")
+                        .required(false)
+                        .index(1)
+                        .value_parser(clap::builder::PossibleValuesParser::new(COLORS)),
+                ),
+        )
 }
 
 fn main() {
@@ -60,6 +73,13 @@ fn main() {
         }
         Some(("rebase-all", _)) => {
             if let Err(e) = rebase_all_command() {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(("cleanup", sub_matches)) => {
+            let color = sub_matches.get_one::<String>("color").map(|s| s.as_str());
+            if let Err(e) = cleanup_command(color) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }

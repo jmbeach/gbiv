@@ -175,7 +175,6 @@ Pulling main worktree (origin/main)...
 - Worktrees that don't exist are skipped
 - Worktrees already mid-rebase are skipped (resolve manually and re-run)
 - Worktrees with conflicts are left in the conflicted state for you to resolve
-
 ### GBIV.md
 
 `gbiv init` automatically creates a `GBIV.md` in the root of your repository inside the `main/` worktree (e.g., `main/myproject/GBIV.md`). Add features to it and they will appear at the bottom of `gbiv status`.
