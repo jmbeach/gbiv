@@ -1,0 +1,23 @@
+src/commands/rebase_all.rs
+  3803809b8574efb5 4,17-20,43,49,56,63,65,69-73,75,78-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "b2f197d0753af9f88b6cc7d0749a4b6ff291feb2",
+  "prompts": {
+    "3803809b8574efb5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b2b8a75-29e0-4813-994b-b20e9c0d5266",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 30,
+      "accepted_lines": 18,
+      "overriden_lines": 0
+    }
+  }
+}
