@@ -1,0 +1,159 @@
+{
+  "project": "gbiv",
+  "branchName": "ralph/gbiv-cleanup-command",
+  "description": "Add a `gbiv cleanup [<color>]` command that detects if a color worktree's feature branch is merged, then checks out the color branch, pulls latest, and removes the associated GBIV.md entry.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add checkout_branch helper to git_utils",
+      "description": "As a developer, I need a reusable `checkout_branch(path, branch)` function in `git_utils.rs` so that the cleanup command can switch branches using the established ProcessCommand pattern.",
+      "acceptanceCriteria": [
+        "`checkout_branch(path: &Path, branch: &str) -> Result<(), String>` added to `src/git_utils.rs`",
+        "Runs `git checkout <branch>` in the given directory",
+        "Returns an Err with the git stderr output on failure",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Add pull helper to git_utils",
+      "description": "As a developer, I need a reusable `pull(path)` function in `git_utils.rs` so that the cleanup command can fetch and merge remote changes using the established ProcessCommand pattern.",
+      "acceptanceCriteria": [
+        "`pull(path: &Path) -> Result<(), String>` added to `src/git_utils.rs`",
+        "Runs `git pull` in the given directory",
+        "Returns an Err with the git stderr output on failure",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Add remove_gbiv_features_by_tag to gbiv_md",
+      "description": "As a developer, I need a `remove_gbiv_features_by_tag(path, tag)` function in `gbiv_md.rs` so that the cleanup command can remove a color's feature entries from GBIV.md while preserving the rest of the file.",
+      "acceptanceCriteria": [
+        "`remove_gbiv_features_by_tag(path: &Path, tag: &str) -> Result<(), String>` added to `src/gbiv_md.rs`",
+        "Removes all entries whose tag matches the given color and writes the file back",
+        "When no matching entry exists, the file is unchanged and no error is raised",
+        "When multiple entries share the same tag, all are removed",
+        "Content after the `---` separator is preserved unchanged",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Implement cleanup_one function",
+      "description": "As a developer, I need `cleanup_one(gbiv_root, color) -> Result<(), String>` in `src/commands/cleanup.rs` so that per-color cleanup logic is encapsulated and testable.",
+      "acceptanceCriteria": [
+        "`src/commands/cleanup.rs` created with `cleanup_one` function",
+        "Returns Ok with a notice when the worktree is already on the color branch",
+        "Returns Err when no remote is configured for the worktree",
+        "Returns Err when the feature branch is not merged into remote main",
+        "Calls `checkout_branch` then `pull` when branch is merged",
+        "Calls `remove_gbiv_features_by_tag` after successful checkout and pull",
+        "Returns Err surfacing the git message when checkout fails due to dirty working tree",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Implement cleanup_command dispatcher",
+      "description": "As a developer, I need `cleanup_command(color: Option<&str>) -> Result<(), String>` in `src/commands/cleanup.rs` so that the CLI can invoke cleanup for one or all color worktrees.",
+      "acceptanceCriteria": [
+        "`cleanup_command(color: Option<&str>) -> Result<(), String>` present in `src/commands/cleanup.rs`",
+        "When a color is provided, calls `cleanup_one` for that color only and propagates any error",
+        "When no color is provided, iterates all ROYGBIV colors, calling `cleanup_one` for each",
+        "In all-color mode, a non-fatal error (not merged, missing worktree, already clean) prints a warning and continues to the next color",
+        "Returns Err immediately if `find_gbiv_root` fails",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Register cleanup module in commands/mod.rs",
+      "description": "As a developer, I need `pub mod cleanup;` added to `src/commands/mod.rs` so that the cleanup module is part of the compiled crate.",
+      "acceptanceCriteria": [
+        "`pub mod cleanup;` present in `src/commands/mod.rs`",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Wire cleanup subcommand into the CLI",
+      "description": "As a user, I want `gbiv cleanup [<color>]` available in the CLI so that I can invoke it from the terminal.",
+      "acceptanceCriteria": [
+        "`cleanup` subcommand added to `cli()` in `src/main.rs` via clap",
+        "Optional positional `color` argument accepted and validated against the ROYGBIV `COLORS` array",
+        "Invalid color value causes clap to exit with a non-zero status and error message",
+        "`Some((\"cleanup\", sub_matches))` arm added in `main()` dispatching to `cleanup_command`",
+        "`gbiv cleanup --help` prints usage including the optional color argument",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Unit test remove_gbiv_features_by_tag",
+      "description": "As a developer, I need unit tests for `remove_gbiv_features_by_tag` so that GBIV.md mutation behavior is verified and protected from regression.",
+      "acceptanceCriteria": [
+        "Test: removes the matching `[color]` entry from GBIV.md",
+        "Test: no-op when no entry with that tag exists",
+        "Test: removes multiple entries sharing the same tag",
+        "Test: content after `---` separator is unchanged after write",
+        "All tests pass via `cargo test`"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Unit test cleanup_one edge cases",
+      "description": "As a developer, I need unit tests for `cleanup_one` key behavioral branches so that merge detection and skip logic are verified.",
+      "acceptanceCriteria": [
+        "Test: returns Ok with skip notice when worktree is already on the color branch",
+        "Test: returns Err when no remote is configured",
+        "Test: returns Err when feature branch is not merged into remote main",
+        "All tests pass via `cargo test`"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Run full test suite",
+      "description": "As a developer, I need to confirm `cargo test` passes with all new and existing tests so that the implementation is complete and non-regressing.",
+      "acceptanceCriteria": [
+        "`cargo test` exits with status 0",
+        "No existing tests are broken",
+        "All new tests added in US-008 and US-009 pass"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

@@ -43,6 +43,67 @@ pub fn parse_gbiv_md(path: &std::path::Path) -> Vec<GbivFeature> {
     features
 }
 
+pub fn remove_gbiv_features_by_tag(path: &std::path::Path, tag: &str) -> Result<(), String> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(format!("Failed to read GBIV.md: {}", e)),
+    };
+
+    let lines: Vec<&str> = content.lines().collect();
+    let mut result_lines: Vec<&str> = vec![];
+    let mut skip_current = false;
+    let mut past_separator = false;
+
+    for line in &lines {
+        if past_separator {
+            result_lines.push(line);
+            continue;
+        }
+
+        if *line == "---" {
+            past_separator = true;
+            result_lines.push(line);
+            continue;
+        }
+
+        if let Some(rest) = line.strip_prefix("- ") {
+            if rest.starts_with('[') {
+                if let Some(close) = rest.find(']') {
+                    let feature_tag = &rest[1..close];
+                    if feature_tag == tag {
+                        skip_current = true;
+                        continue;
+                    }
+                }
+            }
+            skip_current = false;
+            result_lines.push(line);
+        } else if line.is_empty() {
+            if !skip_current {
+                result_lines.push(line);
+            }
+            skip_current = false;
+        } else {
+            // Note line belonging to preceding feature
+            if !skip_current {
+                result_lines.push(line);
+            }
+        }
+    }
+
+    let mut result = result_lines.join("\n");
+    if content.ends_with('\n') {
+        result.push('\n');
+    }
+
+    if result == content {
+        return Ok(());
+    }
+
+    std::fs::write(path, result).map_err(|e| format!("Failed to write GBIV.md: {}", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,5 +191,63 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].description, "Feature one");
         assert!(result[0].notes.is_empty());
+    }
+
+    // Tests for remove_gbiv_features_by_tag
+
+    #[test]
+    fn remove_by_tag_removes_matching_entry() {
+        let f = write_temp("- [red] Fix critical bug\n- [blue] Add feature\n");
+        remove_gbiv_features_by_tag(f.path(), "red").unwrap();
+        let result = parse_gbiv_md(f.path());
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].tag, Some("blue".to_string()));
+    }
+
+    #[test]
+    fn remove_by_tag_noop_when_no_match() {
+        let original = "- [blue] Add feature\n";
+        let f = write_temp(original);
+        remove_gbiv_features_by_tag(f.path(), "red").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, original);
+    }
+
+    #[test]
+    fn remove_by_tag_removes_multiple_matching_entries() {
+        let f = write_temp("- [red] Bug fix\n- [blue] Feature\n- [red] Another red\n");
+        remove_gbiv_features_by_tag(f.path(), "red").unwrap();
+        let result = parse_gbiv_md(f.path());
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].tag, Some("blue".to_string()));
+    }
+
+    #[test]
+    fn remove_by_tag_preserves_content_after_separator() {
+        let f = write_temp("- [red] Bug fix\n---\nSome footer content\n");
+        remove_gbiv_features_by_tag(f.path(), "red").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert!(on_disk.contains("---\nSome footer content\n"));
+        assert!(!on_disk.contains("[red]"));
+    }
+
+    #[test]
+    fn remove_by_tag_also_removes_attached_notes() {
+        let f = write_temp("- [red] Bug fix\n  Note line\n  Another note\n- [blue] Feature\n");
+        remove_gbiv_features_by_tag(f.path(), "red").unwrap();
+        let result = parse_gbiv_md(f.path());
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].tag, Some("blue".to_string()));
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert!(!on_disk.contains("Note line"));
+        assert!(!on_disk.contains("Another note"));
+    }
+
+    #[test]
+    fn remove_by_tag_no_stray_blank_lines_when_features_separated_by_blank() {
+        let f = write_temp("- [red] Bug fix\n\n- [blue] Feature\n");
+        remove_gbiv_features_by_tag(f.path(), "red").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [blue] Feature\n");
     }
 }

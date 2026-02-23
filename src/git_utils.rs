@@ -172,6 +172,32 @@ pub fn get_remote_main_branch(path: &Path) -> Option<String> {
     None
 }
 
+pub fn checkout_branch(path: &Path, branch: &str) -> Result<(), String> {
+    let output = ProcessCommand::new("git")
+        .args(["checkout", branch])
+        .current_dir(path)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
+pub fn pull_remote(path: &Path, remote: &str, branch: &str) -> Result<(), String> {
+    let output = ProcessCommand::new("git")
+        .args(["pull", remote, branch])
+        .current_dir(path)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
 pub fn find_repo_in_worktree(worktree_dir: &Path) -> Option<PathBuf> {
     for entry in std::fs::read_dir(worktree_dir).ok()? {
         let Ok(entry) = entry else { continue };
