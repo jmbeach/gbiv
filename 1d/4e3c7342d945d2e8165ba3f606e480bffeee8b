@@ -1,0 +1,29 @@
+src/commands/mod.rs
+  5f06fb57b6829142 2
+src/main.rs
+  5f06fb57b6829142 3,29-32,52-53
+src/commands/rebase_all.rs
+  5f06fb57b6829142 1-50,56-124,126-218
+src/git_utils.rs
+  5f06fb57b6829142 1,8-32,175-369
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "1d4e3c7342d945d2e8165ba3f606e480bffeee8b",
+  "prompts": {
+    "5f06fb57b6829142": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cc820001-504f-4d67-bf8b-290b97da619e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 650,
+      "total_deletions": 126,
+      "accepted_lines": 441,
+      "overriden_lines": 0
+    }
+  }
+}
