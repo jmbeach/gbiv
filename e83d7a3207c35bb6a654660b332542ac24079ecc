@@ -1,0 +1,23 @@
+README.md
+  8295e25db3e737c4 120-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "e83d7a3207c35bb6a654660b332542ac24079ecc",
+  "prompts": {
+    "8295e25db3e737c4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8189eef7-81a3-4944-9370-6933f36fb8cc",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 0,
+      "accepted_lines": 33,
+      "overriden_lines": 0
+    }
+  }
+}
