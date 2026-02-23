@@ -139,6 +139,7 @@ pub fn init_command(folder: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::fs;
     use std::process::Command;
 
@@ -186,6 +187,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_is_git_repo_true() {
         let test_dir = setup_test_dir("is_git_repo_true");
         init_git_repo(&test_dir);
@@ -201,6 +203,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_has_commits_true() {
         let test_dir = setup_test_dir("has_commits_true");
         init_git_repo(&test_dir);
@@ -210,6 +213,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_has_commits_false() {
         let test_dir = setup_test_dir("has_commits_false");
         init_git_repo(&test_dir);
@@ -218,6 +222,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_main_branch() {
         let test_dir = setup_test_dir("get_main_branch");
         init_git_repo(&test_dir);
@@ -230,6 +235,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_check_color_branches_none() {
         let test_dir = setup_test_dir("color_branches_none");
         init_git_repo(&test_dir);
@@ -240,6 +246,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_check_color_branches_conflict() {
         let test_dir = setup_test_dir("color_branches_conflict");
         init_git_repo(&test_dir);
@@ -271,6 +278,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_init_command_no_commits() {
         let test_dir = setup_test_dir("no_commits");
         init_git_repo(&test_dir);
@@ -281,6 +289,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_init_command_color_branch_conflict() {
         let test_dir = setup_test_dir("branch_conflict");
         init_git_repo(&test_dir);
@@ -297,6 +306,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_init_command_success() {
         let base_dir = setup_test_dir("init_success");
         let project_name = "myproject";

@@ -1,0 +1,90 @@
+{
+  "project": "gbiv",
+  "branchName": "ralph/gbiv-tmux-new-session",
+  "description": "Add `gbiv tmux new-session` command that creates a detached tmux session with one named window per ROYGBIV worktree.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Scaffold tmux command module",
+      "description": "As a developer, I need the `src/commands/tmux/` module to exist with stub files so that the compiler can resolve the new module and subsequent stories can build on it.",
+      "acceptanceCriteria": [
+        "`src/commands/tmux/mod.rs` exists and defines a `tmux_command()` function returning a `clap::Command` and a `dispatch()` function",
+        "`src/commands/tmux/new_session.rs` exists with a `pub fn new_session_command(session_name: Option<&str>) -> Result<(), String>` stub that returns `Ok(())`",
+        "`src/commands/mod.rs` contains `pub mod tmux;`",
+        "`cargo build` succeeds with no errors",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Tasks 1.1, 1.2, 1.3"
+    },
+    {
+      "id": "US-002",
+      "title": "Add GbivRoot detection utility to git_utils",
+      "description": "As a developer, I need a `find_gbiv_root(start: &Path) -> Option<GbivRoot>` function in `src/git_utils.rs` so that the new-session command can locate the gbiv project root from the current working directory.",
+      "acceptanceCriteria": [
+        "`GbivRoot` struct exists in `src/git_utils.rs` with fields `root: PathBuf` and `folder_name: String`",
+        "`find_gbiv_root` walks upward from the given path, returning `Some(GbivRoot)` when `P/main/<basename(P)>/` exists and is a git repo",
+        "`find_gbiv_root` returns `None` when no such directory is found up to the filesystem root",
+        "Unit test passes: `find_gbiv_root` returns `Some` when called from inside a valid gbiv structure created by `gbiv init`",
+        "Unit test passes: `find_gbiv_root` returns `None` when called from a non-gbiv directory",
+        "`cargo test` passes",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Tasks 2.1, 2.2, 5.1, 5.2"
+    },
+    {
+      "id": "US-003",
+      "title": "Implement guard checks in new_session_command",
+      "description": "As a developer, I need `new_session_command` to validate preconditions (tmux installed, inside a gbiv project, no duplicate session) before attempting any tmux operations, so that users get clear, actionable errors.",
+      "acceptanceCriteria": [
+        "Returns `Err` with message containing 'tmux not found' when `tmux -V` fails",
+        "Returns `Err` with a message suggesting `gbiv init` when `find_gbiv_root` returns `None`",
+        "Returns `Err` with a message suggesting `tmux attach -t <name>` or `--session-name` when `tmux has-session -t <name>` succeeds",
+        "Unit test: `new_session_command` returns an error when tmux is not available",
+        "`cargo test` passes",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Tasks 3.1, 3.2, 3.3, 5.3"
+    },
+    {
+      "id": "US-004",
+      "title": "Implement tmux session and window creation",
+      "description": "As a developer using gbiv, I want `new_session_command` to create a detached tmux session with 8 named windows (one per worktree) in ROYGBIV order so that I can immediately start working across all branches.",
+      "acceptanceCriteria": [
+        "Builds the list of 8 worktree paths: `<root>/main/<folder>/`, `<root>/red/<folder>/`, ..., `<root>/violet/<folder>/`",
+        "Skips any path that does not exist on disk and prints a warning identifying the missing path",
+        "Creates the session with `tmux new-session -d -s <name> -c <main-path> -n main`",
+        "Creates windows for red, orange, yellow, green, blue, indigo, violet in that order using `tmux new-window -t <name> -n <color> -c <path>`",
+        "Prints the session name and a success message on completion",
+        "Session name defaults to `GbivRoot.folder_name`",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Tasks 3.4, 3.5, 3.6, 3.7"
+    },
+    {
+      "id": "US-005",
+      "title": "Wire tmux subcommand into the gbiv CLI",
+      "description": "As a user, I want `gbiv tmux new-session` to be a valid CLI invocation with a `--session-name` flag so that the command is accessible from the terminal.",
+      "acceptanceCriteria": [
+        "`src/main.rs` registers the `tmux` subcommand using `tmux::tmux_command()`",
+        "`src/main.rs` dispatches `(\"tmux\", ...)` to `tmux::dispatch()`",
+        "`--session-name <name>` optional argument is defined on the `new-session` subcommand",
+        "`gbiv tmux new-session --help` exits with status 0 and shows `--session-name` in usage",
+        "`gbiv tmux` with no subcommand exits with non-zero status and prints usage help",
+        "`gbiv tmux unknown-cmd` exits with non-zero status and prints an unrecognized subcommand error",
+        "`cargo build` succeeds",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Tasks 4.1, 4.2, 4.3, 5.4"
+    }
+  ]
+}

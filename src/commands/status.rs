@@ -62,7 +62,7 @@ pub fn status_command() -> Result<(), String> {
     let handles: Vec<_> = COLORS
         .iter()
         .map(|&color| {
-            let worktree_dir = gbiv_root.join(color);
+            let worktree_dir = gbiv_root.root.join(color);
             thread::spawn(move || {
                 if !worktree_dir.exists() {
                     return None;
@@ -131,7 +131,7 @@ pub fn status_command() -> Result<(), String> {
         }
     }
 
-    let features = find_repo_in_worktree(&gbiv_root.join("main"))
+    let features = find_repo_in_worktree(&gbiv_root.root.join("main"))
         .map(|p| parse_gbiv_md(&p.join("GBIV.md")))
         .unwrap_or_default();
     print!("{}", format_gbiv_features(&features));

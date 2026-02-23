@@ -117,6 +117,39 @@ If the branch differs from the worktree color, also shows:
 - **Commit age** - how long since the last commit
 - **Ahead/behind** - commits ahead/behind upstream (or "no upstream")
 
+### Start a tmux session
+
+Run from **any worktree** within a gbiv-structured repository:
+
+```bash
+gbiv tmux new-session
+```
+
+Creates a detached tmux session with one named window per worktree, each opened in its respective directory:
+
+```
+main     ~/projects/myproject/main/myproject
+red      ~/projects/myproject/red/myproject
+orange   ~/projects/myproject/orange/myproject
+yellow   ~/projects/myproject/yellow/myproject
+green    ~/projects/myproject/green/myproject
+blue     ~/projects/myproject/blue/myproject
+indigo   ~/projects/myproject/indigo/myproject
+violet   ~/projects/myproject/violet/myproject
+```
+
+The session is named after the gbiv folder (e.g. `myproject`) by default. Use `--session-name` to override:
+
+```bash
+gbiv tmux new-session --session-name work
+tmux attach -t work
+```
+
+Worktree directories that don't exist are skipped with a warning. The command errors if:
+- `tmux` is not installed
+- you are not inside a gbiv-structured repository
+- a session with that name already exists
+
 ### GBIV.md
 
 `gbiv init` automatically creates a `GBIV.md` in the root of your repository inside the `main/` worktree (e.g., `main/myproject/GBIV.md`). Add features to it and they will appear at the bottom of `gbiv status`.

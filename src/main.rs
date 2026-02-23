@@ -1,6 +1,7 @@
 use clap::{Arg, Command};
 use commands::init::init_command;
 use commands::status::status_command;
+use commands::tmux;
 
 mod colors;
 mod commands;
@@ -26,6 +27,7 @@ fn cli() -> Command {
             Command::new("status")
                 .about("Show status of all ROYGBIV worktrees"),
         )
+        .subcommand(tmux::tmux_command())
 }
 
 fn main() {
@@ -41,6 +43,12 @@ fn main() {
         }
         Some(("status", _)) => {
             if let Err(e) = status_command() {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(("tmux", sub_matches)) => {
+            if let Err(e) = tmux::dispatch(sub_matches) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
