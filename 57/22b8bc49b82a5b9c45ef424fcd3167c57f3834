@@ -1,0 +1,23 @@
+openspec/specs/tmux-clean/spec.md
+  fe6c676c13738480 1-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "5722b8bc49b82a5b9c45ef424fcd3167c57f3834",
+  "prompts": {
+    "fe6c676c13738480": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d877c407-fa9c-4d9d-a8d0-ccc1f32779ea",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 79,
+      "total_deletions": 16,
+      "accepted_lines": 79,
+      "overriden_lines": 0
+    }
+  }
+}
