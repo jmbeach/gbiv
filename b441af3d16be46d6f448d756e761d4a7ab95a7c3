@@ -1,0 +1,46 @@
+openspec/specs/gbiv-tmux-new-session/spec.md
+  8295e25db3e737c4 1-56
+prd.json
+  574e55f9f36d304e 86
+openspec/specs/gbiv-tmux/spec.md
+  8295e25db3e737c4 1-10
+Cargo.toml
+  8295e25db3e737c4 8-10
+src/commands/init.rs
+  8295e25db3e737c4 124,172,188,198,207,220,231,263,274,291
+src/commands/tmux/new_session.rs
+  8295e25db3e737c4 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "b441af3d16be46d6f448d756e761d4a7ab95a7c3",
+  "prompts": {
+    "574e55f9f36d304e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d8568b57-f424-4cf3-9eed-b7687b061a99",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "8295e25db3e737c4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8189eef7-81a3-4944-9370-6933f36fb8cc",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 99,
+      "total_deletions": 20,
+      "accepted_lines": 99,
+      "overriden_lines": 0
+    }
+  }
+}
