@@ -1,0 +1,23 @@
+src/gbiv_md.rs
+  f5b9b5178b8fb7d9 83-85,233-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "3c50870f2abb681b28504ae9aaef843d7380638b",
+  "prompts": {
+    "f5b9b5178b8fb7d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f02b02e3-89b0-4db2-b247-b415d8ee9b74",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 34,
+      "total_deletions": 8,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    }
+  }
+}
