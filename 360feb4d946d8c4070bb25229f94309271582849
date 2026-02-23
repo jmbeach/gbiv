@@ -1,0 +1,44 @@
+src/commands/mod.rs
+  013079114bba052b 1
+prd.json
+  60fcccf7990b702e 50,128
+  013079114bba052b 69,97,142
+progress.txt
+  60fcccf7990b702e 16-26
+  013079114bba052b 27-46
+src/commands/cleanup.rs
+  013079114bba052b 1-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "360feb4d946d8c4070bb25229f94309271582849",
+  "prompts": {
+    "013079114bba052b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "96805ea9-2a55-44cf-8bbc-15f0bceba08a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 196,
+      "total_deletions": 3,
+      "accepted_lines": 196,
+      "overriden_lines": 0
+    },
+    "60fcccf7990b702e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca0dddc2-0cf8-4179-a142-3f33e416b159",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 2,
+      "accepted_lines": 13,
+      "overriden_lines": 0
+    }
+  }
+}
