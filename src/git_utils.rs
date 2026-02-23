@@ -172,6 +172,14 @@ pub fn get_remote_main_branch(path: &Path) -> Option<String> {
     None
 }
 
+pub fn remote_ref_exists(path: &Path, ref_name: &str) -> bool {
+    let output = ProcessCommand::new("git")
+        .args(["rev-parse", "--verify", ref_name])
+        .current_dir(path)
+        .output();
+    matches!(output, Ok(o) if o.status.success())
+}
+
 pub fn checkout_branch(path: &Path, branch: &str) -> Result<(), String> {
     let output = ProcessCommand::new("git")
         .args(["checkout", branch])

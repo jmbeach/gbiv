@@ -4,7 +4,7 @@ use crate::colors::COLORS;
 use crate::gbiv_md::remove_gbiv_features_by_tag;
 use crate::git_utils::{
     checkout_branch, find_gbiv_root, find_repo_in_worktree, get_quick_status,
-    get_remote_main_branch, is_merged_into, pull_remote,
+    get_remote_main_branch, is_merged_into, pull_remote, remote_ref_exists,
 };
 
 pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<(), String> {
@@ -34,7 +34,9 @@ pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<(), String> {
     }
 
     checkout_branch(&repo_path, color)?;
-    pull_remote(&repo_path, "origin", color)?;
+    if remote_ref_exists(&repo_path, &format!("origin/{}", color)) {
+        pull_remote(&repo_path, "origin", color)?;
+    }
 
     match find_repo_in_worktree(&gbiv_root.join("main")) {
         Some(main_repo) => {
