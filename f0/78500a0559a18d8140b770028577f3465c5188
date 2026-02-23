@@ -1,0 +1,123 @@
+openspec/changes/gbiv-md-support/tasks.md
+  7c33ded46bfd05f1 3-8,12,16-18
+ralph/prd.json
+  7c33ded46bfd05f1 1-2,4-16,20-34,38-59
+src/main.rs
+  d51d872471f2441e 7
+src/gbiv_md.rs
+  d51d872471f2441e 1-112,114-121
+Cargo.toml
+  d51d872471f2441e 8-10
+src/commands/status.rs
+  aa7c35e7638689f4 6,135-136,140-160,171-178,181-217
+README.md
+  29f130ef6da12202 120-121,123-162
+  7c33ded46bfd05f1 122
+prd.json
+  1d92aa3d089d7d27 22
+  5644dd3b2b7b0e25 55
+  17eb04973ff6750c 40
+progress.txt
+  29f130ef6da12202 6
+  d51d872471f2441e 4
+  1d92aa3d089d7d27 7
+  aa7c35e7638689f4 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "f078500a0559a18d8140b770028577f3465c5188",
+  "prompts": {
+    "17eb04973ff6750c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b397055-7b54-4e02-a75d-6c780e0005b5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "1d92aa3d089d7d27": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4feea693-5459-48cf-97a3-046d761581f2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 1,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "29f130ef6da12202": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "feeb3083-17ab-42f4-93c5-88ccbb3db315",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 44,
+      "total_deletions": 0,
+      "accepted_lines": 43,
+      "overriden_lines": 0
+    },
+    "5644dd3b2b7b0e25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "068c0ab4-f756-486a-8ef8-f1b9fcfdc877",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "7c33ded46bfd05f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f94e4932-6dc8-432c-9943-f158c3735c65",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 11,
+      "accepted_lines": 63,
+      "overriden_lines": 0
+    },
+    "aa7c35e7638689f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5525b0a5-f0f0-45b0-b8e7-230a752b6a5a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 88,
+      "total_deletions": 15,
+      "accepted_lines": 70,
+      "overriden_lines": 0
+    },
+    "d51d872471f2441e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0763c9b1-e3f2-481c-a08f-317a95a60cb6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 126,
+      "total_deletions": 0,
+      "accepted_lines": 125,
+      "overriden_lines": 0
+    }
+  }
+}
