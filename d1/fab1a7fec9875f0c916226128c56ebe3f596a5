@@ -1,0 +1,33 @@
+prd.json
+  c989fc178d43e041 1-107
+openspec/changes/gbiv-tmux-refresh/specs/gbiv-tmux/spec.md
+  c989fc178d43e041 1-12
+openspec/changes/gbiv-tmux-refresh/proposal.md
+  c989fc178d43e041 1-32
+openspec/changes/gbiv-tmux-refresh/specs/gbiv-tmux-refresh/spec.md
+  c989fc178d43e041 1-78
+openspec/changes/gbiv-tmux-refresh/tasks.md
+  c989fc178d43e041 1-35
+openspec/changes/gbiv-tmux-refresh/design.md
+  c989fc178d43e041 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "d1fab1a7fec9875f0c916226128c56ebe3f596a5",
+  "prompts": {
+    "c989fc178d43e041": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8942ca6b-ab3c-40bf-b2ba-ee6fcfd4ab60",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 307,
+      "total_deletions": 0,
+      "accepted_lines": 307,
+      "overriden_lines": 0
+    }
+  }
+}
