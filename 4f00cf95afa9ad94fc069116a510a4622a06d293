@@ -1,0 +1,23 @@
+openspec/changes/add-ralph-prd-lock-command/proposal.md
+  90ddd6184566becf 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "4f00cf95afa9ad94fc069116a510a4622a06d293",
+  "prompts": {
+    "90ddd6184566becf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42f82975-dd59-4fb4-a0fa-e5cc5e0bf7a3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Jared Beach <jaredbeachdesign@gmail.com>",
+      "messages": [],
+      "total_additions": 41,
+      "total_deletions": 6,
+      "accepted_lines": 35,
+      "overriden_lines": 0
+    }
+  }
+}
