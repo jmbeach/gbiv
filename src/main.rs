@@ -4,6 +4,7 @@ use commands::status::status_command;
 
 mod colors;
 mod commands;
+mod gbiv_md;
 mod git_utils;
 
 fn cli() -> Command {

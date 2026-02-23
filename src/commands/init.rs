@@ -5,6 +5,19 @@ use std::process::Command;
 use crate::colors::COLORS;
 use crate::git_utils::{get_existing_branches, get_main_branch, has_commits, is_git_repo};
 
+// Leading blank lines give users visible writing space above the --- so it's obvious features go there.
+const GBIV_MD_TEMPLATE: &str = "\n\n\n\n\n\n\n\n\n\n---\n# GBIV.md\n\nAdd features above the `---` line. Each feature starts with `- ` and an optional `[color]` tag.\n\nExample:\n\n- [red] My urgent feature\n  A note about this feature\n- [green] A less urgent feature\n- An untagged backlog item\n\nSupported tags match ROYGBIV colors: red, orange, yellow, green, blue, indigo, violet.\nUntagged items appear with a dim `backlog` label.\nEverything below `---` is ignored by gbiv.";
+
+fn write_gbiv_md_if_absent(main_repo_path: &Path) -> Result<(), String> {
+    let gbiv_md_path = main_repo_path.join("GBIV.md");
+    if !gbiv_md_path.exists() {
+        fs::write(&gbiv_md_path, GBIV_MD_TEMPLATE)
+            .map_err(|e| format!("Failed to write GBIV.md: {}", e))?;
+        println!("Created GBIV.md");
+    }
+    Ok(())
+}
+
 fn check_color_branches(path: &Path) -> Vec<String> {
     let branches = get_existing_branches(path);
     COLORS
@@ -113,6 +126,8 @@ pub fn init_command(folder: &str) -> Result<(), String> {
             }
         }
     }
+
+    write_gbiv_md_if_absent(Path::new(&main_repo_path))?;
 
     println!(
         "Successfully initialized '{}' with ROYGBIV worktrees!",
@@ -300,5 +315,37 @@ mod tests {
         }
 
         cleanup_test_dir(&base_dir);
+    }
+
+    #[test]
+    fn test_write_gbiv_md_creates_file_with_correct_content() {
+        let dir = setup_test_dir("write_gbiv_md_create");
+        write_gbiv_md_if_absent(Path::new(&dir)).unwrap();
+
+        let gbiv_md = Path::new(&dir).join("GBIV.md");
+        assert!(gbiv_md.exists(), "GBIV.md should be created");
+
+        let content = fs::read_to_string(&gbiv_md).unwrap();
+        assert!(content.starts_with("\n\n\n\n\n\n\n\n\n\n---\n"), "file should start with 10 newlines then ---");
+        assert!(content.contains("# GBIV.md"), "file should contain usage header");
+        assert!(content.contains("Add features above the `---` line"), "file should contain instructions");
+        assert!(content.contains("- [red] My urgent feature"), "file should contain example");
+        assert!(content.contains("Everything below `---` is ignored by gbiv."), "file should end with ignore note");
+
+        cleanup_test_dir(&dir);
+    }
+
+    #[test]
+    fn test_write_gbiv_md_does_not_overwrite_existing() {
+        let dir = setup_test_dir("write_gbiv_md_no_overwrite");
+        let existing_content = "my existing content";
+        fs::write(Path::new(&dir).join("GBIV.md"), existing_content).unwrap();
+
+        write_gbiv_md_if_absent(Path::new(&dir)).unwrap();
+
+        let content = fs::read_to_string(Path::new(&dir).join("GBIV.md")).unwrap();
+        assert_eq!(content, existing_content, "existing GBIV.md should not be overwritten");
+
+        cleanup_test_dir(&dir);
     }
 }

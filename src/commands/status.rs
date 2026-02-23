@@ -3,6 +3,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::colors::{ansi_color, COLORS, DIM, GREEN, RED, RESET, YELLOW};
+use crate::gbiv_md::parse_gbiv_md;
 use crate::git_utils::{
     find_gbiv_root, get_ahead_behind_vs, get_last_commit_age,
     get_quick_status, get_remote_main_branch, is_merged_into,
@@ -130,7 +131,33 @@ pub fn status_command() -> Result<(), String> {
         }
     }
 
+    let features = find_repo_in_worktree(&gbiv_root.join("main"))
+        .map(|p| parse_gbiv_md(&p.join("GBIV.md")))
+        .unwrap_or_default();
+    print!("{}", format_gbiv_features(&features));
+
     Ok(())
+}
+
+fn format_gbiv_features(features: &[crate::gbiv_md::GbivFeature]) -> String {
+    if features.is_empty() {
+        return String::new();
+    }
+    let mut out = String::new();
+    out.push('\n');
+    out.push_str(&format!("{}GBIV.md{}\n", DIM, RESET));
+    for feature in features {
+        match &feature.tag {
+            Some(tag) => {
+                let color_code = ansi_color(tag);
+                out.push_str(&format!("  {}{:<8}{}  {}\n", color_code, tag, RESET, feature.description));
+            }
+            None => {
+                out.push_str(&format!("  {}{:<8}{}  {}\n", DIM, "backlog", RESET, feature.description));
+            }
+        }
+    }
+    out
 }
 
 fn find_repo_in_worktree(worktree_dir: &Path) -> Option<std::path::PathBuf> {
@@ -142,4 +169,93 @@ fn find_repo_in_worktree(worktree_dir: &Path) -> Option<std::path::PathBuf> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gbiv_md::GbivFeature;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn make_feature(tag: Option<&str>, description: &str) -> GbivFeature {
+        GbivFeature { tag: tag.map(|s| s.to_string()), description: description.to_string(), notes: vec![] }
+    }
+
+    #[test]
+    fn gbiv_md_resolved_from_main_worktree_repo() {
+        let gbiv_root = TempDir::new().unwrap();
+        let main_dir = gbiv_root.path().join("main");
+        let repo_dir = main_dir.join("myrepo");
+        fs::create_dir_all(repo_dir.join(".git")).unwrap();
+        fs::write(repo_dir.join("GBIV.md"), "- [red] Fix bug\n").unwrap();
+
+        let gbiv_md_path = find_repo_in_worktree(&main_dir)
+            .map(|p| p.join("GBIV.md"))
+            .unwrap_or_else(|| main_dir.join("GBIV.md"));
+
+        assert_eq!(gbiv_md_path, repo_dir.join("GBIV.md"));
+        let features = crate::gbiv_md::parse_gbiv_md(&gbiv_md_path);
+        assert_eq!(features.len(), 1);
+        assert_eq!(features[0].tag, Some("red".to_string()));
+    }
+
+    #[test]
+    fn gbiv_md_not_read_from_gbiv_root_directly() {
+        let gbiv_root = TempDir::new().unwrap();
+        let main_dir = gbiv_root.path().join("main");
+        let repo_dir = main_dir.join("myrepo");
+        fs::create_dir_all(repo_dir.join(".git")).unwrap();
+
+        // Place GBIV.md at gbiv_root (should be ignored)
+        fs::write(gbiv_root.path().join("GBIV.md"), "- [red] Root-level bug\n").unwrap();
+        // Place GBIV.md at the correct repo location
+        fs::write(repo_dir.join("GBIV.md"), "- [green] Repo-level feature\n").unwrap();
+
+        let gbiv_md_path = find_repo_in_worktree(&main_dir)
+            .map(|p| p.join("GBIV.md"))
+            .unwrap_or_else(|| main_dir.join("GBIV.md"));
+
+        let features = crate::gbiv_md::parse_gbiv_md(&gbiv_md_path);
+        assert_eq!(features.len(), 1);
+        // Must find green (repo), not red (root)
+        assert_eq!(features[0].tag, Some("green".to_string()));
+    }
+
+    #[test]
+    fn format_gbiv_features_empty() {
+        assert_eq!(format_gbiv_features(&[]), "");
+    }
+
+    #[test]
+    fn format_gbiv_features_untagged_shows_backlog() {
+        let features = vec![make_feature(None, "Do something")];
+        let out = format_gbiv_features(&features);
+        assert!(out.contains("backlog"));
+        assert!(out.contains("Do something"));
+        assert!(out.contains("GBIV.md"));
+    }
+
+    #[test]
+    fn format_gbiv_features_tagged_shows_color_and_tag() {
+        let features = vec![make_feature(Some("red"), "Fix critical bug")];
+        let out = format_gbiv_features(&features);
+        assert!(out.contains("red"));
+        assert!(out.contains("Fix critical bug"));
+        assert!(out.contains("GBIV.md"));
+        // ANSI red code
+        assert!(out.contains("\x1b[31m"));
+    }
+
+    #[test]
+    fn format_gbiv_features_multiple() {
+        let features = vec![
+            make_feature(Some("green"), "Feature A"),
+            make_feature(None, "Feature B"),
+        ];
+        let out = format_gbiv_features(&features);
+        assert!(out.contains("Feature A"));
+        assert!(out.contains("Feature B"));
+        assert!(out.contains("backlog"));
+    }
 }
