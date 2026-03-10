@@ -1,0 +1,5 @@
+[tasks.watch]
+script = ["RUST_LOG=debug cargo watch -w src --exec 'clippy' --exec 'build' 2>&1 | tee watch.log"]
+
+[tasks.watch-tests]
+script = ["cargo watch --exec test 2>&1 | tee watch-tests.log"]
