@@ -316,7 +316,9 @@ pub fn rebase_onto(path: &Path, upstream: &str) -> Result<(), String> {
     if output.status.success() {
         return Ok(());
     }
-    let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let err = format!("{}\n{}", stdout, stderr).trim().to_string();
     // Abort the failed rebase to leave the worktree clean
     let _ = ProcessCommand::new("git")
         .args(["rebase", "--abort"])
@@ -389,6 +391,45 @@ mod tests {
 
         let result = find_gbiv_root(&base);
         assert!(result.is_none(), "expected None but got Some");
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn test_rebase_onto_error_includes_stdout_and_stderr() {
+        let base = PathBuf::from("/tmp/gbiv_test_rebase_onto_stdout_stderr");
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(&base).unwrap();
+        init_git_repo(&base);
+
+        // Create a file on main that we will conflict with
+        fs::write(base.join("conflict.txt"), "main content\n").unwrap();
+        Command::new("git").args(["add", "."]).current_dir(&base).output().unwrap();
+        Command::new("git").args(["commit", "-m", "add conflict file on main"]).current_dir(&base).output().unwrap();
+
+        // Create a feature branch from the initial commit (parent of HEAD)
+        Command::new("git").args(["checkout", "-b", "feature", "HEAD~1"]).current_dir(&base).output().unwrap();
+
+        // Create a conflicting change on the feature branch
+        fs::write(base.join("conflict.txt"), "feature content\n").unwrap();
+        Command::new("git").args(["add", "."]).current_dir(&base).output().unwrap();
+        Command::new("git").args(["commit", "-m", "add conflict file on feature"]).current_dir(&base).output().unwrap();
+
+        // Attempt to rebase feature onto main — this should fail with a conflict
+        let result = rebase_onto(&base, "main");
+        assert!(result.is_err(), "expected rebase to fail due to conflict");
+
+        let err_msg = result.unwrap_err();
+
+        // Git writes conflict details like "CONFLICT (add/add)" to stdout
+        // during a rebase conflict, while "could not apply" goes to stderr.
+        // The current implementation only captures stderr, so this assertion
+        // should FAIL, proving we need to include stdout in the error.
+        assert!(
+            err_msg.contains("CONFLICT"),
+            "expected error to contain stdout content 'CONFLICT', but got: {}",
+            err_msg
+        );
 
         let _ = fs::remove_dir_all(&base);
     }

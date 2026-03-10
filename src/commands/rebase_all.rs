@@ -25,9 +25,9 @@ pub fn rebase_all_command() -> Result<(), String> {
         .ok_or_else(|| "Could not determine remote main branch (tried origin/main, origin/master, origin/develop)".to_string())?;
 
     match pull(&main_repo) {
-        Ok(()) => println!("{}main    {}  {}pulled{}", "\x1b[0m", RESET, GREEN, RESET),
+        Ok(()) => println!("\x1b[0mmain    {}  {}pulled{}", RESET, GREEN, RESET),
         Err(e) => {
-            println!("{}main    {}  {}pull failed: {}{}", "\x1b[0m", RESET, RED, e, RESET);
+            println!("\x1b[0mmain    {}  {}pull failed: {}{}", RESET, RED, e, RESET);
             return Err("git pull failed in main worktree".to_string());
         }
     }
@@ -96,10 +96,8 @@ pub fn rebase_all_command() -> Result<(), String> {
                 succeeded += 1;
             }
             Err(e) => {
-                println!(
-                    "{}{:<8}{}  {}rebase failed: {}{}",
-                    color_code, color, RESET, RED, e, RESET
-                );
+                let formatted = format_rebase_error(color, color_code, &e);
+                println!("{}", formatted);
                 failed += 1;
             }
         }
@@ -118,8 +116,20 @@ pub fn rebase_all_command() -> Result<(), String> {
     }
 }
 
+pub fn format_rebase_error(color: &str, color_code: &str, error: &str) -> String {
+    let mut lines = error.lines();
+    let first = lines.next().unwrap_or("");
+    let mut result = format!("{}{:<8}{}  {}rebase failed: {}{}", color_code, color, RESET, RED, first, RESET);
+    for line in lines {
+        result.push('\n');
+        result.push_str(&format!("{}          {}{}", RED, line, RESET));
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
+    use super::format_rebase_error;
     use crate::git_utils::{ensure_gitignore_entry, get_git_dir, get_quick_status};
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -214,5 +224,52 @@ mod tests {
         );
 
         cleanup(&base);
+    }
+
+    #[test]
+    fn test_rebase_error_format_includes_branch_name() {
+        let result = format_rebase_error("yellow", "", "could not apply 69957f7...");
+        let first_line = result.lines().next().expect("should have at least one line");
+        assert!(
+            first_line.contains("yellow"),
+            "First line should contain the color/branch name 'yellow', got: {}",
+            first_line
+        );
+        assert!(
+            first_line.contains("could not apply 69957f7..."),
+            "First line should contain the error summary, got: {}",
+            first_line
+        );
+    }
+
+    #[test]
+    fn test_rebase_error_format_indents_detail_lines() {
+        let result = format_rebase_error("yellow", "", "line1\nhint: line2\nhint: line3");
+        let lines: Vec<&str> = result.lines().collect();
+        assert!(
+            lines.len() >= 3,
+            "Expected at least 3 lines of output, got {}: {:?}",
+            lines.len(),
+            lines
+        );
+        assert!(
+            lines[0].contains("yellow"),
+            "First line should contain the color/branch name 'yellow', got: {}",
+            lines[0]
+        );
+        for (i, line) in lines.iter().enumerate().skip(1) {
+            // Strip ANSI escape sequences before checking indentation
+            let stripped: String = line.chars().fold((String::new(), false), |(mut s, in_esc), c| {
+                if c == '\x1b' { (s, true) }
+                else if in_esc { if c == 'm' { (s, false) } else { (s, true) } }
+                else { s.push(c); (s, false) }
+            }).0;
+            assert!(
+                stripped.starts_with("  ") || stripped.starts_with("\t"),
+                "Detail line {} should be indented, got: '{}'",
+                i,
+                line
+            );
+        }
     }
 }
