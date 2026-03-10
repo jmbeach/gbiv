@@ -1,3 +1,4 @@
+pub mod clean;
 pub mod new_session;
 
 use clap::Command;
@@ -8,6 +9,7 @@ pub fn tmux_command() -> Command {
         .subcommand_required(true)
         .arg_required_else_help(true)
         .subcommand(new_session::new_session_subcommand())
+        .subcommand(clean::clean_subcommand())
 }
 
 pub fn dispatch(sub_matches: &clap::ArgMatches) -> Result<(), String> {
@@ -16,6 +18,7 @@ pub fn dispatch(sub_matches: &clap::ArgMatches) -> Result<(), String> {
             let session_name = args.get_one::<String>("session-name").map(|s| s.as_str());
             new_session::new_session_command(session_name)
         }
+        Some(("clean", _)) => clean::clean_command(),
         _ => unreachable!(),
     }
 }
