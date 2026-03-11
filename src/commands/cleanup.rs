@@ -7,7 +7,7 @@ use crate::git_utils::{
     get_remote_main_branch, is_merged_into, reset_hard,
 };
 
-pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<(), String> {
+pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<String, String> {
     let worktree_dir = gbiv_root.join(color);
 
     let repo_path = find_repo_in_worktree(&worktree_dir)
@@ -19,8 +19,7 @@ pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<(), String> {
         .ok_or_else(|| format!("Could not determine current branch for {} worktree", color))?;
 
     if branch == color {
-        println!("{} worktree is already on the {} branch, skipping", color, color);
-        return Ok(());
+        return Ok(format!("{} worktree is already on the {} branch, skipping", color, color));
     }
 
     let remote_main = get_remote_main_branch(&repo_path)
@@ -36,6 +35,8 @@ pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<(), String> {
     checkout_branch(&repo_path, color)?;
     reset_hard(&repo_path, &remote_main)?;
 
+    let message = format!("{} worktree cleaned up (was on {}), reset to {}", color, branch, remote_main);
+
     match find_repo_in_worktree(&gbiv_root.join("main")) {
         Some(main_repo) => {
             let gbiv_md_path = main_repo.join("GBIV.md");
@@ -46,7 +47,7 @@ pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<(), String> {
         }
     }
 
-    Ok(())
+    Ok(message)
 }
 
 pub fn cleanup_command(color: Option<&str>) -> Result<(), String> {
@@ -56,11 +57,14 @@ pub fn cleanup_command(color: Option<&str>) -> Result<(), String> {
         .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
 
     if let Some(c) = color {
-        cleanup_one(&gbiv_root.root, c)
+        let msg = cleanup_one(&gbiv_root.root, c)?;
+        println!("{}", msg);
+        Ok(())
     } else {
         for &c in COLORS.iter() {
-            if let Err(e) = cleanup_one(&gbiv_root.root, c) {
-                eprintln!("Warning [{}]: {}", c, e);
+            match cleanup_one(&gbiv_root.root, c) {
+                Ok(msg) => println!("{}", msg),
+                Err(e) => eprintln!("Warning [{}]: {}", c, e),
             }
         }
         Ok(())
@@ -234,6 +238,48 @@ mod tests {
         assert_eq!(
             current_branch, "red",
             "worktree should be on the color branch after cleanup"
+        );
+    }
+
+    #[test]
+    fn cleanup_one_returns_success_message_with_previous_branch() {
+        let (_source_dir, root, _repo_path) = setup_worktree_with_merged_feature();
+
+        let result = cleanup_one(root.path(), "red");
+        assert!(result.is_ok(), "expected Ok but got: {:?}", result);
+
+        let message = result.unwrap();
+        assert!(
+            message.contains("red worktree cleaned up"),
+            "expected success message containing 'red worktree cleaned up', got: {:?}",
+            message
+        );
+        assert!(
+            message.contains("feature-branch"),
+            "expected success message to mention previous branch 'feature-branch', got: {:?}",
+            message
+        );
+        assert!(
+            message.contains("origin/main"),
+            "expected success message to mention reset target 'origin/main', got: {:?}",
+            message
+        );
+    }
+
+    #[test]
+    fn cleanup_one_returns_skip_message_when_on_color_branch() {
+        let root = TempDir::new().unwrap();
+        let repo_path = root.path().join("red").join("myrepo");
+        setup_empty_repo_on_branch(&repo_path, "red");
+
+        let result = cleanup_one(root.path(), "red");
+        assert!(result.is_ok(), "expected Ok but got: {:?}", result);
+
+        let message = result.unwrap();
+        assert!(
+            message.contains("red worktree is already on the red branch, skipping"),
+            "expected skip message 'red worktree is already on the red branch, skipping', got: {:?}",
+            message
         );
     }
 
