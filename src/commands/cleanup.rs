@@ -4,7 +4,7 @@ use crate::colors::COLORS;
 use crate::gbiv_md::remove_gbiv_features_by_tag;
 use crate::git_utils::{
     checkout_branch, find_gbiv_root, find_repo_in_worktree, get_quick_status,
-    get_remote_main_branch, is_merged_into, pull_remote,
+    get_remote_main_branch, is_merged_into, reset_hard,
 };
 
 pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<(), String> {
@@ -34,7 +34,7 @@ pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<(), String> {
     }
 
     checkout_branch(&repo_path, color)?;
-    pull_remote(&repo_path, "origin", color)?;
+    reset_hard(&repo_path, &remote_main)?;
 
     match find_repo_in_worktree(&gbiv_root.join("main")) {
         Some(main_repo) => {
@@ -126,6 +126,114 @@ mod tests {
             err.contains("No remote"),
             "expected 'No remote' in error: {}",
             err
+        );
+    }
+
+    /// Helper: create a source repo (origin) with one commit on main, then create
+    /// a worktree-style repo that has origin pointing to source, a feature branch
+    /// that is already merged (same commit as origin/main), and a local-only "red"
+    /// color branch. Returns (source_dir, root) so TempDirs stay alive.
+    fn setup_worktree_with_merged_feature(
+    ) -> (TempDir, TempDir, std::path::PathBuf) {
+        // Source repo acts as "origin" — has one commit on main
+        let source_dir = TempDir::new().unwrap();
+        let source_path = source_dir.path().join("source");
+        setup_repo_with_commit(&source_path, "main");
+
+        // Worktree repo
+        let root = TempDir::new().unwrap();
+        let repo_path = root.path().join("red").join("myrepo");
+        std::fs::create_dir_all(&repo_path).unwrap();
+        git(&["init"], &repo_path);
+        git(&["config", "user.email", "test@example.com"], &repo_path);
+        git(&["config", "user.name", "Test"], &repo_path);
+        git(
+            &["remote", "add", "origin", source_path.to_str().unwrap()],
+            &repo_path,
+        );
+        git(&["fetch", "origin"], &repo_path);
+
+        // Create the local-only "red" color branch from origin/main
+        git(&["checkout", "-b", "red", "origin/main"], &repo_path);
+
+        // Create a feature branch from origin/main (already merged since same commit)
+        git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+
+        // Also set up main worktree dir so GBIV.md step doesn't warn
+        let main_repo = root.path().join("main").join("myrepo");
+        std::fs::create_dir_all(&main_repo).unwrap();
+        git(&["init"], &main_repo);
+
+        (source_dir, root, repo_path)
+    }
+
+    #[test]
+    fn cleanup_resets_color_branch_head_to_origin_main() {
+        let (_source_dir, root, repo_path) = setup_worktree_with_merged_feature();
+
+        // Confirm we're on feature-branch before cleanup
+        let output = Cmd::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        assert_eq!(branch, "feature-branch");
+
+        // Run cleanup — this should succeed but currently fails because
+        // pull_remote tries `git pull origin red` and "red" doesn't exist on remote
+        let result = cleanup_one(root.path(), "red");
+        assert!(result.is_ok(), "expected Ok but got: {:?}", result);
+
+        // After cleanup, HEAD should be on the "red" branch
+        let output = Cmd::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        let current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        assert_eq!(current_branch, "red");
+
+        // The "red" branch should be at the same commit as origin/main
+        let red_rev = Cmd::new("git")
+            .args(["rev-parse", "red"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        let origin_main_rev = Cmd::new("git")
+            .args(["rev-parse", "origin/main"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        let red_commit = String::from_utf8_lossy(&red_rev.stdout).trim().to_string();
+        let main_commit = String::from_utf8_lossy(&origin_main_rev.stdout)
+            .trim()
+            .to_string();
+        assert_eq!(
+            red_commit, main_commit,
+            "red branch should be at origin/main after cleanup"
+        );
+    }
+
+    #[test]
+    fn cleanup_succeeds_when_color_branch_has_no_remote_tracking() {
+        let (_source_dir, root, repo_path) = setup_worktree_with_merged_feature();
+
+        // cleanup_one should succeed — the color branch is local-only
+        // and doesn't exist on the remote
+        let result = cleanup_one(root.path(), "red");
+        assert!(result.is_ok(), "expected Ok but got: {:?}", result);
+
+        // Verify we're on the color branch after cleanup
+        let output = Cmd::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        let current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        assert_eq!(
+            current_branch, "red",
+            "worktree should be on the color branch after cleanup"
         );
     }
 
