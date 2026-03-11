@@ -248,11 +248,7 @@ mod tests {
         let result = cleanup_one(root.path(), "red");
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
-        // cleanup_one should return a message describing what happened.
-        // Currently it returns Ok(()) with no message; this test will fail
-        // until the return type is changed to carry a descriptive message
-        // (e.g., Result<String, String>).
-        let message = format!("{:?}", result.unwrap());
+        let message = result.unwrap();
         assert!(
             message.contains("red worktree cleaned up"),
             "expected success message containing 'red worktree cleaned up', got: {:?}",
@@ -279,11 +275,7 @@ mod tests {
         let result = cleanup_one(root.path(), "red");
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
-        // cleanup_one should return a message indicating it skipped.
-        // Currently it returns Ok(()) with no message; this test will fail
-        // until the return type is changed to carry a descriptive message
-        // (e.g., Result<String, String>).
-        let message = format!("{:?}", result.unwrap());
+        let message = result.unwrap();
         assert!(
             message.contains("red worktree is already on the red branch, skipping"),
             "expected skip message 'red worktree is already on the red branch, skipping', got: {:?}",
