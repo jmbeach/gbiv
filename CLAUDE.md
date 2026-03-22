@@ -2,4 +2,4 @@
 
 ## Testing instructions
 
-- Run `cargo test`
+- Run `cargo nextest run`
