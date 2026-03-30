@@ -1,7 +1,8 @@
-use clap::{Arg, Command};
+use clap::{Arg, ArgGroup, Command};
 use colors::COLORS;
 use commands::cleanup::cleanup_command;
 use commands::init::init_command;
+use commands::mark::mark_command;
 use commands::rebase_all::rebase_all_command;
 use commands::status::status_command;
 use commands::tmux;
@@ -46,6 +47,40 @@ fn cli() -> Command {
                         .value_parser(clap::builder::PossibleValuesParser::new(COLORS)),
                 ),
         )
+        .subcommand(
+            Command::new("mark")
+                .about("Set lifecycle status on a GBIV.md feature entry")
+                .arg(
+                    Arg::new("done")
+                        .long("done")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Mark the feature as done"),
+                )
+                .arg(
+                    Arg::new("in-progress")
+                        .long("in-progress")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Mark the feature as in-progress"),
+                )
+                .arg(
+                    Arg::new("unset")
+                        .long("unset")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Remove the status from the feature"),
+                )
+                .group(
+                    ArgGroup::new("status")
+                        .args(["done", "in-progress", "unset"])
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("color")
+                        .help("The color worktree to mark (inferred from CWD if omitted)")
+                        .required(false)
+                        .index(1)
+                        .value_parser(clap::builder::PossibleValuesParser::new(COLORS)),
+                ),
+        )
 }
 
 fn main() {
@@ -82,6 +117,25 @@ fn main() {
             if let Err(e) = cleanup_command(color) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
+            }
+        }
+        Some(("mark", sub_matches)) => {
+            let status = if sub_matches.get_flag("done") {
+                Some("done")
+            } else if sub_matches.get_flag("in-progress") {
+                Some("in-progress")
+            } else if sub_matches.get_flag("unset") {
+                Some("unset")
+            } else {
+                None
+            };
+            let color = sub_matches.get_one::<String>("color").map(|s| s.as_str());
+            match mark_command(status, color, None) {
+                Ok(msg) => println!("{}", msg),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
         _ => unreachable!(),

@@ -227,9 +227,9 @@ mod tests {
     #[test]
     fn test_active_colors_extracts_valid_roygbiv_tags() {
         let features = vec![
-            GbivFeature { tag: Some("red".to_string()), description: "Fix bug".to_string(), notes: vec![] },
-            GbivFeature { tag: Some("blue".to_string()), description: "Add feature".to_string(), notes: vec![] },
-            GbivFeature { tag: None, description: "Untagged".to_string(), notes: vec![] },
+            GbivFeature { tag: Some("red".to_string()), status: None, description: "Fix bug".to_string(), notes: vec![] },
+            GbivFeature { tag: Some("blue".to_string()), status: None, description: "Add feature".to_string(), notes: vec![] },
+            GbivFeature { tag: None, status: None, description: "Untagged".to_string(), notes: vec![] },
         ];
         let active = active_colors_from_features(&features);
         assert!(active.contains("red"));
@@ -240,8 +240,8 @@ mod tests {
     #[test]
     fn test_active_colors_excludes_invalid_tags() {
         let features = vec![
-            GbivFeature { tag: Some("purple".to_string()), description: "Invalid color".to_string(), notes: vec![] },
-            GbivFeature { tag: Some("red".to_string()), description: "Valid".to_string(), notes: vec![] },
+            GbivFeature { tag: Some("purple".to_string()), status: None, description: "Invalid color".to_string(), notes: vec![] },
+            GbivFeature { tag: Some("red".to_string()), status: None, description: "Valid".to_string(), notes: vec![] },
         ];
         let active = active_colors_from_features(&features);
         assert!(active.contains("red"));
@@ -252,8 +252,8 @@ mod tests {
     #[test]
     fn test_active_colors_deduplicates() {
         let features = vec![
-            GbivFeature { tag: Some("red".to_string()), description: "First".to_string(), notes: vec![] },
-            GbivFeature { tag: Some("red".to_string()), description: "Second".to_string(), notes: vec![] },
+            GbivFeature { tag: Some("red".to_string()), status: None, description: "First".to_string(), notes: vec![] },
+            GbivFeature { tag: Some("red".to_string()), status: None, description: "Second".to_string(), notes: vec![] },
         ];
         let active = active_colors_from_features(&features);
         assert_eq!(active.len(), 1);

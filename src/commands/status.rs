@@ -150,7 +150,11 @@ fn format_gbiv_features(features: &[crate::gbiv_md::GbivFeature]) -> String {
         match &feature.tag {
             Some(tag) => {
                 let color_code = ansi_color(tag);
-                out.push_str(&format!("  {}{:<8}{}  {}\n", color_code, tag, RESET, feature.description));
+                let status_suffix = match &feature.status {
+                    Some(s) => format!(" [{}]", s),
+                    None => String::new(),
+                };
+                out.push_str(&format!("  {}{}{}{}  {}\n", color_code, tag, status_suffix, RESET, feature.description));
             }
             None => {
                 out.push_str(&format!("  {}{:<8}{}  {}\n", DIM, "backlog", RESET, feature.description));
@@ -168,7 +172,11 @@ mod tests {
     use tempfile::TempDir;
 
     fn make_feature(tag: Option<&str>, description: &str) -> GbivFeature {
-        GbivFeature { tag: tag.map(|s| s.to_string()), description: description.to_string(), notes: vec![] }
+        GbivFeature { tag: tag.map(|s| s.to_string()), description: description.to_string(), notes: vec![], status: None }
+    }
+
+    fn make_feature_with_status(tag: Option<&str>, description: &str, status: &str) -> GbivFeature {
+        GbivFeature { tag: tag.map(|s| s.to_string()), description: description.to_string(), notes: vec![], status: Some(status.to_string()) }
     }
 
     #[test]
@@ -246,5 +254,18 @@ mod tests {
         assert!(out.contains("Feature A"));
         assert!(out.contains("Feature B"));
         assert!(out.contains("backlog"));
+    }
+
+    #[test]
+    fn format_gbiv_features_shows_lifecycle_status_after_color_name() {
+        // A feature tagged [red] with [done] status should display "red [done]" in the row.
+        // A feature tagged [blue] with [in-progress] status should display "blue [in-progress]".
+        let features = vec![
+            make_feature_with_status(Some("red"), "Fix critical bug", "done"),
+            make_feature_with_status(Some("blue"), "Add feature", "in-progress"),
+        ];
+        let out = format_gbiv_features(&features);
+        assert!(out.contains("red [done]"), "expected 'red [done]' in output, got: {:?}", out);
+        assert!(out.contains("blue [in-progress]"), "expected 'blue [in-progress]' in output, got: {:?}", out);
     }
 }
