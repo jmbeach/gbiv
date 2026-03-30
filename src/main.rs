@@ -78,7 +78,16 @@ fn cli() -> Command {
                         .help("The color worktree to mark (inferred from CWD if omitted)")
                         .required(false)
                         .index(1)
-                        .value_parser(clap::builder::PossibleValuesParser::new(COLORS)),
+                        .value_parser(clap::builder::ValueParser::new(|s: &str| -> Result<String, String> {
+                            if s == "done" || s == "in-progress" || s == "unset" {
+                                return Err(format!("'{}' is a status flag, not a color. Did you mean: gbiv mark --{}", s, s));
+                            }
+                            if COLORS.contains(&s) {
+                                Ok(s.to_string())
+                            } else {
+                                Err(format!("invalid color '{}'. Possible values: {}", s, COLORS.join(", ")))
+                            }
+                        })),
                 ),
         )
 }
