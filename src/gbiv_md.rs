@@ -125,11 +125,15 @@ pub fn set_gbiv_feature_status(path: &std::path::Path, color: &str, status: Opti
         .map_err(|e| format!("Failed to read GBIV.md: {}", e))?;
 
     let mut found = false;
+    let mut past_separator = false;
     let mut result_lines: Vec<String> = vec![];
     let tag_prefix = format!("- [{}] ", color);
 
     for line in content.lines() {
-        if line.starts_with(&tag_prefix) {
+        if line == "---" {
+            past_separator = true;
+        }
+        if !past_separator && line.starts_with(&tag_prefix) {
             found = true;
             let after_tag = &line[tag_prefix.len()..];
             // Strip existing status bracket if present

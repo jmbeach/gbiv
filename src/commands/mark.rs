@@ -4,18 +4,13 @@ use crate::colors::COLORS;
 use crate::gbiv_md::set_gbiv_feature_status;
 use crate::git_utils::{find_gbiv_root, find_repo_in_worktree};
 
-/// Infer the color from a path by checking if any path component matches a COLORS entry.
-fn infer_color_from_path(path: &Path) -> Option<&'static str> {
-    for component in path.components() {
-        if let Some(name) = component.as_os_str().to_str() {
-            for &color in COLORS.iter() {
-                if name == color {
-                    return Some(color);
-                }
-            }
-        }
-    }
-    None
+/// Infer the color by finding the path component directly under the gbiv root.
+fn infer_color_from_path(cwd: &Path, gbiv_root: &Path) -> Option<&'static str> {
+    // Strip the gbiv root prefix from CWD, then check the first remaining component
+    let relative = cwd.strip_prefix(gbiv_root).ok()?;
+    let first_component = relative.components().next()?;
+    let name = first_component.as_os_str().to_str()?;
+    COLORS.iter().find(|&&c| c == name).copied()
 }
 
 pub fn mark_command(
@@ -30,19 +25,19 @@ pub fn mark_command(
             .map_err(|e| format!("Failed to get current directory: {}", e))?,
     };
 
-    // Resolve color: explicit or inferred from CWD
+    // Find gbiv root
+    let gbiv_root = find_gbiv_root(&cwd)
+        .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
+
+    // Resolve color: explicit or inferred from CWD relative to gbiv root
     let resolved_color = match color {
         Some(c) => c.to_string(),
         None => {
-            infer_color_from_path(&cwd)
+            infer_color_from_path(&cwd, &gbiv_root.root)
                 .ok_or_else(|| "Could not infer color from current worktree directory".to_string())?
                 .to_string()
         }
     };
-
-    // Find gbiv root
-    let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
 
     // Locate GBIV.md in main worktree
     let main_repo = find_repo_in_worktree(&gbiv_root.root.join("main"))
