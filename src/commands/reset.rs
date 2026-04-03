@@ -20,34 +20,25 @@ pub fn reset_one(gbiv_root: &Path, color: &str) -> Result<String, String> {
 }
 
 pub fn reset_command(color: Option<&str>) -> Result<(), String> {
-    if let Some(c) = color {
-        let cwd = std::env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {}", e))?;
-        let gbiv_root = find_gbiv_root(&cwd)
-            .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
-        let msg = reset_one(&gbiv_root.root, c)?;
-        println!("{}", msg);
-        Ok(())
-    } else {
-        let cwd = std::env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {}", e))?;
-        let gbiv_root = find_gbiv_root(&cwd)
-            .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
+    let cwd = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    let gbiv_root = find_gbiv_root(&cwd)
+        .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
 
-        let cwd_str = cwd.to_string_lossy();
-        let inferred_color = COLORS.iter().find(|&&c| {
-            cwd_str.contains(&format!("/{}/", c))
-        });
-
-        match inferred_color {
-            Some(&c) => {
-                let msg = reset_one(&gbiv_root.root, c)?;
-                println!("{}", msg);
-                Ok(())
-            }
-            None => Err("Could not determine color from current directory. Run from a color worktree or specify a color.".to_string()),
+    let color = match color {
+        Some(c) => c.to_string(),
+        None => {
+            let cwd_str = cwd.to_string_lossy();
+            COLORS.iter()
+                .find(|&&c| cwd_str.contains(&format!("/{}/", c)))
+                .map(|&c| c.to_string())
+                .ok_or_else(|| "Could not determine color from current directory. Run from a color worktree or specify a color.".to_string())?
         }
-    }
+    };
+
+    let msg = reset_one(&gbiv_root.root, &color)?;
+    println!("{}", msg);
+    Ok(())
 }
 
 #[cfg(test)]
