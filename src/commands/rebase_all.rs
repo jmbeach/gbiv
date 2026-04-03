@@ -1,3 +1,6 @@
+use std::path::Path;
+use std::thread;
+
 use crate::colors::{ansi_color, COLORS, GREEN, RED, RESET, YELLOW};
 use crate::git_utils::{
     ensure_gitignore_entry, fetch_remote, find_gbiv_root, find_repo_in_worktree,
@@ -6,15 +9,57 @@ use crate::git_utils::{
 
 const GBIV_STATE_FILES: &[&str] = &[".last-branch"];
 
+enum RebaseResult {
+    Skipped(String),
+    SkippedRebaseInProgress,
+    AlreadyUpToDate,
+    Rebased(String),
+    FetchFailed(String),
+    RebaseFailed(String),
+}
+
+fn rebase_worktree(root: &Path, color: &str, remote_main: &str) -> RebaseResult {
+    let worktree_dir = root.join(color);
+
+    if !worktree_dir.exists() {
+        return RebaseResult::Skipped("not found".to_string());
+    }
+
+    let repo_path = match find_repo_in_worktree(&worktree_dir) {
+        Some(p) => p,
+        None => return RebaseResult::Skipped("no repo in worktree".to_string()),
+    };
+
+    // Skip if a rebase is already in progress
+    let git_dir_path = resolve_git_dir(&repo_path).unwrap_or_else(|| repo_path.join(".git"));
+    if git_dir_path.join("rebase-merge").exists() || git_dir_path.join("rebase-apply").exists() {
+        return RebaseResult::SkippedRebaseInProgress;
+    }
+
+    // Skip if already up-to-date (uses the locally cached ref — main pull already fetched)
+    if let Some((_, behind)) = get_ahead_behind_vs(&repo_path, remote_main) {
+        if behind == 0 {
+            return RebaseResult::AlreadyUpToDate;
+        }
+    }
+
+    // Fetch to ensure the remote ref is current, then rebase
+    if let Err(e) = fetch_remote(&repo_path) {
+        return RebaseResult::FetchFailed(e);
+    }
+
+    match rebase_onto(&repo_path, remote_main) {
+        Ok(()) => RebaseResult::Rebased(remote_main.to_string()),
+        Err(e) => RebaseResult::RebaseFailed(e),
+    }
+}
+
 pub fn rebase_all_command() -> Result<(), String> {
     let cwd = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
 
     let gbiv_root = find_gbiv_root(&cwd)
         .ok_or_else(|| "Could not find gbiv root".to_string())?;
-
-    let mut succeeded = 0u32;
-    let mut failed = 0u32;
 
     // Pull the main worktree first so colour rebases are based on the latest main
     let main_worktree_dir = gbiv_root.root.join("main");
@@ -32,71 +77,66 @@ pub fn rebase_all_command() -> Result<(), String> {
         }
     }
 
+    // Register gbiv state files in info/exclude before spawning threads to avoid
+    // concurrent writes to the same file (all worktrees share one git common dir).
     for &color in &COLORS {
-        let color_code = ansi_color(color);
         let worktree_dir = gbiv_root.root.join(color);
-
-        if !worktree_dir.exists() {
-            println!("{}{:<8}{}  skipped (not found)", color_code, color, RESET);
-            continue;
-        }
-
-        let repo_path = match find_repo_in_worktree(&worktree_dir) {
-            Some(p) => p,
-            None => {
-                println!("{}{:<8}{}  skipped (no repo in worktree)", color_code, color, RESET);
-                continue;
-            }
-        };
-
-        // Skip if a rebase is already in progress
-        let git_dir_path = resolve_git_dir(&repo_path).unwrap_or_else(|| repo_path.join(".git"));
-        if git_dir_path.join("rebase-merge").exists() || git_dir_path.join("rebase-apply").exists() {
-            println!("{}{:<8}{}  {}skipped (rebase in progress){}", color_code, color, RESET, YELLOW, RESET);
-            failed += 1;
-            continue;
-        }
-
-        // Register gbiv state files in info/exclude so that tool-managed files
-        // (e.g. .last-branch) are never seen as untracked and never block checkout.
-        if let Some(common_git_dir) = get_git_dir(&repo_path) {
-            for &state_file in GBIV_STATE_FILES {
-                if let Err(e) = ensure_gitignore_entry(&common_git_dir, state_file) {
-                    eprintln!("  warning: could not update info/exclude for {}: {}", color, e);
+        if let Some(repo_path) = find_repo_in_worktree(&worktree_dir) {
+            if let Some(common_git_dir) = get_git_dir(&repo_path) {
+                for &state_file in GBIV_STATE_FILES {
+                    if let Err(e) = ensure_gitignore_entry(&common_git_dir, state_file) {
+                        eprintln!("  warning: could not update info/exclude for {}: {}", color, e);
+                    }
                 }
             }
         }
+    }
 
-        // Skip if already up-to-date (uses the locally cached ref — main pull already fetched)
-        if let Some((_, behind)) = get_ahead_behind_vs(&repo_path, &remote_main) {
-            if behind == 0 {
-                println!(
-                    "{}{:<8}{}  {}already up to date{}",
-                    color_code, color, RESET, GREEN, RESET
-                );
-                succeeded += 1;
-                continue;
+    // Rebase all color worktrees in parallel
+    let root = gbiv_root.root.clone();
+    let handles: Vec<_> = COLORS
+        .iter()
+        .map(|&color| {
+            let root = root.clone();
+            let remote_main = remote_main.clone();
+            thread::spawn(move || {
+                (color, rebase_worktree(&root, color, &remote_main))
+            })
+        })
+        .collect();
+
+    let mut succeeded = 0u32;
+    let mut failed = 0u32;
+
+    for (color, handle) in COLORS.iter().zip(handles) {
+        let result = match handle.join() {
+            Ok((_, result)) => result,
+            Err(_) => RebaseResult::RebaseFailed("thread panicked".to_string()),
+        };
+        let color_code = ansi_color(color);
+
+        match result {
+            RebaseResult::Skipped(reason) => {
+                println!("{}{:<8}{}  skipped ({})", color_code, color, RESET, reason);
             }
-        }
-
-        // Fetch to ensure the remote ref is current, then rebase
-        if let Err(e) = fetch_remote(&repo_path) {
-            println!(
-                "{}{:<8}{}  {}fetch failed: {}{}",
-                color_code, color, RESET, RED, e, RESET
-            );
-            failed += 1;
-            continue;
-        }
-
-        match rebase_onto(&repo_path, &remote_main) {
-            Ok(()) => {
-                println!("{}{:<8}{}  {}rebased onto {}{}",
-                    color_code, color, RESET, GREEN, remote_main, RESET);
+            RebaseResult::SkippedRebaseInProgress => {
+                println!("{}{:<8}{}  {}skipped (rebase in progress){}", color_code, color, RESET, YELLOW, RESET);
+                failed += 1;
+            }
+            RebaseResult::AlreadyUpToDate => {
+                println!("{}{:<8}{}  {}already up to date{}", color_code, color, RESET, GREEN, RESET);
                 succeeded += 1;
             }
-            Err(e) => {
-                let formatted = format_rebase_error(color, color_code, &e);
+            RebaseResult::Rebased(ref rm) => {
+                println!("{}{:<8}{}  {}rebased onto {}{}", color_code, color, RESET, GREEN, rm, RESET);
+                succeeded += 1;
+            }
+            RebaseResult::FetchFailed(ref e) => {
+                println!("{}{:<8}{}  {}fetch failed: {}{}", color_code, color, RESET, RED, e, RESET);
+                failed += 1;
+            }
+            RebaseResult::RebaseFailed(ref e) => {
+                let formatted = format_rebase_error(color, color_code, e);
                 println!("{}", formatted);
                 failed += 1;
             }
