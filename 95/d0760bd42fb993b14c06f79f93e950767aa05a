@@ -1,0 +1,27 @@
+openspec/changes/add-tidy-command/tasks.md
+  b252defeb5d320d5 3-8,18
+openspec/changes/add-tidy-command/specs/tidy/spec.md
+  b252defeb5d320d5 6,13-14,16-34
+openspec/changes/add-tidy-command/design.md
+  b252defeb5d320d5 27-28,30-33,35-37,43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "95d0760bd42fb993b14c06f79f93e950767aa05a",
+  "prompts": {
+    "b252defeb5d320d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3efa57f-b054-40d2-83b0-e51845e1f8dc",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jared Beach <jared.beach.5@gmail.com>",
+      "messages": [],
+      "total_additions": 39,
+      "total_deletions": 8,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    }
+  }
+}
