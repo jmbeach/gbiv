@@ -1,0 +1,23 @@
+src/commands/reset_tests.rs
+  3d000329f4941bb3 72,91,113,161,170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "bb994176f083aecf0d18dbe60052058c538d2bce",
+  "prompts": {
+    "3d000329f4941bb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f4895cb-785b-4a6c-8302-c5f72d6834fb",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jared Beach <jared.beach.5@gmail.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 5,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    }
+  }
+}
