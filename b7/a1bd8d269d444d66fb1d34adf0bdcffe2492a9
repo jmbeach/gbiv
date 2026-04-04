@@ -1,0 +1,31 @@
+src/commands/reset_hard_stash_tests.rs
+  677220fc05220de3 1-310
+src/commands/reset_hard_allcolor_tests.rs
+  677220fc05220de3 1-137
+src/commands/tidy.rs
+  677220fc05220de3 17
+src/main.rs
+  677220fc05220de3 53
+src/commands/reset_hard_basic_tests.rs
+  677220fc05220de3 1-271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "b7a1bd8d269d444d66fb1d34adf0bdcffe2492a9",
+  "prompts": {
+    "677220fc05220de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ade74f21-fc67-4b28-8a79-9c8ab1719078",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jared Beach <jared.beach.5@gmail.com>",
+      "messages": [],
+      "total_additions": 744,
+      "total_deletions": 2,
+      "accepted_lines": 720,
+      "overriden_lines": 0
+    }
+  }
+}
