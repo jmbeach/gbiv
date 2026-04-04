@@ -1,6 +1,6 @@
 use clap::{Arg, ArgGroup, Command};
 use colors::COLORS;
-use commands::cleanup::cleanup_command;
+use commands::reset::reset_command;
 use commands::init::init_command;
 use commands::mark::mark_command;
 use commands::rebase_all::rebase_all_command;
@@ -12,7 +12,7 @@ mod commands;
 mod gbiv_md;
 mod git_utils;
 
-fn cli() -> Command {
+pub(crate) fn cli() -> Command {
     Command::new("gbiv")
         .about("A tool / framework for managing git worktrees")
         .subcommand_required(true)
@@ -37,11 +37,11 @@ fn cli() -> Command {
                 .about("Pull the remote main branch into the main worktree then rebase all color worktrees onto it"),
         )
         .subcommand(
-            Command::new("cleanup")
+            Command::new("reset")
                 .about("Check out color branch and remove GBIV.md entry after feature branch is merged")
                 .arg(
                     Arg::new("color")
-                        .help("The color worktree to clean up (omit to clean up all)")
+                        .help("The color worktree to reset (omit to reset all)")
                         .required(false)
                         .index(1)
                         .value_parser(clap::builder::PossibleValuesParser::new(COLORS)),
@@ -121,9 +121,9 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Some(("cleanup", sub_matches)) => {
+        Some(("reset", sub_matches)) => {
             let color = sub_matches.get_one::<String>("color").map(|s| s.as_str());
-            if let Err(e) = cleanup_command(color) {
+            if let Err(e) = reset_command(color) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }

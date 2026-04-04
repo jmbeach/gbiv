@@ -6,7 +6,7 @@ use crate::git_utils::{
     get_remote_main_branch, is_merged_into, reset_hard,
 };
 
-pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<String, String> {
+pub fn reset_one(gbiv_root: &Path, color: &str) -> Result<String, String> {
     let worktree_dir = gbiv_root.join(color);
 
     let repo_path = find_repo_in_worktree(&worktree_dir)
@@ -34,7 +34,7 @@ pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<String, String> {
     checkout_branch(&repo_path, color)?;
     reset_hard(&repo_path, &remote_main)?;
 
-    let message = format!("{} worktree cleaned up (was on {}), reset to {}", color, branch, remote_main);
+    let message = format!("{} worktree reset (was on {}), reset to {}", color, branch, remote_main);
 
     match find_repo_in_worktree(&gbiv_root.join("main")) {
         Some(main_repo) => {
@@ -49,8 +49,8 @@ pub fn cleanup_one(gbiv_root: &Path, color: &str) -> Result<String, String> {
     Ok(message)
 }
 
-/// Returns all output lines (including a summary) produced by all-color cleanup.
-pub fn cleanup_all_to_vec(gbiv_root: &std::path::Path) -> Vec<String> {
+/// Returns all output lines (including a summary) produced by all-color reset.
+pub fn reset_all_to_vec(gbiv_root: &std::path::Path) -> Vec<String> {
     use crate::gbiv_md::parse_gbiv_md;
 
     let mut messages: Vec<String> = vec![];
@@ -87,7 +87,7 @@ pub fn cleanup_all_to_vec(gbiv_root: &std::path::Path) -> Vec<String> {
         // Check status: only process [done] entries
         match feature.status.as_deref() {
             Some("done") => {
-                // Proceed with cleanup
+                // Proceed with reset
             }
             Some(_status) => {
                 without_done += 1;
@@ -101,7 +101,7 @@ pub fn cleanup_all_to_vec(gbiv_root: &std::path::Path) -> Vec<String> {
             }
         }
 
-        match cleanup_one(gbiv_root, color) {
+        match reset_one(gbiv_root, color) {
             Ok(msg) => {
                 if msg.contains("already on the") && msg.contains("skipping") {
                     already_clean += 1;
@@ -132,7 +132,7 @@ pub fn cleanup_all_to_vec(gbiv_root: &std::path::Path) -> Vec<String> {
         skip_parts.push(format!("{} without [done] status", without_done));
     }
     if already_clean > 0 {
-        skip_parts.push(format!("{} already clean", already_clean));
+        skip_parts.push(format!("{} already reset", already_clean));
     }
     if missing_worktree > 0 {
         skip_parts.push(format!("{} missing worktree", missing_worktree));
@@ -142,27 +142,27 @@ pub fn cleanup_all_to_vec(gbiv_root: &std::path::Path) -> Vec<String> {
     }
 
     let summary = if skip_parts.is_empty() {
-        format!("{} cleaned", cleaned)
+        format!("{} reset", cleaned)
     } else {
-        format!("{} cleaned ({})", cleaned, skip_parts.join(", "))
+        format!("{} reset ({})", cleaned, skip_parts.join(", "))
     };
     messages.push(summary);
 
     messages
 }
 
-pub fn cleanup_command(color: Option<&str>) -> Result<(), String> {
+pub fn reset_command(color: Option<&str>) -> Result<(), String> {
     let cwd = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
     let gbiv_root = find_gbiv_root(&cwd)
         .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
 
     if let Some(c) = color {
-        let msg = cleanup_one(&gbiv_root.root, c)?;
+        let msg = reset_one(&gbiv_root.root, c)?;
         println!("{}", msg);
         Ok(())
     } else {
-        let messages = cleanup_all_to_vec(&gbiv_root.root);
+        let messages = reset_all_to_vec(&gbiv_root.root);
         for msg in &messages {
             println!("{}", msg);
         }
@@ -212,7 +212,7 @@ mod tests {
         let repo_path = root.path().join("red").join("myrepo");
         setup_empty_repo_on_branch(&repo_path, "red");
 
-        let result = cleanup_one(root.path(), "red");
+        let result = reset_one(root.path(), "red");
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
     }
 
@@ -222,7 +222,7 @@ mod tests {
         let repo_path = root.path().join("red").join("myrepo");
         setup_repo_with_commit(&repo_path, "feature-branch");
 
-        let result = cleanup_one(root.path(), "red");
+        let result = reset_one(root.path(), "red");
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
@@ -271,10 +271,10 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_resets_color_branch_head_to_origin_main() {
+    fn reset_resets_color_branch_head_to_origin_main() {
         let (_source_dir, root, repo_path) = setup_worktree_with_merged_feature();
 
-        // Confirm we're on feature-branch before cleanup
+        // Confirm we're on feature-branch before reset
         let output = Cmd::new("git")
             .args(["rev-parse", "--abbrev-ref", "HEAD"])
             .current_dir(&repo_path)
@@ -283,12 +283,10 @@ mod tests {
         let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
         assert_eq!(branch, "feature-branch");
 
-        // Run cleanup — this should succeed but currently fails because
-        // pull_remote tries `git pull origin red` and "red" doesn't exist on remote
-        let result = cleanup_one(root.path(), "red");
+        let result = reset_one(root.path(), "red");
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
-        // After cleanup, HEAD should be on the "red" branch
+        // After reset, HEAD should be on the "red" branch
         let output = Cmd::new("git")
             .args(["rev-parse", "--abbrev-ref", "HEAD"])
             .current_dir(&repo_path)
@@ -314,20 +312,18 @@ mod tests {
             .to_string();
         assert_eq!(
             red_commit, main_commit,
-            "red branch should be at origin/main after cleanup"
+            "red branch should be at origin/main after reset"
         );
     }
 
     #[test]
-    fn cleanup_succeeds_when_color_branch_has_no_remote_tracking() {
+    fn reset_succeeds_when_color_branch_has_no_remote_tracking() {
         let (_source_dir, root, repo_path) = setup_worktree_with_merged_feature();
 
-        // cleanup_one should succeed — the color branch is local-only
-        // and doesn't exist on the remote
-        let result = cleanup_one(root.path(), "red");
+        let result = reset_one(root.path(), "red");
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
-        // Verify we're on the color branch after cleanup
+        // Verify we're on the color branch after reset
         let output = Cmd::new("git")
             .args(["rev-parse", "--abbrev-ref", "HEAD"])
             .current_dir(&repo_path)
@@ -336,21 +332,21 @@ mod tests {
         let current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
         assert_eq!(
             current_branch, "red",
-            "worktree should be on the color branch after cleanup"
+            "worktree should be on the color branch after reset"
         );
     }
 
     #[test]
-    fn cleanup_one_returns_success_message_with_previous_branch() {
+    fn reset_one_returns_success_message_with_previous_branch() {
         let (_source_dir, root, _repo_path) = setup_worktree_with_merged_feature();
 
-        let result = cleanup_one(root.path(), "red");
+        let result = reset_one(root.path(), "red");
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
         let message = result.unwrap();
         assert!(
-            message.contains("red worktree cleaned up"),
-            "expected success message containing 'red worktree cleaned up', got: {:?}",
+            message.contains("red worktree reset"),
+            "expected success message containing 'red worktree reset', got: {:?}",
             message
         );
         assert!(
@@ -366,12 +362,12 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_one_returns_skip_message_when_on_color_branch() {
+    fn reset_one_returns_skip_message_when_on_color_branch() {
         let root = TempDir::new().unwrap();
         let repo_path = root.path().join("red").join("myrepo");
         setup_empty_repo_on_branch(&repo_path, "red");
 
-        let result = cleanup_one(root.path(), "red");
+        let result = reset_one(root.path(), "red");
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
         let message = result.unwrap();
@@ -428,25 +424,21 @@ mod tests {
         (source_dir, root, repo_path, main_repo, gbiv_md_path)
     }
 
-    // gbi-tqtu: all-color cleanup skips entries without [done] status
+    // all-color reset skips entries without [done] status
     #[test]
-    fn all_color_cleanup_skips_entries_without_done_status() {
-        // Set up a merged branch whose GBIV.md entry has [in-progress] status.
-        // The spec requires that all-color cleanup skips such entries.
+    fn all_color_reset_skips_entries_without_done_status() {
         let (_source_dir, root, repo_path, _main_repo, gbiv_md_path) =
             setup_worktree_with_gbiv_entry(Some("in-progress"));
 
-        // Verify the GBIV.md entry exists with [in-progress]
         let content_before = std::fs::read_to_string(&gbiv_md_path).unwrap();
         assert!(
             content_before.contains("[in-progress]"),
             "setup should produce an [in-progress] entry"
         );
 
-        // Run all-color cleanup (which filters by status before calling cleanup_one)
-        let messages = cleanup_all_to_vec(root.path());
+        let messages = reset_all_to_vec(root.path());
 
-        // The worktree should NOT have been cleaned because it has [in-progress] status
+        // The worktree should NOT have been reset because it has [in-progress] status
         let output = Cmd::new("git")
             .args(["rev-parse", "--abbrev-ref", "HEAD"])
             .current_dir(&repo_path)
@@ -455,7 +447,7 @@ mod tests {
         let current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
         assert_eq!(
             current_branch, "feature-branch",
-            "worktree with [in-progress] status should NOT be cleaned by all-color cleanup (was cleaned)"
+            "worktree with [in-progress] status should NOT be reset by all-color reset (was reset)"
         );
 
         // Should have a skip message mentioning status
@@ -467,14 +459,9 @@ mod tests {
         );
     }
 
-    // gbi-wwo9: all-color cleanup processes [done] entries
+    // all-color reset processes [done] entries
     #[test]
-    fn all_color_cleanup_processes_done_entries() {
-        // Set up a merged branch whose GBIV.md entry has [done] status.
-        // The spec requires that all-color cleanup processes such entries.
-        // Current code doesn't filter, so cleanup_one will succeed (but doesn't specifically
-        // check for [done]). We verify: (1) cleanup succeeds, and (2) the GBIV.md entry
-        // (which includes [done]) was removed as part of cleanup.
+    fn all_color_reset_processes_done_entries() {
         let (_source_dir, root, repo_path, _main_repo, gbiv_md_path) =
             setup_worktree_with_gbiv_entry(Some("done"));
 
@@ -485,14 +472,14 @@ mod tests {
             content_before
         );
 
-        let result = cleanup_one(root.path(), "red");
+        let result = reset_one(root.path(), "red");
         assert!(
             result.is_ok(),
-            "all-color cleanup should succeed for a [done] merged branch, got: {:?}",
+            "all-color reset should succeed for a [done] merged branch, got: {:?}",
             result
         );
 
-        // After cleanup, the repo should be on the color branch
+        // After reset, the repo should be on the color branch
         let output = Cmd::new("git")
             .args(["rev-parse", "--abbrev-ref", "HEAD"])
             .current_dir(&repo_path)
@@ -501,26 +488,22 @@ mod tests {
         let current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
         assert_eq!(
             current_branch, "red",
-            "worktree with [done] status should be cleaned and checked out to color branch"
+            "worktree with [done] status should be reset and checked out to color branch"
         );
 
         // The GBIV.md entry for red should have been removed
         let content_after = std::fs::read_to_string(&gbiv_md_path).unwrap();
         assert!(
             !content_after.contains("[red]"),
-            "GBIV.md entry for red should be removed after cleanup with [done] status, got: {}",
+            "GBIV.md entry for red should be removed after reset with [done] status, got: {}",
             content_after
         );
     }
 
-    // gbi-xqeh: single-color cleanup ignores status tag
+    // single-color reset ignores status tag
     #[test]
-    fn single_color_cleanup_ignores_status_tag() {
-        // Single-color `gbiv cleanup red` should work regardless of status tag.
-        // This tests both [in-progress] and [done] scenarios for explicit cleanup.
-        // The current code already supports this (no status filtering), so this test should pass.
-
-        // Test with [in-progress] status: single-color should still clean
+    fn single_color_reset_ignores_status_tag() {
+        // Test with [in-progress] status: single-color should still reset
         let (_source_dir, root, repo_path, _main_repo, gbiv_md_path) =
             setup_worktree_with_gbiv_entry(Some("in-progress"));
 
@@ -530,11 +513,10 @@ mod tests {
             "setup should have [in-progress] entry"
         );
 
-        // Direct call to cleanup_one simulates explicit single-color cleanup
-        let result = cleanup_one(root.path(), "red");
+        let result = reset_one(root.path(), "red");
         assert!(
             result.is_ok(),
-            "single-color cleanup should succeed regardless of status tag, got: {:?}",
+            "single-color reset should succeed regardless of status tag, got: {:?}",
             result
         );
 
@@ -546,17 +528,17 @@ mod tests {
         let current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
         assert_eq!(
             current_branch, "red",
-            "single-color cleanup should check out to color branch regardless of status"
+            "single-color reset should check out to color branch regardless of status"
         );
 
-        // Test with no status tag: single-color should also clean
+        // Test with no status tag: single-color should also reset
         let (_source_dir2, root2, repo_path2, _main_repo2, _gbiv_md_path2) =
             setup_worktree_with_gbiv_entry(None);
 
-        let result2 = cleanup_one(root2.path(), "red");
+        let result2 = reset_one(root2.path(), "red");
         assert!(
             result2.is_ok(),
-            "single-color cleanup should succeed with no status tag, got: {:?}",
+            "single-color reset should succeed with no status tag, got: {:?}",
             result2
         );
 
@@ -568,30 +550,25 @@ mod tests {
         let branch2 = String::from_utf8_lossy(&output2.stdout).trim().to_string();
         assert_eq!(
             branch2, "red",
-            "single-color cleanup should check out to color branch when there is no status tag"
+            "single-color reset should check out to color branch when there is no status tag"
         );
     }
 
-    // gbi-2wqk: all-color cleanup prints summary with skip reasons
+    // all-color reset prints summary with skip reasons
     #[test]
-    fn all_color_cleanup_prints_summary_with_skip_reasons() {
-        // After all-color cleanup, the command should print a summary line.
-        // Example: "0 cleaned (3 without [done] status)"
-        // The current implementation does NOT print a summary, so cleanup_all_to_vec returns
-        // an empty Vec. This test asserts a summary line is present, causing it to FAIL.
+    fn all_color_reset_prints_summary_with_skip_reasons() {
         let (_source_dir, root, _repo_path, _main_repo, _gbiv_md_path) =
             setup_worktree_with_gbiv_entry(Some("in-progress"));
 
-        let messages = cleanup_all_to_vec(root.path());
+        let messages = reset_all_to_vec(root.path());
 
-        // There should be at least one summary line in the output
         let has_summary = messages.iter().any(|msg| {
-            msg.contains("cleaned") && (msg.contains("without [done]") || msg.contains("not merged") || msg.contains("already clean"))
+            msg.contains("reset") && (msg.contains("without [done]") || msg.contains("not merged") || msg.contains("already reset"))
         });
 
         assert!(
             has_summary,
-            "all-color cleanup should print a summary line (e.g., '0 cleaned (1 without [done] status)'), but no summary found in output: {:?}",
+            "all-color reset should print a summary line (e.g., '0 cleaned (1 without [done] status)'), but no summary found in output: {:?}",
             messages
         );
     }
@@ -621,7 +598,7 @@ mod tests {
         git(&["add", "."], &repo_path);
         git(&["commit", "-m", "feature work"], &repo_path);
 
-        let result = cleanup_one(root.path(), "red");
+        let result = reset_one(root.path(), "red");
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(

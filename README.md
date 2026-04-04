@@ -176,19 +176,19 @@ Pulling main worktree (origin/main)...
 - Worktrees already mid-rebase are skipped (resolve manually and re-run)
 - Worktrees with conflicts are left in the conflicted state for you to resolve
 
-### Clean up a worktree
+### Reset a worktree
 
 Run from **any worktree** within a gbiv-structured repository:
 
 ```bash
-gbiv cleanup [<color>]
+gbiv reset [<color>]
 ```
 
 Once a feature branch has been merged into remote main, this command checks out the color branch, pulls the latest, and removes the matching entry from `GBIV.md`. Omit `<color>` to process all worktrees.
 
 ```bash
-gbiv cleanup red      # clean up a single worktree
-gbiv cleanup          # clean up all worktrees
+gbiv reset red      # reset a single worktree
+gbiv reset          # reset all worktrees
 ```
 
 - Worktrees already on their color branch are skipped
