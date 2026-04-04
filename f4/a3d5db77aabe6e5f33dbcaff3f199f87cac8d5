@@ -1,0 +1,44 @@
+openspec/changes/rename-cleanup-to-reset/design.md
+  3d000329f4941bb3 1-35
+openspec/changes/rename-cleanup-to-reset/specs/cleanup-output/spec.md
+  3d000329f4941bb3 1-18
+openspec/changes/rename-cleanup-to-reset/specs/gbiv-cleanup/spec.md
+  3d000329f4941bb3 1-111
+openspec/changes/rename-cleanup-to-reset/proposal.md
+  3d000329f4941bb3 1-29
+openspec/changes/rename-cleanup-to-reset/tasks.md
+  3d000329f4941bb3 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "f4a3d5db77aabe6e5f33dbcaff3f199f87cac8d5",
+  "prompts": {
+    "3d000329f4941bb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f4895cb-785b-4a6c-8302-c5f72d6834fb",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jared Beach <jared.beach.5@gmail.com>",
+      "messages": [],
+      "total_additions": 219,
+      "total_deletions": 0,
+      "accepted_lines": 219,
+      "overriden_lines": 0
+    },
+    "f7b07def7dd86483": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d08f2fac-2571-4465-9dfe-02553ff0822a",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jared Beach <jared.beach.5@gmail.com>",
+      "messages": [],
+      "total_additions": 99,
+      "total_deletions": 0,
+      "accepted_lines": 99,
+      "overriden_lines": 0
+    }
+  }
+}
