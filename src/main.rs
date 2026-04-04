@@ -5,6 +5,7 @@ use commands::reset::reset_command;
 use commands::mark::mark_command;
 use commands::rebase_all::rebase_all_command;
 use commands::status::status_command;
+use commands::tidy::tidy_command;
 use commands::tmux;
 
 mod colors;
@@ -56,6 +57,10 @@ pub(crate) fn cli() -> Command {
                         .num_args(0..)
                         .allow_hyphen_values(true),
                 ),
+        )
+        .subcommand(
+            Command::new("tidy")
+                .about("Rebase all worktrees, reset merged branches, and clean tmux windows"),
         )
         .subcommand(
             Command::new("mark")
@@ -166,6 +171,12 @@ fn main() {
                     eprintln!("{}", e);
                     std::process::exit(1);
                 }
+            }
+        }
+        Some(("tidy", _)) => {
+            if let Err(e) = tidy_command() {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
             }
         }
         Some(("mark", sub_matches)) => {
