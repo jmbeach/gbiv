@@ -1,3 +1,4 @@
+pub mod exec;
 pub mod reset;
 pub mod init;
 pub mod mark;

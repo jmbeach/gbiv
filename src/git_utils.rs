@@ -185,6 +185,14 @@ pub fn checkout_branch(path: &Path, branch: &str) -> Result<(), String> {
     }
 }
 
+/// Infer the color by finding the path component directly under the gbiv root.
+pub fn infer_color_from_path(cwd: &Path, gbiv_root: &Path) -> Option<&'static str> {
+    let relative = cwd.strip_prefix(gbiv_root).ok()?;
+    let first_component = relative.components().next()?;
+    let name = first_component.as_os_str().to_str()?;
+    COLORS.iter().find(|&&c| c == name).copied()
+}
+
 pub fn find_repo_in_worktree(worktree_dir: &Path) -> Option<PathBuf> {
     for entry in std::fs::read_dir(worktree_dir).ok()? {
         let Ok(entry) = entry else { continue };
