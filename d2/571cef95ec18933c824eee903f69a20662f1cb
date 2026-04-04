@@ -1,0 +1,25 @@
+src/commands/tidy.rs
+  b252defeb5d320d5 1-4,6-38
+src/main.rs
+  b252defeb5d320d5 8,62-64,176-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "d2571cef95ec18933c824eee903f69a20662f1cb",
+  "prompts": {
+    "b252defeb5d320d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3efa57f-b054-40d2-83b0-e51845e1f8dc",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jared Beach <jared.beach.5@gmail.com>",
+      "messages": [],
+      "total_additions": 48,
+      "total_deletions": 1,
+      "accepted_lines": 48,
+      "overriden_lines": 0
+    }
+  }
+}
