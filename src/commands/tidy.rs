@@ -14,7 +14,7 @@ pub fn tidy_command() -> Result<(), String> {
 
     // Step 2: Reset merged branches
     println!("Resetting merged branches...");
-    let _ = reset_command(None);
+    let _ = reset_command(None, false, false);
 
     // Step 3: Clean tmux windows (only if tmux is installed)
     let tmux_available = std::process::Command::new("which")

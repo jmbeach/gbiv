@@ -315,6 +315,19 @@ pub fn reset_hard(path: &Path, target: &str) -> Result<(), String> {
     }
 }
 
+pub fn stash_push(path: &Path, message: &str) -> Result<String, String> {
+    let output = ProcessCommand::new("git")
+        .args(["stash", "push", "-u", "-m", message])
+        .current_dir(path)
+        .output()
+        .map_err(|e| format!("Failed to run git stash push: {}", e))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
 pub fn rebase_onto(path: &Path, upstream: &str) -> Result<(), String> {
     let output = ProcessCommand::new("git")
         .args(["rebase", upstream])
