@@ -1,17 +1,7 @@
 use std::path::Path;
 
-use crate::colors::COLORS;
 use crate::gbiv_md::set_gbiv_feature_status;
-use crate::git_utils::{find_gbiv_root, find_repo_in_worktree};
-
-/// Infer the color by finding the path component directly under the gbiv root.
-fn infer_color_from_path(cwd: &Path, gbiv_root: &Path) -> Option<&'static str> {
-    // Strip the gbiv root prefix from CWD, then check the first remaining component
-    let relative = cwd.strip_prefix(gbiv_root).ok()?;
-    let first_component = relative.components().next()?;
-    let name = first_component.as_os_str().to_str()?;
-    COLORS.iter().find(|&&c| c == name).copied()
-}
+use crate::git_utils::{find_gbiv_root, find_repo_in_worktree, infer_color_from_path};
 
 pub fn mark_command(
     status: Option<&str>,

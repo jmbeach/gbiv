@@ -1,7 +1,7 @@
 use clap::{Arg, ArgGroup, Command};
 use colors::COLORS;
-use commands::reset::reset_command;
 use commands::init::init_command;
+use commands::reset::reset_command;
 use commands::mark::mark_command;
 use commands::rebase_all::rebase_all_command;
 use commands::status::status_command;
@@ -45,6 +45,16 @@ pub(crate) fn cli() -> Command {
                         .required(false)
                         .index(1)
                         .value_parser(clap::builder::PossibleValuesParser::new(COLORS)),
+                ),
+        )
+        .subcommand(
+            Command::new("exec")
+                .about("Execute a command in a color worktree: gbiv exec [<color>|all] -- <command...>")
+                .trailing_var_arg(true)
+                .arg(
+                    Arg::new("args")
+                        .num_args(0..)
+                        .allow_hyphen_values(true),
                 ),
         )
         .subcommand(
@@ -128,6 +138,36 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Some(("exec", sub_matches)) => {
+            use commands::exec::exec_command;
+            let all_args: Vec<String> = sub_matches
+                .get_many::<String>("args")
+                .map(|vals| vals.cloned().collect())
+                .unwrap_or_default();
+            let valid_targets: Vec<&str> = COLORS.iter().copied().chain(std::iter::once("all")).collect();
+            let (target, rest) = if all_args.first().map(|s| valid_targets.contains(&s.as_str())).unwrap_or(false) {
+                (Some(all_args[0].clone()), all_args[1..].to_vec())
+            } else {
+                (None, all_args)
+            };
+            let command: Vec<String> = rest.into_iter().filter(|a| a != "--").collect();
+            if command.is_empty() {
+                eprintln!("Error: no command specified. Usage: gbiv exec [<color>|all] -- <command...>");
+                std::process::exit(1);
+            }
+            let target_ref = target.as_deref();
+            match exec_command(target_ref, &command, None) {
+                Ok(output) => {
+                    if !output.is_empty() {
+                        print!("{}", output);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
         Some(("mark", sub_matches)) => {
             let status = if sub_matches.get_flag("done") {
                 Some("done")
@@ -148,5 +188,56 @@ fn main() {
             }
         }
         _ => unreachable!(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper to parse exec args the same way main() does.
+    fn parse_exec(argv: &[&str]) -> (Option<String>, Vec<String>) {
+        let m = cli().get_matches_from(argv);
+        let sub = m.subcommand_matches("exec").unwrap();
+        let all_args: Vec<String> = sub
+            .get_many::<String>("args")
+            .map(|vals| vals.cloned().collect())
+            .unwrap_or_default();
+        let valid_targets: Vec<&str> = COLORS.iter().copied().chain(std::iter::once("all")).collect();
+        let (target, rest) = if all_args.first().map(|s| valid_targets.contains(&s.as_str())).unwrap_or(false) {
+            (Some(all_args[0].clone()), all_args[1..].to_vec())
+        } else {
+            (None, all_args)
+        };
+        let command: Vec<String> = rest.into_iter().filter(|a| a != "--").collect();
+        (target, command)
+    }
+
+    #[test]
+    fn exec_parses_color_target_and_command() {
+        let (target, cmd) = parse_exec(&["gbiv", "exec", "green", "--", "echo", "hello"]);
+        assert_eq!(target.as_deref(), Some("green"));
+        assert_eq!(cmd, vec!["echo", "hello"]);
+    }
+
+    #[test]
+    fn exec_parses_all_target_and_command() {
+        let (target, cmd) = parse_exec(&["gbiv", "exec", "all", "--", "git", "status"]);
+        assert_eq!(target.as_deref(), Some("all"));
+        assert_eq!(cmd, vec!["git", "status"]);
+    }
+
+    #[test]
+    fn exec_parses_no_target_with_command() {
+        let (target, cmd) = parse_exec(&["gbiv", "exec", "--", "cargo", "build"]);
+        assert!(target.is_none(), "target should be None when omitted");
+        assert_eq!(cmd, vec!["cargo", "build"]);
+    }
+
+    #[test]
+    fn exec_parses_command_with_flags_after_separator() {
+        let (target, cmd) = parse_exec(&["gbiv", "exec", "red", "--", "ls", "-la"]);
+        assert_eq!(target.as_deref(), Some("red"));
+        assert_eq!(cmd, vec!["ls", "-la"]);
     }
 }
