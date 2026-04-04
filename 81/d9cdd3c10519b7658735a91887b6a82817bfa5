@@ -1,0 +1,39 @@
+src/commands/reset_hard_basic_tests.rs
+  677220fc05220de3 1-278
+src/commands/reset.rs
+  677220fc05220de3 6,9,20,27,34-40,62,87-89,91-95,97-111,115,165,172,176-208,258,268,329,366,386,413,482,518,559,581,606,644
+src/commands/reset_hard_stash_tests.rs
+  677220fc05220de3 1-395
+src/commands/mod.rs
+  677220fc05220de3 11-16
+src/commands/reset_tests.rs
+  677220fc05220de3 80,97,149,166
+src/commands/reset_hard_allcolor_tests.rs
+  677220fc05220de3 1-159
+openspec/changes/add-hard-reset-flag/specs/hard-reset/spec.md
+  677220fc05220de3 3,22,33,52,71
+src/main.rs
+  677220fc05220de3 48-60,149-151
+src/git_utils.rs
+  677220fc05220de3 318-330
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "81d9cdd3c10519b7658735a91887b6a82817bfa5",
+  "prompts": {
+    "677220fc05220de3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ade74f21-fc67-4b28-8a79-9c8ab1719078",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jared Beach <jared.beach.5@gmail.com>",
+      "messages": [],
+      "total_additions": 961,
+      "total_deletions": 52,
+      "accepted_lines": 961,
+      "overriden_lines": 0
+    }
+  }
+}
