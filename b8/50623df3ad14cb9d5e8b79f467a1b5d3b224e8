@@ -1,0 +1,31 @@
+src/main.rs
+  3d000329f4941bb3 3,15,40,44,124,126
+README.md
+  3d000329f4941bb3 179,184,190-191
+src/commands/mod.rs
+  3d000329f4941bb3 1,7-9
+src/commands/reset.rs
+  3d000329f4941bb3 9,37,52-53,90,104,154,161,165,215,225,274,277,286,289,315,320,323,326,335,340,343,348-349,365,370,427,429,439,441,450,462,464,475,478,482,491,498,503,505-506,516,519,531,534,538,541,553,557,559,563,571,601
+src/commands/reset_tests.rs
+  3d000329f4941bb3 1-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "b850623df3ad14cb9d5e8b79f467a1b5d3b224e8",
+  "prompts": {
+    "3d000329f4941bb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f4895cb-785b-4a6c-8302-c5f72d6834fb",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jared Beach <jared.beach.5@gmail.com>",
+      "messages": [],
+      "total_additions": 284,
+      "total_deletions": 115,
+      "accepted_lines": 256,
+      "overriden_lines": 0
+    }
+  }
+}
