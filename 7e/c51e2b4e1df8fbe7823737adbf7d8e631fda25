@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "7ec51e2b4e1df8fbe7823737adbf7d8e631fda25",
+  "prompts": {
+    "b252defeb5d320d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3efa57f-b054-40d2-83b0-e51845e1f8dc",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jared Beach <jared.beach.5@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 32,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
