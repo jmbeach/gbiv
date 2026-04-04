@@ -1,0 +1,35 @@
+src/commands/mod.rs
+  3d000329f4941bb3 1,7-9
+README.md
+  3d000329f4941bb3 179,184,190-191
+openspec/specs/cleanup-output/spec.md
+  3d000329f4941bb3 6-7,9-11,13-15
+openspec/specs/gbiv-cleanup/spec.md
+  3d000329f4941bb3 1-2,5,9,12,16,20,24,27,31,35,38-39,42,46,50,55,57-58,61,65-66,69-70,73-74,76,80
+src/commands/reset_tests.rs
+  3d000329f4941bb3 1-189
+src/commands/reset.rs
+  3d000329f4941bb3 9,37,52-53,90,104,135,145,147,154,161,165,215,225,274,277,286,289,315,320,323,326,335,340,343,348-349,365,370,427,429,439,441,450,462,464,475,478,482,491,498,503,505-506,516,519,531,534,538,541,553,557,559,563,566,571,601
+src/main.rs
+  3d000329f4941bb3 3,15,40,44,124,126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "34bf989b7e2d2d775508954ad9a874e22c6c053d",
+  "prompts": {
+    "3d000329f4941bb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f4895cb-785b-4a6c-8302-c5f72d6834fb",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jared Beach <jared.beach.5@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 296,
+      "overriden_lines": 0
+    }
+  }
+}
