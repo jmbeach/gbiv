@@ -1,3 +1,11 @@
+## RENAMED Requirements
+
+### Requirement: Cleanup command is available as a subcommand
+FROM: Cleanup command is available as a subcommand
+TO: Reset command is available as a subcommand
+
+## MODIFIED Requirements
+
 ### Requirement: Reset command is available as a subcommand
 The CLI SHALL expose a `reset` subcommand accepting an optional positional `<color>` argument restricted to valid ROYGBIV colors.
 
@@ -79,3 +87,25 @@ The system SHALL locate the gbiv root using the existing `find_gbiv_root` logic 
 #### Scenario: Not in a gbiv repo
 - **WHEN** the user runs `gbiv reset` from a directory that is not inside a gbiv-structured repository
 - **THEN** the command exits with a non-zero status and prints "Not in a gbiv-structured repository"
+
+## RENAMED Requirements
+
+### Requirement: Single-color cleanup detects merge status before acting
+FROM: Single-color cleanup detects merge status before acting
+TO: Single-color reset detects merge status before acting
+
+### Requirement: Single-color cleanup checks out color branch and pulls
+FROM: Single-color cleanup checks out color branch and pulls
+TO: Single-color reset checks out color branch and pulls
+
+### Requirement: Single-color cleanup removes the color's GBIV.md entry
+FROM: Single-color cleanup removes the color's GBIV.md entry
+TO: Single-color reset removes the color's GBIV.md entry
+
+### Requirement: All-color cleanup runs cleanup for every color worktree
+FROM: All-color cleanup runs cleanup for every color worktree
+TO: All-color reset runs reset for every color worktree
+
+### Requirement: Cleanup must be run from within a gbiv-structured repository
+FROM: Cleanup must be run from within a gbiv-structured repository
+TO: Reset must be run from within a gbiv-structured repository
