@@ -46,6 +46,20 @@ pub(crate) fn cli() -> Command {
                         .required(false)
                         .index(1)
                         .value_parser(clap::builder::PossibleValuesParser::new(COLORS)),
+                )
+                .arg(
+                    Arg::new("hard")
+                        .long("hard")
+                        .visible_alias("force")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Force-reset, bypassing merge and status checks; stashes uncommitted changes"),
+                )
+                .arg(
+                    Arg::new("yes")
+                        .long("yes")
+                        .short('y')
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Skip confirmation prompt for all-color --hard reset"),
                 ),
         )
         .subcommand(
@@ -138,7 +152,9 @@ fn main() {
         }
         Some(("reset", sub_matches)) => {
             let color = sub_matches.get_one::<String>("color").map(|s| s.as_str());
-            if let Err(e) = reset_command(color) {
+            let hard = sub_matches.get_flag("hard");
+            let yes = sub_matches.get_flag("yes");
+            if let Err(e) = reset_command(color, hard, yes) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }

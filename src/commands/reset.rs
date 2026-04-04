@@ -3,10 +3,10 @@ use crate::colors::COLORS;
 use crate::gbiv_md::remove_gbiv_features_by_tag;
 use crate::git_utils::{
     checkout_branch, find_gbiv_root, find_repo_in_worktree, get_quick_status,
-    get_remote_main_branch, is_merged_into, reset_hard,
+    get_remote_main_branch, is_merged_into, reset_hard, stash_push,
 };
 
-pub fn reset_one(gbiv_root: &Path, color: &str) -> Result<String, String> {
+pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> Result<String, String> {
     let worktree_dir = gbiv_root.join(color);
 
     let repo_path = find_repo_in_worktree(&worktree_dir)
@@ -17,21 +17,29 @@ pub fn reset_one(gbiv_root: &Path, color: &str) -> Result<String, String> {
         .branch
         .ok_or_else(|| format!("Could not determine current branch for {} worktree", color))?;
 
-    if branch == color {
+    if branch == color && !hard {
         return Ok(format!("{} worktree is already on the {} branch, skipping", color, color));
     }
 
     let remote_main = get_remote_main_branch(&repo_path)
         .ok_or_else(|| format!("No remote configured for {} worktree", color))?;
 
-    if !is_merged_into(&repo_path, &branch, &remote_main) {
+    if !hard && !is_merged_into(&repo_path, &branch, &remote_main) {
         return Err(format!(
             "Branch {} is not merged into {} in {} worktree",
             branch, remote_main, color
         ));
     }
 
-    checkout_branch(&repo_path, color)?;
+    // When hard, stash dirty changes before checkout
+    if hard && status.is_dirty {
+        let message = format!("gbiv hard-reset: {} on {} worktree", branch, color);
+        stash_push(&repo_path, &message)?;
+    }
+
+    if branch != color {
+        checkout_branch(&repo_path, color)?;
+    }
     reset_hard(&repo_path, &remote_main)?;
 
     let message = format!("{} worktree reset (was on {}), reset to {}", color, branch, remote_main);
@@ -50,7 +58,7 @@ pub fn reset_one(gbiv_root: &Path, color: &str) -> Result<String, String> {
 }
 
 /// Returns all output lines (including a summary) produced by all-color reset.
-pub fn reset_all_to_vec(gbiv_root: &std::path::Path) -> Vec<String> {
+pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> {
     use crate::gbiv_md::parse_gbiv_md;
 
     let mut messages: Vec<String> = vec![];
@@ -75,33 +83,35 @@ pub fn reset_all_to_vec(gbiv_root: &std::path::Path) -> Vec<String> {
             continue;
         }
 
-        // Find the feature entry for this color
-        let feature = features.iter().find(|f| f.tag.as_deref() == Some(color));
+        if !hard {
+            // Find the feature entry for this color
+            let feature = features.iter().find(|f| f.tag.as_deref() == Some(color));
 
-        // If no GBIV.md entry, skip silently
-        let feature = match feature {
-            Some(f) => f,
-            None => continue,
-        };
+            // If no GBIV.md entry, skip silently
+            let feature = match feature {
+                Some(f) => f,
+                None => continue,
+            };
 
-        // Check status: only process [done] entries
-        match feature.status.as_deref() {
-            Some("done") => {
-                // Proceed with reset
-            }
-            Some(_status) => {
-                without_done += 1;
-                messages.push(format!("Skipping [{}]: without [done] status", color));
-                continue;
-            }
-            None => {
-                without_done += 1;
-                messages.push(format!("Skipping [{}]: without [done] status", color));
-                continue;
+            // Check status: only process [done] entries
+            match feature.status.as_deref() {
+                Some("done") => {
+                    // Proceed with reset
+                }
+                Some(_status) => {
+                    without_done += 1;
+                    messages.push(format!("Skipping [{}]: without [done] status", color));
+                    continue;
+                }
+                None => {
+                    without_done += 1;
+                    messages.push(format!("Skipping [{}]: without [done] status", color));
+                    continue;
+                }
             }
         }
 
-        match reset_one(gbiv_root, color) {
+        match reset_one(gbiv_root, color, hard) {
             Ok(msg) => {
                 if msg.contains("already on the") && msg.contains("skipping") {
                     already_clean += 1;
@@ -151,18 +161,49 @@ pub fn reset_all_to_vec(gbiv_root: &std::path::Path) -> Vec<String> {
     messages
 }
 
-pub fn reset_command(color: Option<&str>) -> Result<(), String> {
+pub fn reset_command(color: Option<&str>, hard: bool, yes: bool) -> Result<(), String> {
     let cwd = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
     let gbiv_root = find_gbiv_root(&cwd)
         .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
 
     if let Some(c) = color {
-        let msg = reset_one(&gbiv_root.root, c)?;
+        let msg = reset_one(&gbiv_root.root, c, hard)?;
         println!("{}", msg);
         Ok(())
     } else {
-        let messages = reset_all_to_vec(&gbiv_root.root);
+        // For all-color --hard, show confirmation prompt unless --yes
+        if hard && !yes {
+            let mut lines: Vec<String> = vec![];
+            for &c in COLORS.iter() {
+                let worktree_dir = gbiv_root.root.join(c);
+                if !worktree_dir.exists() {
+                    continue;
+                }
+                if let Some(repo_path) = find_repo_in_worktree(&worktree_dir) {
+                    let status = get_quick_status(&repo_path);
+                    let branch = status.branch.unwrap_or_else(|| "(unknown)".to_string());
+                    lines.push(format!("  {} -> {}", c, branch));
+                }
+            }
+            if !lines.is_empty() {
+                println!("Hard reset will force-reset these worktrees:");
+                for line in &lines {
+                    println!("{}", line);
+                }
+                print!("Continue? [y/N] ");
+                use std::io::Write;
+                std::io::stdout().flush().ok();
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input).map_err(|e| e.to_string())?;
+                if !input.trim().eq_ignore_ascii_case("y") {
+                    println!("Aborted.");
+                    return Ok(());
+                }
+            }
+        }
+
+        let messages = reset_all_to_vec(&gbiv_root.root, hard);
         for msg in &messages {
             println!("{}", msg);
         }
@@ -212,7 +253,7 @@ mod tests {
         let repo_path = root.path().join("red").join("myrepo");
         setup_empty_repo_on_branch(&repo_path, "red");
 
-        let result = reset_one(root.path(), "red");
+        let result = reset_one(root.path(), "red", false);
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
     }
 
@@ -222,7 +263,7 @@ mod tests {
         let repo_path = root.path().join("red").join("myrepo");
         setup_repo_with_commit(&repo_path, "feature-branch");
 
-        let result = reset_one(root.path(), "red");
+        let result = reset_one(root.path(), "red", false);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
@@ -283,7 +324,7 @@ mod tests {
         let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
         assert_eq!(branch, "feature-branch");
 
-        let result = reset_one(root.path(), "red");
+        let result = reset_one(root.path(), "red", false);
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
         // After reset, HEAD should be on the "red" branch
@@ -320,7 +361,7 @@ mod tests {
     fn reset_succeeds_when_color_branch_has_no_remote_tracking() {
         let (_source_dir, root, repo_path) = setup_worktree_with_merged_feature();
 
-        let result = reset_one(root.path(), "red");
+        let result = reset_one(root.path(), "red", false);
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
         // Verify we're on the color branch after reset
@@ -340,7 +381,7 @@ mod tests {
     fn reset_one_returns_success_message_with_previous_branch() {
         let (_source_dir, root, _repo_path) = setup_worktree_with_merged_feature();
 
-        let result = reset_one(root.path(), "red");
+        let result = reset_one(root.path(), "red", false);
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
         let message = result.unwrap();
@@ -367,7 +408,7 @@ mod tests {
         let repo_path = root.path().join("red").join("myrepo");
         setup_empty_repo_on_branch(&repo_path, "red");
 
-        let result = reset_one(root.path(), "red");
+        let result = reset_one(root.path(), "red", false);
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
         let message = result.unwrap();
@@ -436,7 +477,7 @@ mod tests {
             "setup should produce an [in-progress] entry"
         );
 
-        let messages = reset_all_to_vec(root.path());
+        let messages = reset_all_to_vec(root.path(), false);
 
         // The worktree should NOT have been reset because it has [in-progress] status
         let output = Cmd::new("git")
@@ -472,7 +513,7 @@ mod tests {
             content_before
         );
 
-        let result = reset_one(root.path(), "red");
+        let result = reset_one(root.path(), "red", false);
         assert!(
             result.is_ok(),
             "all-color reset should succeed for a [done] merged branch, got: {:?}",
@@ -513,7 +554,7 @@ mod tests {
             "setup should have [in-progress] entry"
         );
 
-        let result = reset_one(root.path(), "red");
+        let result = reset_one(root.path(), "red", false);
         assert!(
             result.is_ok(),
             "single-color reset should succeed regardless of status tag, got: {:?}",
@@ -535,7 +576,7 @@ mod tests {
         let (_source_dir2, root2, repo_path2, _main_repo2, _gbiv_md_path2) =
             setup_worktree_with_gbiv_entry(None);
 
-        let result2 = reset_one(root2.path(), "red");
+        let result2 = reset_one(root2.path(), "red", false);
         assert!(
             result2.is_ok(),
             "single-color reset should succeed with no status tag, got: {:?}",
@@ -560,7 +601,7 @@ mod tests {
         let (_source_dir, root, _repo_path, _main_repo, _gbiv_md_path) =
             setup_worktree_with_gbiv_entry(Some("in-progress"));
 
-        let messages = reset_all_to_vec(root.path());
+        let messages = reset_all_to_vec(root.path(), false);
 
         let has_summary = messages.iter().any(|msg| {
             msg.contains("reset") && (msg.contains("without [done]") || msg.contains("not merged") || msg.contains("already reset"))
@@ -598,7 +639,7 @@ mod tests {
         git(&["add", "."], &repo_path);
         git(&["commit", "-m", "feature work"], &repo_path);
 
-        let result = reset_one(root.path(), "red");
+        let result = reset_one(root.path(), "red", false);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(

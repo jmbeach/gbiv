@@ -11,3 +11,9 @@ pub mod tmux;
 mod reset_tests;
 #[cfg(test)]
 mod tidy_tests;
+#[cfg(test)]
+mod reset_hard_basic_tests;
+#[cfg(test)]
+mod reset_hard_allcolor_tests;
+#[cfg(test)]
+mod reset_hard_stash_tests;

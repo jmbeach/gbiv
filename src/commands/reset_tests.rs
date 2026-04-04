@@ -77,7 +77,7 @@ fn reset_one_exists_and_returns_ok_when_already_on_color_branch() {
     let repo_path = root.path().join("red").join("myrepo");
     setup_empty_repo_on_branch(&repo_path, "red");
 
-    let result = reset_one(root.path(), "red");
+    let result = reset_one(root.path(), "red", false);
     assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
     let message = result.unwrap();
@@ -94,7 +94,7 @@ fn reset_one_exists_and_returns_ok_when_already_on_color_branch() {
 fn reset_one_success_message_contains_reset_not_cleaned_up() {
     let (_source_dir, root, _repo_path) = setup_worktree_with_merged_feature();
 
-    let result = reset_one(root.path(), "red");
+    let result = reset_one(root.path(), "red", false);
     assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
     let message = result.unwrap();
@@ -146,7 +146,7 @@ fn reset_all_to_vec_exists_and_processes_done_entries() {
     let gbiv_md_path = main_repo.join("GBIV.md");
     std::fs::write(&gbiv_md_path, "- [red] [done] Fix critical bug\n").unwrap();
 
-    let messages = reset_all_to_vec(root.path());
+    let messages = reset_all_to_vec(root.path(), false);
 
     // Should return a non-empty Vec (at minimum a summary line)
     assert!(
@@ -163,7 +163,7 @@ fn reset_all_to_vec_exists_and_processes_done_entries() {
 fn reset_command_exists_and_is_callable() {
     // Verify reset_command compiles and is callable. The result depends on
     // whether CWD is a gbiv repo, so we just check it doesn't panic.
-    let _result = reset_command(None);
+    let _result = reset_command(None, false, false);
     // If we reach here, the function exists and is callable — test passes.
 }
 
