@@ -1,16 +1,11 @@
 # Update `status` for Multi-User
 
-Modify `src/commands/status.rs` to show state file assignments and dangling warnings.
+Modify `src/commands/status.rs` to surface `[by:name]` info.
 
-## Default Display (no flags)
-For each color worktree, show:
-- Color name + current branch + git ahead/behind
-- If state file has an assignment: show feature description from GBIV.md
-- If state file points to an ID not found in GBIV.md: show dangling warning
+## Default Display
+For each color worktree, if the `[color]` entry has a `[by:name]` tag,
+show the name alongside the feature description (e.g. dimmed `(jared)` suffix).
 
-## `--backlog` Flag
-When passed, also show unassigned GBIV.md entries (entries with IDs that have no color assignment in the state file) in a separate section after the worktree list.
-
-## Dangling State Warnings
-If state file references an ID that doesn't exist in GBIV.md, show:
-`"Warning: [color] assigned to [id] but entry not found in GBIV.md"`
+## `--mine` Flag
+When passed, filter the display to only show worktrees whose `[color]` entry
+has `[by:<user.name>]` matching the configured user. Error if `user.name` is unset.
