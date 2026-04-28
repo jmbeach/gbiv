@@ -5,6 +5,7 @@ pub struct GbivFeature {
     pub notes: Vec<String>,
 }
 
+// @spec FL-PARSE-001 through FL-PARSE-014
 pub fn parse_gbiv_md(path: &std::path::Path) -> Vec<GbivFeature> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
@@ -59,6 +60,7 @@ pub fn parse_gbiv_md(path: &std::path::Path) -> Vec<GbivFeature> {
     features
 }
 
+// @spec FL-MUTATE-007 through FL-MUTATE-011
 pub fn remove_gbiv_features_by_tag(path: &std::path::Path, tag: &str) -> Result<(), String> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
@@ -120,6 +122,7 @@ pub fn remove_gbiv_features_by_tag(path: &std::path::Path, tag: &str) -> Result<
     std::fs::write(path, result).map_err(|e| format!("Failed to write GBIV.md: {}", e))
 }
 
+// @spec FL-MUTATE-001 through FL-MUTATE-006
 pub fn set_gbiv_feature_status(path: &std::path::Path, color: &str, status: Option<&str>) -> Result<(), String> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read GBIV.md: {}", e))?;
@@ -185,12 +188,14 @@ mod tests {
         f
     }
 
+    // @spec FL-PARSE-010
     #[test]
     fn returns_empty_when_file_missing() {
         let result = parse_gbiv_md(std::path::Path::new("/nonexistent/GBIV.md"));
         assert!(result.is_empty());
     }
 
+    // @spec FL-PARSE-008
     #[test]
     fn returns_empty_when_no_feature_lines() {
         let f = write_temp("Just some text\nno features here\n");
@@ -198,6 +203,7 @@ mod tests {
         assert!(result.is_empty());
     }
 
+    // @spec FL-PARSE-006
     #[test]
     fn parses_simple_feature_without_tag() {
         let f = write_temp("- Add login page\n");
@@ -208,6 +214,7 @@ mod tests {
         assert!(result[0].notes.is_empty());
     }
 
+    // @spec FL-PARSE-002
     #[test]
     fn parses_feature_with_tag() {
         let f = write_temp("- [red] Fix critical bug\n");
@@ -217,6 +224,7 @@ mod tests {
         assert_eq!(result[0].description, "Fix critical bug");
     }
 
+    // @spec FL-PARSE-007
     #[test]
     fn parses_notes_on_preceding_feature() {
         let f = write_temp("- [blue] Add feature\n  This is a note\n  Another note\n");
@@ -225,6 +233,7 @@ mod tests {
         assert_eq!(result[0].notes, vec!["  This is a note", "  Another note"]);
     }
 
+    // @spec FL-PARSE-009
     #[test]
     fn stops_at_separator() {
         let f = write_temp("- First feature\n---\n- Second feature\n");
@@ -233,6 +242,7 @@ mod tests {
         assert_eq!(result[0].description, "First feature");
     }
 
+    // @spec FL-PARSE-001, FL-PARSE-002
     #[test]
     fn parses_multiple_features() {
         let f = write_temp("- [green] Feature A\n- Feature B\n- [red] Feature C\n");
@@ -244,6 +254,7 @@ mod tests {
         assert_eq!(result[2].tag, Some("red".to_string()));
     }
 
+    // @spec FL-PARSE-002
     #[test]
     fn parses_feature_with_unrecognized_tag() {
         let f = write_temp("- [purple] Some feature\n");
@@ -253,6 +264,7 @@ mod tests {
         assert_eq!(result[0].description, "Some feature");
     }
 
+    // @spec FL-PARSE-008
     #[test]
     fn notes_not_attached_before_first_feature() {
         let f = write_temp("Some header text\n- Feature one\n");
@@ -264,6 +276,7 @@ mod tests {
 
     // Tests for remove_gbiv_features_by_tag
 
+    // @spec FL-MUTATE-007
     #[test]
     fn remove_by_tag_removes_matching_entry() {
         let f = write_temp("- [red] Fix critical bug\n- [blue] Add feature\n");
@@ -273,6 +286,7 @@ mod tests {
         assert_eq!(result[0].tag, Some("blue".to_string()));
     }
 
+    // @spec FL-MUTATE-010
     #[test]
     fn remove_by_tag_noop_when_no_match() {
         let original = "- [blue] Add feature\n";
@@ -282,6 +296,7 @@ mod tests {
         assert_eq!(on_disk, original);
     }
 
+    // @spec FL-MUTATE-007
     #[test]
     fn remove_by_tag_removes_multiple_matching_entries() {
         let f = write_temp("- [red] Bug fix\n- [blue] Feature\n- [red] Another red\n");
@@ -291,6 +306,7 @@ mod tests {
         assert_eq!(result[0].tag, Some("blue".to_string()));
     }
 
+    // @spec FL-MUTATE-008
     #[test]
     fn remove_by_tag_preserves_content_after_separator() {
         let f = write_temp("- [red] Bug fix\n---\nSome footer content\n");
@@ -300,6 +316,7 @@ mod tests {
         assert!(!on_disk.contains("[red]"));
     }
 
+    // @spec FL-MUTATE-007
     #[test]
     fn remove_by_tag_also_removes_attached_notes() {
         let f = write_temp("- [red] Bug fix\n  Note line\n  Another note\n- [blue] Feature\n");
@@ -312,6 +329,7 @@ mod tests {
         assert!(!on_disk.contains("Another note"));
     }
 
+    // @spec FL-MUTATE-009
     #[test]
     fn remove_by_tag_no_stray_blank_lines_when_features_separated_by_blank() {
         let f = write_temp("- [red] Bug fix\n\n- [blue] Feature\n");
@@ -320,7 +338,7 @@ mod tests {
         assert_eq!(on_disk, "- [blue] Feature\n");
     }
 
-    // gbi-4sjo: Test parse entry with [done] status tag
+    // @spec FL-PARSE-003
     #[test]
     fn parse_entry_with_done_status_tag() {
         let f = write_temp("- [red] [done] Fix critical bug\n");
@@ -331,7 +349,7 @@ mod tests {
         assert_eq!(result[0].description, "Fix critical bug");
     }
 
-    // gbi-luvt: Test parse entry with [in-progress] status tag
+    // @spec FL-PARSE-004
     #[test]
     fn parse_entry_with_in_progress_status_tag() {
         let f = write_temp("- [red] [in-progress] Fix critical bug\n");
@@ -342,7 +360,7 @@ mod tests {
         assert_eq!(result[0].description, "Fix critical bug");
     }
 
-    // gbi-u6co: Test parse entry without status tag returns status None
+    // @spec FL-PARSE-002
     #[test]
     fn parse_entry_without_status_tag_returns_none() {
         let f = write_temp("- [red] Fix critical bug\n");
@@ -353,7 +371,7 @@ mod tests {
         assert_eq!(result[0].description, "Fix critical bug");
     }
 
-    // gbi-wxvs: Test unrecognized second bracket is not a status
+    // @spec FL-PARSE-005
     #[test]
     fn parse_unrecognized_second_bracket_is_not_status() {
         let f = write_temp("- [red] [wip] Fix critical bug\n");
@@ -364,7 +382,7 @@ mod tests {
         assert_eq!(result[0].description, "[wip] Fix critical bug");
     }
 
-    // gbi-r3m3: Test set_gbiv_feature_status adds done to entry with no status
+    // @spec FL-MUTATE-001
     #[test]
     fn set_status_adds_done_to_entry_with_no_status() {
         let f = write_temp("- [red] Fix bug\n");
@@ -373,7 +391,7 @@ mod tests {
         assert_eq!(on_disk, "- [red] [done] Fix bug\n");
     }
 
-    // gbi-ly6e: Test set_gbiv_feature_status replaces existing status
+    // @spec FL-MUTATE-001
     #[test]
     fn set_status_replaces_existing_status() {
         let f = write_temp("- [red] [in-progress] Fix bug\n");
@@ -382,7 +400,7 @@ mod tests {
         assert_eq!(on_disk, "- [red] [done] Fix bug\n");
     }
 
-    // gbi-d7p2: Test set_gbiv_feature_status with None removes status tag (unset)
+    // @spec FL-MUTATE-002
     #[test]
     fn set_status_with_none_removes_status_tag() {
         let f = write_temp("- [red] [done] Fix bug\n");
@@ -391,7 +409,7 @@ mod tests {
         assert_eq!(on_disk, "- [red] Fix bug\n");
     }
 
-    // gbi-4yh7: Test set_gbiv_feature_status errors when no matching color entry
+    // @spec FL-MUTATE-003
     #[test]
     fn set_status_errors_when_no_matching_color_entry() {
         let f = write_temp("- [blue] Fix bug\n");
@@ -401,7 +419,7 @@ mod tests {
         assert_ne!(err, "not implemented".to_string(), "stub should be replaced with real error");
     }
 
-    // gbi-tknr: Test set_gbiv_feature_status preserves notes
+    // @spec FL-MUTATE-004
     #[test]
     fn set_status_preserves_notes() {
         let f = write_temp("- [red] Fix bug\n  Note line one\n  Note line two\n");

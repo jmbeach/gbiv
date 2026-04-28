@@ -12,11 +12,13 @@ pub fn clean_subcommand() -> Command {
         .about("Close ROYGBIV tmux windows with no tagged feature in GBIV.md")
 }
 
+// @spec TMX-CLEAN-005, TMX-CLEAN-006, TMX-CLEAN-007
 /// Pure filtering predicate — testable without a live tmux process.
 pub fn is_orphaned_window(name: &str, active_colors: &HashSet<String>) -> bool {
     COLORS.contains(&name) && !active_colors.contains(name)
 }
 
+// @spec TMX-CLEAN-001, TMX-CLEAN-002, TMX-CLEAN-003, TMX-CLEAN-004, TMX-CLEAN-005, TMX-CLEAN-006, TMX-CLEAN-007, TMX-CLEAN-008, TMX-CLEAN-009, TMX-CLEAN-010, TMX-CLEAN-011, TMX-CLEAN-012
 pub fn clean_command() -> Result<(), String> {
     // Guard 1: tmux must be available
     let tmux_available = ProcessCommand::new("tmux")
@@ -120,6 +122,7 @@ mod tests {
     use serial_test::serial;
     use std::process::Command as ProcessCommand;
 
+    // @spec TMX-CLEAN-001
     #[test]
     #[serial]
     fn test_clean_command_tmux_not_found() {
@@ -143,6 +146,7 @@ mod tests {
         );
     }
 
+    // @spec TMX-CLEAN-003
     #[test]
     #[serial]
     fn test_clean_command_session_not_found() {
@@ -192,6 +196,7 @@ mod tests {
         );
     }
 
+    // @spec TMX-CLEAN-005
     #[test]
     fn test_orphan_filtering_basic() {
         let active: HashSet<String> = ["red", "blue"].iter().map(|s| s.to_string()).collect();
@@ -206,6 +211,7 @@ mod tests {
         assert!(!is_orphaned_window("blue", &active));
     }
 
+    // @spec TMX-CLEAN-006, TMX-CLEAN-007
     #[test]
     fn test_orphan_filtering_skips_non_roygbiv() {
         let active: HashSet<String> = HashSet::new();
@@ -217,6 +223,7 @@ mod tests {
         assert!(!is_orphaned_window("", &active));
     }
 
+    // @spec TMX-CLEAN-005
     #[test]
     fn test_orphan_filtering_all_active() {
         let active: HashSet<String> = COLORS.iter().map(|s| s.to_string()).collect();

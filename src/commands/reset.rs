@@ -6,6 +6,7 @@ use crate::git_utils::{
     get_remote_main_branch, is_merged_into, reset_hard, stash_push,
 };
 
+// @spec WTL-RESET-001 through WTL-RESET-010, WTL-RESET-020
 pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> Result<String, String> {
     let worktree_dir = gbiv_root.join(color);
 
@@ -57,6 +58,7 @@ pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> Result<String, St
     Ok(message)
 }
 
+// @spec WTL-RESET-011 through WTL-RESET-015
 /// Returns all output lines (including a summary) produced by all-color reset.
 pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> {
     use crate::gbiv_md::parse_gbiv_md;
@@ -161,6 +163,7 @@ pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> 
     messages
 }
 
+// @spec WTL-RESET-016 through WTL-RESET-019
 pub fn reset_command(color: Option<&str>, hard: bool, yes: bool) -> Result<(), String> {
     let cwd = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
@@ -247,6 +250,7 @@ mod tests {
         git(&["branch", "-m", branch], path);
     }
 
+    // @spec WTL-RESET-001
     #[test]
     fn returns_ok_when_already_on_color_branch() {
         let root = TempDir::new().unwrap();
@@ -257,6 +261,7 @@ mod tests {
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
     }
 
+    // @spec WTL-RESET-002
     #[test]
     fn returns_err_when_no_remote_configured() {
         let root = TempDir::new().unwrap();
@@ -311,6 +316,7 @@ mod tests {
         (source_dir, root, repo_path)
     }
 
+    // @spec WTL-RESET-004
     #[test]
     fn reset_resets_color_branch_head_to_origin_main() {
         let (_source_dir, root, repo_path) = setup_worktree_with_merged_feature();
@@ -357,6 +363,7 @@ mod tests {
         );
     }
 
+    // @spec WTL-RESET-004
     #[test]
     fn reset_succeeds_when_color_branch_has_no_remote_tracking() {
         let (_source_dir, root, repo_path) = setup_worktree_with_merged_feature();
@@ -377,6 +384,7 @@ mod tests {
         );
     }
 
+    // @spec WTL-RESET-004
     #[test]
     fn reset_one_returns_success_message_with_previous_branch() {
         let (_source_dir, root, _repo_path) = setup_worktree_with_merged_feature();
@@ -402,6 +410,7 @@ mod tests {
         );
     }
 
+    // @spec WTL-RESET-001
     #[test]
     fn reset_one_returns_skip_message_when_on_color_branch() {
         let root = TempDir::new().unwrap();
@@ -465,7 +474,7 @@ mod tests {
         (source_dir, root, repo_path, main_repo, gbiv_md_path)
     }
 
-    // all-color reset skips entries without [done] status
+    // @spec WTL-RESET-014
     #[test]
     fn all_color_reset_skips_entries_without_done_status() {
         let (_source_dir, root, repo_path, _main_repo, gbiv_md_path) =
@@ -500,7 +509,7 @@ mod tests {
         );
     }
 
-    // all-color reset processes [done] entries
+    // @spec WTL-RESET-012, WTL-RESET-005
     #[test]
     fn all_color_reset_processes_done_entries() {
         let (_source_dir, root, repo_path, _main_repo, gbiv_md_path) =
@@ -541,7 +550,7 @@ mod tests {
         );
     }
 
-    // single-color reset ignores status tag
+    // @spec WTL-RESET-004
     #[test]
     fn single_color_reset_ignores_status_tag() {
         // Test with [in-progress] status: single-color should still reset
@@ -595,7 +604,7 @@ mod tests {
         );
     }
 
-    // all-color reset prints summary with skip reasons
+    // @spec WTL-RESET-015
     #[test]
     fn all_color_reset_prints_summary_with_skip_reasons() {
         let (_source_dir, root, _repo_path, _main_repo, _gbiv_md_path) =
@@ -614,6 +623,7 @@ mod tests {
         );
     }
 
+    // @spec WTL-RESET-003
     #[test]
     fn returns_err_when_feature_branch_not_merged() {
         // Create a source repo with a commit on main (serves as origin)

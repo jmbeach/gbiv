@@ -3,6 +3,7 @@ use std::path::Path;
 use crate::gbiv_md::set_gbiv_feature_status;
 use crate::git_utils::{find_gbiv_root, find_repo_in_worktree, infer_color_from_path};
 
+// @spec FL-MARK-001 through FL-MARK-011
 pub fn mark_command(
     status: Option<&str>,
     color: Option<&str>,
@@ -121,7 +122,7 @@ mod tests {
         (root, main_repo, gbiv_md_path)
     }
 
-    // gbi-yw4d: mark --done sets done status in GBIV.md
+    // @spec FL-MARK-001
     #[test]
     fn mark_done_adds_done_tag_to_entry() {
         let (root, _main_repo, gbiv_md_path) =
@@ -138,6 +139,7 @@ mod tests {
         );
     }
 
+    // @spec FL-MARK-010
     #[test]
     fn mark_done_replaces_existing_status_with_done() {
         let (root, _main_repo, gbiv_md_path) =
@@ -159,7 +161,7 @@ mod tests {
         );
     }
 
-    // gbi-qkn6: mark --in-progress sets in-progress status in GBIV.md
+    // @spec FL-MARK-002
     #[test]
     fn mark_in_progress_adds_in_progress_tag_to_entry() {
         let (root, _main_repo, gbiv_md_path) =
@@ -176,7 +178,7 @@ mod tests {
         );
     }
 
-    // gbi-xuln: mark --unset removes status from GBIV.md
+    // @spec FL-MARK-003
     #[test]
     fn mark_unset_removes_status_tag_from_entry() {
         let (root, _main_repo, gbiv_md_path) =
@@ -198,6 +200,7 @@ mod tests {
         );
     }
 
+    // @spec FL-MARK-009
     #[test]
     fn mark_unset_noop_when_no_status_present() {
         let original = "- [red] Fix critical bug\n";
@@ -214,7 +217,7 @@ mod tests {
         );
     }
 
-    // gbi-fa26: mark errors when no GBIV.md entry for color
+    // @spec FL-MARK-006
     #[test]
     fn mark_done_errors_when_no_matching_color_entry() {
         let (root, _main_repo, _gbiv_md_path) =
@@ -234,6 +237,7 @@ mod tests {
         );
     }
 
+    // @spec FL-MARK-008
     #[test]
     fn mark_unset_noop_when_no_matching_color_entry() {
         let (root, _main_repo, _gbiv_md_path) =
@@ -247,7 +251,7 @@ mod tests {
         );
     }
 
-    // gbi-gohl: mark infers color from current worktree directory
+    // @spec FL-MARK-004
     #[test]
     fn mark_infers_color_from_worktree_directory() {
         let (root, _main_repo, gbiv_md_path) =
@@ -270,7 +274,7 @@ mod tests {
         );
     }
 
-    // gbi-xpjp: mark errors when color cannot be inferred
+    // @spec FL-MARK-005
     #[test]
     fn mark_errors_when_color_cannot_be_inferred() {
         let (root, _main_repo, _gbiv_md_path) =

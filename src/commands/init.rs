@@ -18,6 +18,27 @@ fn write_gbiv_md_if_absent(main_repo_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+// @spec WTL-INIT-011
+fn ensure_gbiv_md_in_gitignore(main_repo_path: &Path) -> Result<(), String> {
+    let gitignore_path = main_repo_path.join(".gitignore");
+    let existing = fs::read_to_string(&gitignore_path).unwrap_or_default();
+    let already_listed = existing
+        .lines()
+        .any(|l| l.trim() == "GBIV.md" || l.trim() == "/GBIV.md");
+    if already_listed {
+        return Ok(());
+    }
+    let mut new_contents = existing.clone();
+    if !new_contents.is_empty() && !new_contents.ends_with('\n') {
+        new_contents.push('\n');
+    }
+    new_contents.push_str("GBIV.md\n");
+    fs::write(&gitignore_path, new_contents)
+        .map_err(|e| format!("Failed to update .gitignore: {}", e))?;
+    println!("Added GBIV.md to .gitignore");
+    Ok(())
+}
+
 fn check_color_branches(path: &Path) -> Vec<String> {
     let branches = get_existing_branches(path);
     COLORS
@@ -27,6 +48,7 @@ fn check_color_branches(path: &Path) -> Vec<String> {
         .collect()
 }
 
+// @spec WTL-INIT-001 through WTL-INIT-011
 pub fn init_command(folder: &str) -> Result<(), String> {
     let target_path = Path::new(folder);
 
@@ -128,6 +150,7 @@ pub fn init_command(folder: &str) -> Result<(), String> {
     }
 
     write_gbiv_md_if_absent(Path::new(&main_repo_path))?;
+    ensure_gbiv_md_in_gitignore(Path::new(&main_repo_path))?;
 
     println!(
         "Successfully initialized '{}' with ROYGBIV worktrees!",
@@ -186,6 +209,7 @@ mod tests {
             .unwrap();
     }
 
+    // @spec WTL-INIT-002
     #[test]
     #[serial]
     fn test_is_git_repo_true() {
@@ -195,6 +219,7 @@ mod tests {
         cleanup_test_dir(&test_dir);
     }
 
+    // @spec WTL-INIT-002
     #[test]
     fn test_is_git_repo_false() {
         let test_dir = setup_test_dir("is_git_repo_false");
@@ -202,6 +227,7 @@ mod tests {
         cleanup_test_dir(&test_dir);
     }
 
+    // @spec WTL-INIT-003
     #[test]
     #[serial]
     fn test_has_commits_true() {
@@ -212,6 +238,7 @@ mod tests {
         cleanup_test_dir(&test_dir);
     }
 
+    // @spec WTL-INIT-003
     #[test]
     #[serial]
     fn test_has_commits_false() {
@@ -221,6 +248,7 @@ mod tests {
         cleanup_test_dir(&test_dir);
     }
 
+    // @spec WTL-INIT-006
     #[test]
     #[serial]
     fn test_get_main_branch() {
@@ -234,6 +262,7 @@ mod tests {
         cleanup_test_dir(&test_dir);
     }
 
+    // @spec WTL-INIT-004
     #[test]
     #[serial]
     fn test_check_color_branches_none() {
@@ -245,6 +274,7 @@ mod tests {
         cleanup_test_dir(&test_dir);
     }
 
+    // @spec WTL-INIT-004
     #[test]
     #[serial]
     fn test_check_color_branches_conflict() {
@@ -261,6 +291,7 @@ mod tests {
         cleanup_test_dir(&test_dir);
     }
 
+    // @spec WTL-INIT-001
     #[test]
     fn test_init_command_folder_not_exist() {
         let result = init_command("nonexistent_folder_xyz");
@@ -268,6 +299,7 @@ mod tests {
         assert!(result.unwrap_err().contains("does not exist"));
     }
 
+    // @spec WTL-INIT-002
     #[test]
     fn test_init_command_not_git_repo() {
         let test_dir = setup_test_dir("not_git_repo");
@@ -277,6 +309,7 @@ mod tests {
         cleanup_test_dir(&test_dir);
     }
 
+    // @spec WTL-INIT-003
     #[test]
     #[serial]
     fn test_init_command_no_commits() {
@@ -288,6 +321,7 @@ mod tests {
         cleanup_test_dir(&test_dir);
     }
 
+    // @spec WTL-INIT-004
     #[test]
     #[serial]
     fn test_init_command_color_branch_conflict() {
@@ -305,6 +339,7 @@ mod tests {
         cleanup_test_dir(&test_dir);
     }
 
+    // @spec WTL-INIT-005, WTL-INIT-006
     #[test]
     #[serial]
     fn test_init_command_success() {
@@ -327,6 +362,7 @@ mod tests {
         cleanup_test_dir(&base_dir);
     }
 
+    // @spec WTL-INIT-007
     #[test]
     fn test_write_gbiv_md_creates_file_with_correct_content() {
         let dir = setup_test_dir("write_gbiv_md_create");
@@ -345,6 +381,50 @@ mod tests {
         cleanup_test_dir(&dir);
     }
 
+    // @spec WTL-INIT-011
+    #[test]
+    fn test_ensure_gbiv_md_in_gitignore_creates_file() {
+        let dir = setup_test_dir("gitignore_create");
+        ensure_gbiv_md_in_gitignore(Path::new(&dir)).unwrap();
+        let content = fs::read_to_string(Path::new(&dir).join(".gitignore")).unwrap();
+        assert_eq!(content, "GBIV.md\n");
+        cleanup_test_dir(&dir);
+    }
+
+    // @spec WTL-INIT-011
+    #[test]
+    fn test_ensure_gbiv_md_in_gitignore_appends_when_missing() {
+        let dir = setup_test_dir("gitignore_append");
+        fs::write(Path::new(&dir).join(".gitignore"), "target\n").unwrap();
+        ensure_gbiv_md_in_gitignore(Path::new(&dir)).unwrap();
+        let content = fs::read_to_string(Path::new(&dir).join(".gitignore")).unwrap();
+        assert_eq!(content, "target\nGBIV.md\n");
+        cleanup_test_dir(&dir);
+    }
+
+    // @spec WTL-INIT-011
+    #[test]
+    fn test_ensure_gbiv_md_in_gitignore_appends_newline_when_no_trailing() {
+        let dir = setup_test_dir("gitignore_no_trailing");
+        fs::write(Path::new(&dir).join(".gitignore"), "target").unwrap();
+        ensure_gbiv_md_in_gitignore(Path::new(&dir)).unwrap();
+        let content = fs::read_to_string(Path::new(&dir).join(".gitignore")).unwrap();
+        assert_eq!(content, "target\nGBIV.md\n");
+        cleanup_test_dir(&dir);
+    }
+
+    // @spec WTL-INIT-011
+    #[test]
+    fn test_ensure_gbiv_md_in_gitignore_noop_when_already_listed() {
+        let dir = setup_test_dir("gitignore_already_listed");
+        fs::write(Path::new(&dir).join(".gitignore"), "target\nGBIV.md\nfoo\n").unwrap();
+        ensure_gbiv_md_in_gitignore(Path::new(&dir)).unwrap();
+        let content = fs::read_to_string(Path::new(&dir).join(".gitignore")).unwrap();
+        assert_eq!(content, "target\nGBIV.md\nfoo\n");
+        cleanup_test_dir(&dir);
+    }
+
+    // @spec WTL-INIT-008
     #[test]
     fn test_write_gbiv_md_does_not_overwrite_existing() {
         let dir = setup_test_dir("write_gbiv_md_no_overwrite");

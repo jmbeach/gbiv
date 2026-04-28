@@ -2,6 +2,7 @@ use crate::commands::rebase_all::rebase_all_command;
 use crate::commands::reset::reset_command;
 use crate::commands::tmux::clean::clean_command;
 
+// @spec WTL-TIDY-001 through WTL-TIDY-007
 pub fn tidy_command() -> Result<(), String> {
     let mut had_error = false;
 

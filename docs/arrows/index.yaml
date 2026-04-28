@@ -1,0 +1,60 @@
+arrows:
+  - name: worktree-lifecycle
+    description: Creation, sync, reset, and maintenance of the 7-color worktree structure
+    status: MAPPED
+    hld_section: "Core Concepts > The Color Worktree, The Maintenance Loop"
+    lld: docs/llds/worktree-lifecycle.md
+    specs: docs/specs/worktree-lifecycle.md
+    arrow_doc: docs/arrows/worktree-lifecycle.md
+    source_dirs:
+      - src/git_utils.rs
+      - src/commands/init.rs
+      - src/commands/rebase_all.rs
+      - src/commands/reset.rs
+      - src/commands/tidy.rs
+
+  - name: feature-ledger
+    description: GBIV.md parsing, mutation, and the mark command
+    status: MAPPED
+    hld_section: "Core Concepts > The Feature Lifecycle"
+    lld: docs/llds/feature-ledger.md
+    specs: docs/specs/feature-ledger.md
+    arrow_doc: docs/arrows/feature-ledger.md
+    source_dirs:
+      - src/gbiv_md.rs
+      - src/commands/mark.rs
+
+  - name: observation
+    description: Status dashboard and cross-worktree command execution
+    status: MAPPED
+    hld_section: "Component Architecture > Observation"
+    lld: docs/llds/observation.md
+    specs: docs/specs/observation.md
+    arrow_doc: docs/arrows/observation.md
+    source_dirs:
+      - src/commands/status.rs
+      - src/commands/exec.rs
+
+  - name: tmux-mirror
+    description: Tmux session/window lifecycle synchronized with worktree layout
+    status: MAPPED
+    hld_section: "Component Architecture > Tmux Mirror"
+    lld: docs/llds/tmux-mirror.md
+    specs: docs/specs/tmux-mirror.md
+    arrow_doc: docs/arrows/tmux-mirror.md
+    source_dirs:
+      - src/commands/tmux/mod.rs
+      - src/commands/tmux/new_session.rs
+      - src/commands/tmux/sync.rs
+      - src/commands/tmux/clean.rs
+
+  - name: cli-and-palette
+    description: Command dispatch, argument parsing, and terminal color formatting
+    status: MAPPED
+    hld_section: "Component Architecture > CLI & Palette"
+    lld: docs/llds/cli-and-palette.md
+    specs: docs/specs/cli-and-palette.md
+    arrow_doc: docs/arrows/cli-and-palette.md
+    source_dirs:
+      - src/main.rs
+      - src/colors.rs

@@ -18,6 +18,7 @@ pub fn sync_subcommand() -> Command {
         )
 }
 
+// @spec TMX-SYNC-007
 /// Extract the set of valid ROYGBIV colors that have at least one tagged feature in GBIV.md.
 pub fn active_colors_from_features(features: &[GbivFeature]) -> HashSet<String> {
     let valid_colors: HashSet<&str> = COLORS.iter().copied().collect();
@@ -29,6 +30,7 @@ pub fn active_colors_from_features(features: &[GbivFeature]) -> HashSet<String> 
         .collect()
 }
 
+// @spec TMX-SYNC-008
 /// Given the set of active colors and the list of existing window names,
 /// return the colors that need new windows created.
 pub fn missing_windows(active_colors: &HashSet<String>, existing_windows: &[String]) -> Vec<String> {
@@ -40,6 +42,7 @@ pub fn missing_windows(active_colors: &HashSet<String>, existing_windows: &[Stri
         .collect()
 }
 
+// @spec TMX-SYNC-013
 /// Sort window names into ROYGBIV order: main first, then colors in ROYGBIV order,
 /// then any non-color windows preserving their relative order.
 pub fn sort_windows_roygbiv(window_names: &[String]) -> Vec<String> {
@@ -68,6 +71,7 @@ pub fn sort_windows_roygbiv(window_names: &[String]) -> Vec<String> {
     result
 }
 
+// @spec TMX-SYNC-001, TMX-SYNC-002, TMX-SYNC-003, TMX-SYNC-004, TMX-SYNC-005, TMX-SYNC-006, TMX-SYNC-007, TMX-SYNC-008, TMX-SYNC-009, TMX-SYNC-010, TMX-SYNC-011, TMX-SYNC-012, TMX-SYNC-013, TMX-SYNC-014, TMX-SYNC-015
 pub fn sync_command(session_name: Option<&str>) -> Result<(), String> {
     // Guard 1: tmux must be available
     let tmux_available = ProcessCommand::new("tmux")
@@ -222,8 +226,7 @@ mod tests {
     use super::*;
     use serial_test::serial;
 
-    // --- Test ticket gbi-xcdt: active color extraction from GBIV.md ---
-
+    // @spec TMX-SYNC-007
     #[test]
     fn test_active_colors_extracts_valid_roygbiv_tags() {
         let features = vec![
@@ -237,6 +240,7 @@ mod tests {
         assert_eq!(active.len(), 2);
     }
 
+    // @spec TMX-SYNC-007
     #[test]
     fn test_active_colors_excludes_invalid_tags() {
         let features = vec![
@@ -249,6 +253,7 @@ mod tests {
         assert_eq!(active.len(), 1);
     }
 
+    // @spec TMX-SYNC-007
     #[test]
     fn test_active_colors_deduplicates() {
         let features = vec![
@@ -260,6 +265,7 @@ mod tests {
         assert!(active.contains("red"));
     }
 
+    // @spec TMX-SYNC-007
     #[test]
     fn test_active_colors_empty_features() {
         let features: Vec<GbivFeature> = vec![];
@@ -267,8 +273,7 @@ mod tests {
         assert!(active.is_empty());
     }
 
-    // --- Test ticket gbi-kjm9: missing window detection ---
-
+    // @spec TMX-SYNC-008
     #[test]
     fn test_missing_windows_color_active_but_no_window() {
         let active: HashSet<String> = ["red", "indigo"].iter().map(|s| s.to_string()).collect();
@@ -277,6 +282,7 @@ mod tests {
         assert_eq!(missing, vec!["indigo".to_string()]);
     }
 
+    // @spec TMX-SYNC-008
     #[test]
     fn test_missing_windows_all_present() {
         let active: HashSet<String> = ["red", "blue"].iter().map(|s| s.to_string()).collect();
@@ -285,6 +291,7 @@ mod tests {
         assert!(missing.is_empty());
     }
 
+    // @spec TMX-SYNC-008
     #[test]
     fn test_missing_windows_inactive_color_not_returned() {
         let active: HashSet<String> = ["red"].iter().map(|s| s.to_string()).collect();
@@ -295,8 +302,7 @@ mod tests {
         assert!(!missing.contains(&"blue".to_string()));
     }
 
-    // --- Test ticket gbi-kp8z: window ordering logic ---
-
+    // @spec TMX-SYNC-013
     #[test]
     fn test_sort_windows_roygbiv_basic_order() {
         let windows = vec![
@@ -306,6 +312,7 @@ mod tests {
         assert_eq!(sorted, vec!["main", "red", "yellow", "indigo"]);
     }
 
+    // @spec TMX-SYNC-013
     #[test]
     fn test_sort_windows_roygbiv_non_color_windows_at_end() {
         let windows = vec![
@@ -315,6 +322,7 @@ mod tests {
         assert_eq!(sorted, vec!["main", "red", "bash", "htop"]);
     }
 
+    // @spec TMX-SYNC-013
     #[test]
     fn test_sort_windows_roygbiv_full_set() {
         let windows = vec![
@@ -329,6 +337,7 @@ mod tests {
         );
     }
 
+    // @spec TMX-SYNC-013
     #[test]
     fn test_sort_windows_roygbiv_subset_of_colors() {
         let windows = vec!["blue".to_string(), "green".to_string()];
@@ -336,8 +345,7 @@ mod tests {
         assert_eq!(sorted, vec!["green", "blue"]);
     }
 
-    // --- Test ticket gbi-86mk: pre-flight guard - tmux not found ---
-
+    // @spec TMX-SYNC-001
     #[test]
     #[serial]
     fn test_sync_command_tmux_not_found() {

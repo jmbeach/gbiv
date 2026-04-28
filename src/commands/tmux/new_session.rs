@@ -16,6 +16,7 @@ pub fn new_session_subcommand() -> Command {
         )
 }
 
+// @spec TMX-SESSION-001, TMX-SESSION-002, TMX-SESSION-003, TMX-SESSION-004, TMX-SESSION-005, TMX-SESSION-006, TMX-SESSION-007, TMX-SESSION-008, TMX-SESSION-009, TMX-SESSION-010, TMX-SESSION-011, TMX-SESSION-012, TMX-SESSION-013
 pub fn new_session_command(session_name: Option<&str>) -> Result<(), String> {
     // Guard 1: tmux must be available
     let tmux_available = ProcessCommand::new("tmux")
@@ -117,6 +118,7 @@ mod tests {
     use super::*;
     use serial_test::serial;
 
+    // @spec TMX-SESSION-001
     #[test]
     #[serial]
     fn test_new_session_command_tmux_not_found() {
