@@ -18,6 +18,7 @@ enum RebaseResult {
     RebaseFailed(String),
 }
 
+// @spec WTL-REBASE-008 through WTL-REBASE-014
 fn rebase_worktree(root: &Path, color: &str, remote_main: &str) -> RebaseResult {
     let worktree_dir = root.join(color);
 
@@ -54,6 +55,7 @@ fn rebase_worktree(root: &Path, color: &str, remote_main: &str) -> RebaseResult 
     }
 }
 
+// @spec WTL-REBASE-001 through WTL-REBASE-017
 pub fn rebase_all_command() -> Result<(), String> {
     let cwd = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
@@ -186,6 +188,7 @@ mod tests {
         let _ = fs::remove_dir_all(path);
     }
 
+    // @spec WTL-REBASE-006
     #[test]
     fn test_ensure_gitignore_entry_no_duplicate() {
         let dir = setup_test_dir("no_dup");
@@ -202,6 +205,7 @@ mod tests {
         cleanup(&dir);
     }
 
+    // @spec WTL-REBASE-006
     #[test]
     fn test_ensure_gitignore_entry_creates_info_dir() {
         let dir = setup_test_dir("creates_info");
@@ -229,6 +233,7 @@ mod tests {
         Command::new("git").args(["commit", "-m", "init"]).current_dir(path).output().unwrap();
     }
 
+    // @spec WTL-REBASE-006
     #[test]
     fn test_rebase_all_registers_last_branch_in_exclude() {
         let base = setup_test_dir("rebase_exclude");
@@ -266,6 +271,7 @@ mod tests {
         cleanup(&base);
     }
 
+    // @spec WTL-REBASE-014, WTL-REBASE-015
     #[test]
     fn test_rebase_error_format_includes_branch_name() {
         let result = format_rebase_error("yellow", "", "could not apply 69957f7...");
@@ -282,6 +288,7 @@ mod tests {
         );
     }
 
+    // @spec WTL-REBASE-014, WTL-REBASE-015
     #[test]
     fn test_rebase_error_format_indents_detail_lines() {
         let result = format_rebase_error("yellow", "", "line1\nhint: line2\nhint: line3");

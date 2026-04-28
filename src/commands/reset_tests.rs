@@ -69,8 +69,7 @@ fn setup_worktree_with_merged_feature() -> (TempDir, TempDir, std::path::PathBuf
     (source_dir, root, repo_path)
 }
 
-// Test reset_one exists — call reset_one on a worktree already on
-// color branch, verify Ok with "already on the red branch"
+// @spec WTL-RESET-001
 #[test]
 fn reset_one_exists_and_returns_ok_when_already_on_color_branch() {
     let root = TempDir::new().unwrap();
@@ -88,8 +87,7 @@ fn reset_one_exists_and_returns_ok_when_already_on_color_branch() {
     );
 }
 
-// Test reset_one output uses "reset" — call on merged branch, assert
-// message contains "reset" not "cleaned up"
+// @spec WTL-RESET-004
 #[test]
 fn reset_one_success_message_contains_reset_not_cleaned_up() {
     let (_source_dir, root, _repo_path) = setup_worktree_with_merged_feature();
@@ -110,8 +108,7 @@ fn reset_one_success_message_contains_reset_not_cleaned_up() {
     );
 }
 
-// Test reset_all_to_vec exists — call on setup with [done] entry,
-// verify it works
+// @spec WTL-RESET-011, WTL-RESET-012
 #[test]
 fn reset_all_to_vec_exists_and_processes_done_entries() {
     // Source repo acts as "origin"
@@ -158,7 +155,7 @@ fn reset_all_to_vec_exists_and_processes_done_entries() {
     drop(source_dir);
 }
 
-// Test reset_command exists — import and verify callable
+// @spec CLI-DISPATCH-002
 #[test]
 fn reset_command_exists_and_is_callable() {
     // Verify reset_command compiles and is callable. The result depends on
@@ -167,7 +164,7 @@ fn reset_command_exists_and_is_callable() {
     // If we reach here, the function exists and is callable — test passes.
 }
 
-// Test CLI registers "reset" subcommand
+// @spec CLI-DISPATCH-004
 #[test]
 fn cli_registers_reset_subcommand() {
     // Verify the CLI definition includes a "reset" subcommand by building the

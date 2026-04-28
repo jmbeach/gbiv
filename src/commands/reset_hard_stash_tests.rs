@@ -21,8 +21,7 @@ fn setup_repo_with_commit(path: &std::path::Path, branch: &str) {
     git(&["branch", "-m", branch], path);
 }
 
-// @spec HRESET-004
-// Dirty worktree is stashed before reset.
+// @spec WTL-RESET-008
 #[test]
 fn dirty_worktree_is_stashed_before_reset() {
     let source_dir = TempDir::new().unwrap();
@@ -82,8 +81,7 @@ fn dirty_worktree_is_stashed_before_reset() {
     drop(source_dir);
 }
 
-// @spec HRESET-004
-// Clean worktree skips stash.
+// @spec WTL-RESET-008
 #[test]
 fn clean_worktree_skips_stash() {
     let source_dir = TempDir::new().unwrap();
@@ -140,8 +138,7 @@ fn clean_worktree_skips_stash() {
     drop(source_dir);
 }
 
-// @spec HRESET-004
-// Stash failure aborts reset for that worktree.
+// @spec WTL-RESET-008
 #[test]
 fn stash_failure_aborts_reset() {
     let source_dir = TempDir::new().unwrap();
@@ -212,8 +209,7 @@ fn stash_failure_aborts_reset() {
     drop(source_dir);
 }
 
-// @spec HRESET-005
-// GBIV.md entry removed after hard reset.
+// @spec WTL-RESET-010
 #[test]
 fn gbiv_md_entry_removed_after_hard_reset() {
     let source_dir = TempDir::new().unwrap();
@@ -265,8 +261,7 @@ fn gbiv_md_entry_removed_after_hard_reset() {
     drop(source_dir);
 }
 
-// @spec HRESET-005
-// No GBIV.md entry to remove proceeds without error.
+// @spec WTL-RESET-010
 #[test]
 fn no_gbiv_md_entry_proceeds_without_error() {
     let source_dir = TempDir::new().unwrap();

@@ -101,9 +101,7 @@ fn setup_worktree_with_merged_feature() -> (TempDir, TempDir, std::path::PathBuf
     (source_dir, root, repo_path)
 }
 
-// @spec HRESET-001
-// Hard reset should succeed even when the current branch has commits not merged
-// into origin/main — the merge check is skipped when hard=true.
+// @spec WTL-RESET-007
 #[test]
 fn hard_reset_one_succeeds_with_unmerged_branch() {
     let (_source_dir, root, repo_path) = setup_worktree_with_unmerged_feature();
@@ -139,9 +137,7 @@ fn hard_reset_one_succeeds_with_unmerged_branch() {
     );
 }
 
-// @spec HRESET-001
-// Hard reset should succeed and reset to origin/main when the current branch is
-// already merged — same happy-path as a normal reset but invoked with hard=true.
+// @spec WTL-RESET-009
 #[test]
 fn hard_reset_one_succeeds_with_merged_branch() {
     let (_source_dir, root, repo_path) = setup_worktree_with_merged_feature();
@@ -196,9 +192,7 @@ fn hard_reset_one_succeeds_with_merged_branch() {
     );
 }
 
-// @spec HRESET-001
-// Hard reset should proceed with checkout and reset even when the worktree is
-// already on the color branch — the early-return skip is bypassed when hard=true.
+// @spec WTL-RESET-009
 #[test]
 fn hard_reset_one_proceeds_when_already_on_color_branch() {
     let source_dir = TempDir::new().unwrap();
@@ -246,9 +240,7 @@ fn hard_reset_one_proceeds_when_already_on_color_branch() {
     );
 }
 
-// @spec HRESET-001
-// Regression: calling reset_one with hard=false should behave exactly like the
-// current two-argument form.
+// @spec WTL-RESET-001
 #[test]
 fn default_reset_behavior_unchanged_when_already_on_color_branch() {
     let root = TempDir::new().unwrap();

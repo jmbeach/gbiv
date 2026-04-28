@@ -21,8 +21,7 @@ fn setup_repo_with_commit(path: &std::path::Path, branch: &str) {
     git(&["branch", "-m", branch], path);
 }
 
-// @spec HRESET-002
-// All-color hard reset bypasses the [done] status filter.
+// @spec WTL-RESET-016
 #[test]
 fn hard_reset_all_bypasses_done_filter() {
     let source_dir = TempDir::new().unwrap();
@@ -75,8 +74,7 @@ fn hard_reset_all_bypasses_done_filter() {
     drop(source_dir);
 }
 
-// @spec HRESET-002
-// All-color hard reset includes worktrees that have no GBIV.md entry.
+// @spec WTL-RESET-016
 #[test]
 fn hard_reset_all_includes_worktrees_without_gbiv_md_entry() {
     let source_dir = TempDir::new().unwrap();
@@ -129,8 +127,7 @@ fn hard_reset_all_includes_worktrees_without_gbiv_md_entry() {
     drop(source_dir);
 }
 
-// @spec HRESET-003
-// The --yes flag causes the command to skip the confirmation prompt.
+// @spec WTL-RESET-019
 #[test]
 fn yes_flag_skips_confirmation_prompt() {
     let _result = reset_command(None, true, true);

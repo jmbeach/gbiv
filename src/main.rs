@@ -13,6 +13,7 @@ mod commands;
 mod gbiv_md;
 mod git_utils;
 
+// @spec CLI-DISPATCH-001, CLI-DISPATCH-002, CLI-DISPATCH-004, CLI-DISPATCH-005, CLI-DISPATCH-006
 pub(crate) fn cli() -> Command {
     Command::new("gbiv")
         .about("A tool / framework for managing git worktrees")
@@ -121,6 +122,7 @@ pub(crate) fn cli() -> Command {
         )
 }
 
+// @spec CLI-DISPATCH-003, CLI-DISPATCH-007 through CLI-DISPATCH-010
 fn main() {
     let matches = cli().get_matches();
 
@@ -222,6 +224,7 @@ fn main() {
 mod tests {
     use super::*;
 
+    // @spec CLI-EXEC-PARSE-001 through CLI-EXEC-PARSE-007
     /// Helper to parse exec args the same way main() does.
     fn parse_exec(argv: &[&str]) -> (Option<String>, Vec<String>) {
         let m = cli().get_matches_from(argv);
@@ -240,6 +243,7 @@ mod tests {
         (target, command)
     }
 
+    // @spec CLI-EXEC-PARSE-002, CLI-EXEC-PARSE-005
     #[test]
     fn exec_parses_color_target_and_command() {
         let (target, cmd) = parse_exec(&["gbiv", "exec", "green", "--", "echo", "hello"]);
@@ -247,6 +251,7 @@ mod tests {
         assert_eq!(cmd, vec!["echo", "hello"]);
     }
 
+    // @spec CLI-EXEC-PARSE-003, CLI-EXEC-PARSE-005
     #[test]
     fn exec_parses_all_target_and_command() {
         let (target, cmd) = parse_exec(&["gbiv", "exec", "all", "--", "git", "status"]);
@@ -254,6 +259,7 @@ mod tests {
         assert_eq!(cmd, vec!["git", "status"]);
     }
 
+    // @spec CLI-EXEC-PARSE-004, CLI-EXEC-PARSE-005
     #[test]
     fn exec_parses_no_target_with_command() {
         let (target, cmd) = parse_exec(&["gbiv", "exec", "--", "cargo", "build"]);
@@ -261,6 +267,7 @@ mod tests {
         assert_eq!(cmd, vec!["cargo", "build"]);
     }
 
+    // @spec CLI-EXEC-PARSE-007
     #[test]
     fn exec_parses_command_with_flags_after_separator() {
         let (target, cmd) = parse_exec(&["gbiv", "exec", "red", "--", "ls", "-la"]);

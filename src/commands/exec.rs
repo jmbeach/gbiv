@@ -5,6 +5,7 @@ use std::thread;
 use crate::colors::{ansi_color, COLORS, RESET};
 use crate::git_utils::{find_gbiv_root, find_repo_in_worktree, infer_color_from_path};
 
+// @spec OBS-EXEC-005 through OBS-EXEC-009
 pub fn exec_single(root: &Path, color: &str, command: &[String]) -> Result<String, String> {
     // Validate color
     if !COLORS.contains(&color) {
@@ -36,6 +37,7 @@ pub fn exec_single(root: &Path, color: &str, command: &[String]) -> Result<Strin
     }
 }
 
+// @spec OBS-EXEC-010 through OBS-EXEC-016
 pub fn exec_all(root: &Path, command: &[String]) -> Result<Vec<(String, Result<String, String>)>, String> {
     // Find which colors have repos
     let mut existing: Vec<(&str, std::path::PathBuf)> = Vec::new();
@@ -87,6 +89,7 @@ pub fn exec_all(root: &Path, command: &[String]) -> Result<Vec<(String, Result<S
     Ok(ordered)
 }
 
+// @spec OBS-EXEC-001 through OBS-EXEC-020
 pub fn exec_command(
     target: Option<&str>,
     command: &[String],
@@ -160,6 +163,10 @@ mod tests {
         git(&["init"], path);
         git(&["config", "user.email", "test@example.com"], path);
         git(&["config", "user.name", "Test"], path);
+        // Prevent git from spawning background gc/fsmonitor daemons that outlive the test
+        git(&["config", "gc.auto", "0"], path);
+        git(&["config", "maintenance.auto", "false"], path);
+        git(&["config", "core.fsmonitor", "false"], path);
         fs::write(path.join("README.md"), "hello").unwrap();
         git(&["add", "."], path);
         git(&["commit", "-m", "initial"], path);
@@ -195,7 +202,7 @@ mod tests {
         (root, main_repo)
     }
 
-    // gbi-4gf4: exec runs command in specified color worktree
+    // @spec OBS-EXEC-007
     #[test]
     fn exec_single_runs_command_in_color_worktree() {
         let (root, _main_repo) = setup_gbiv_root(Some("green"));
@@ -221,7 +228,7 @@ mod tests {
         );
     }
 
-    // gbi-qbhu: exec errors when worktree does not exist
+    // @spec OBS-EXEC-006
     #[test]
     fn exec_single_errors_when_worktree_does_not_exist() {
         // Setup root without creating the "indigo" worktree directory
@@ -243,7 +250,7 @@ mod tests {
         );
     }
 
-    // gbi-xtsx: exec errors on invalid color name
+    // @spec OBS-EXEC-005
     #[test]
     fn exec_single_errors_on_invalid_color_name() {
         let (root, _main_repo) = setup_gbiv_root(None);
@@ -283,7 +290,7 @@ mod tests {
         repo_dir
     }
 
-    // gbi-i1ag: exec infers color from current working directory
+    // @spec OBS-EXEC-017, OBS-EXEC-020
     #[test]
     fn exec_command_infers_color_from_cwd() {
         let (root, _main_repo) = setup_gbiv_root(Some("blue"));
@@ -313,7 +320,7 @@ mod tests {
         );
     }
 
-    // gbi-h4p9: exec all runs command in every existing worktree, results in ROYGBIV order
+    // @spec OBS-EXEC-010, OBS-EXEC-011
     #[test]
     fn exec_all_runs_command_in_every_existing_worktree_and_returns_roygbiv_order() {
         let (root, _main_repo) = setup_gbiv_root(Some("red"));
@@ -346,7 +353,7 @@ mod tests {
         }
     }
 
-    // gbi-nnl4: exec all skips missing worktrees without error
+    // @spec OBS-EXEC-016
     #[test]
     fn exec_all_skips_missing_worktrees_without_error() {
         let (root, _main_repo) = setup_gbiv_root(Some("red"));
@@ -372,7 +379,7 @@ mod tests {
         assert!(!colors.contains(&"violet"), "violet should be skipped");
     }
 
-    // gbi-99wy: exec all returns failure when any command fails
+    // @spec OBS-EXEC-014
     #[test]
     fn exec_all_returns_failure_when_any_command_fails() {
         let (root, _main_repo) = setup_gbiv_root(Some("red"));
@@ -396,7 +403,7 @@ mod tests {
         }
     }
 
-    // gbi-3opa: exec errors when CWD is not in a color worktree
+    // @spec OBS-EXEC-018
     #[test]
     fn exec_command_errors_when_cwd_is_not_in_a_color_worktree() {
         let (root, _main_repo) = setup_gbiv_root(None);

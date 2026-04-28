@@ -10,6 +10,7 @@ pub struct GbivRoot {
     pub folder_name: String,
 }
 
+// @spec WTL-UTIL-001, WTL-UTIL-002, WTL-UTIL-003
 pub fn find_gbiv_root(start: &Path) -> Option<GbivRoot> {
     let mut current = start.to_path_buf();
     loop {
@@ -79,6 +80,7 @@ pub struct QuickStatus {
     pub ahead_behind: Option<(u32, u32)>,
 }
 
+// @spec WTL-UTIL-007, WTL-UTIL-008, WTL-UTIL-009
 pub fn get_quick_status(path: &Path) -> QuickStatus {
     let output = ProcessCommand::new("git")
         .args(["status", "--porcelain=v2", "--branch"])
@@ -159,6 +161,7 @@ pub fn get_last_commit_age(path: &Path) -> Option<Duration> {
     }
 }
 
+// @spec WTL-UTIL-010, WTL-UTIL-011
 pub fn get_remote_main_branch(path: &Path) -> Option<String> {
     for candidate in ["origin/main", "origin/master", "origin/develop"] {
         let output = ProcessCommand::new("git")
@@ -185,6 +188,7 @@ pub fn checkout_branch(path: &Path, branch: &str) -> Result<(), String> {
     }
 }
 
+// @spec WTL-UTIL-004, WTL-UTIL-005, WTL-UTIL-006
 /// Infer the color by finding the path component directly under the gbiv root.
 pub fn infer_color_from_path(cwd: &Path, gbiv_root: &Path) -> Option<&'static str> {
     let relative = cwd.strip_prefix(gbiv_root).ok()?;
@@ -193,6 +197,7 @@ pub fn infer_color_from_path(cwd: &Path, gbiv_root: &Path) -> Option<&'static st
     COLORS.iter().find(|&&c| c == name).copied()
 }
 
+// @spec WTL-UTIL-014, WTL-UTIL-015
 pub fn find_repo_in_worktree(worktree_dir: &Path) -> Option<PathBuf> {
     for entry in std::fs::read_dir(worktree_dir).ok()? {
         let Ok(entry) = entry else { continue };
@@ -204,6 +209,7 @@ pub fn find_repo_in_worktree(worktree_dir: &Path) -> Option<PathBuf> {
     None
 }
 
+// @spec WTL-UTIL-012, WTL-UTIL-013
 /// Resolves the actual git directory for a repo, handling both the normal case
 /// (`.git/` is a directory) and the gitlink case (`.git` is a file containing
 /// `gitdir: <path>`, as produced by `git worktree add`).
@@ -363,6 +369,7 @@ mod tests {
         Command::new("git").args(["commit", "-m", "initial"]).current_dir(path).output().unwrap();
     }
 
+    // @spec WTL-UTIL-001, WTL-UTIL-002
     #[test]
     fn test_find_gbiv_root_some() {
         let base = PathBuf::from("/tmp/gbiv_test_find_root_some");
@@ -384,6 +391,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    // @spec WTL-UTIL-001, WTL-UTIL-002
     #[test]
     fn test_find_gbiv_root_some_from_nested() {
         let base = PathBuf::from("/tmp/gbiv_test_find_root_nested");
@@ -404,6 +412,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    // @spec WTL-UTIL-003
     #[test]
     fn test_find_gbiv_root_none() {
         let base = PathBuf::from("/tmp/gbiv_test_find_root_none");
@@ -416,6 +425,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    // @spec WTL-REBASE-014
     #[test]
     fn test_rebase_onto_error_includes_stdout_and_stderr() {
         let base = PathBuf::from("/tmp/gbiv_test_rebase_onto_stdout_stderr");

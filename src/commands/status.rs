@@ -30,6 +30,7 @@ fn format_age(duration: Duration) -> String {
     }
 }
 
+// @spec OBS-STATUS-003 through OBS-STATUS-007
 fn collect_worktree_status(color: &'static str, repo_path: PathBuf) -> WorktreeStatus {
     let quick = get_quick_status(&repo_path);
     let branch = quick.branch;
@@ -52,6 +53,7 @@ fn collect_worktree_status(color: &'static str, repo_path: PathBuf) -> WorktreeS
     WorktreeStatus { branch, is_dirty, merged, age, ahead_behind }
 }
 
+// @spec OBS-STATUS-001 through OBS-STATUS-026
 pub fn status_command() -> Result<(), String> {
     let cwd = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;
@@ -179,6 +181,7 @@ mod tests {
         GbivFeature { tag: tag.map(|s| s.to_string()), description: description.to_string(), notes: vec![], status: Some(status.to_string()) }
     }
 
+    // @spec OBS-STATUS-022
     #[test]
     fn gbiv_md_resolved_from_main_worktree_repo() {
         let gbiv_root = TempDir::new().unwrap();
@@ -197,6 +200,7 @@ mod tests {
         assert_eq!(features[0].tag, Some("red".to_string()));
     }
 
+    // @spec OBS-STATUS-022
     #[test]
     fn gbiv_md_not_read_from_gbiv_root_directly() {
         let gbiv_root = TempDir::new().unwrap();
@@ -219,11 +223,13 @@ mod tests {
         assert_eq!(features[0].tag, Some("green".to_string()));
     }
 
+    // @spec OBS-STATUS-024
     #[test]
     fn format_gbiv_features_empty() {
         assert_eq!(format_gbiv_features(&[]), "");
     }
 
+    // @spec OBS-STATUS-026
     #[test]
     fn format_gbiv_features_untagged_shows_backlog() {
         let features = vec![make_feature(None, "Do something")];
@@ -233,6 +239,7 @@ mod tests {
         assert!(out.contains("GBIV.md"));
     }
 
+    // @spec OBS-STATUS-025
     #[test]
     fn format_gbiv_features_tagged_shows_color_and_tag() {
         let features = vec![make_feature(Some("red"), "Fix critical bug")];
@@ -244,6 +251,7 @@ mod tests {
         assert!(out.contains("\x1b[31m"));
     }
 
+    // @spec OBS-STATUS-023, OBS-STATUS-026
     #[test]
     fn format_gbiv_features_multiple() {
         let features = vec![
@@ -256,6 +264,7 @@ mod tests {
         assert!(out.contains("backlog"));
     }
 
+    // @spec OBS-STATUS-025
     #[test]
     fn format_gbiv_features_shows_lifecycle_status_after_color_name() {
         // A feature tagged [red] with [done] status should display "red [done]" in the row.
