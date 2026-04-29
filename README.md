@@ -49,7 +49,11 @@ myproject/
 
 ## Installation
 
-Build from source (TODO: Upload to cargo):
+```bash
+cargo install gbiv
+```
+
+Or build from source:
 
 ```bash
 git clone https://github.com/jmbeach/gbiv.git
