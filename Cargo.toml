@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "gbork"]
+
 [package]
 name = "gbiv"
 version = "0.1.0"

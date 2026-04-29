@@ -1,0 +1,15 @@
+[package]
+name = "gbork"
+version = "0.1.0"
+edition = "2021"
+description = "Orchestration daemon for Claude Code agents running in gbiv color worktrees"
+license = "MIT"
+repository = "https://github.com/jmbeach/gbiv"
+
+[dependencies]
+clap = { version = "4.5.54", features = ["derive"] }
+tiny_http = "0.12"
+ureq = { version = "2.10", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }

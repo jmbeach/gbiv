@@ -1,6 +1,6 @@
 [tasks.watch]
-script = ["RUST_LOG=debug cargo watch -w src -- sh -c 'cargo clippy 2>&1 | tee watch.log; cargo build 2>&1 | tee -a watch.log; echo \"Finished build at $(date +%Y-%m-%d_%H-%M-%S)\" >> watch.log'"]
+script = ["RUST_LOG=debug cargo watch -w src -w gbork/src -- sh -c 'cargo clippy --workspace 2>&1 | tee watch.log; cargo build --workspace 2>&1 | tee -a watch.log; echo \"Finished build at $(date +%Y-%m-%d_%H-%M-%S)\" >> watch.log'"]
 
 [tasks.watch-tests]
-script = ["cargo watch -w src -- sh -c 'cargo nextest run 2>&1 | tee watch-tests.log && echo \"Test run finished at $(date +%Y-%m-%dT%H:%M:%S)\" >> watch-tests.log'"]
+script = ["cargo watch -w src -w gbork/src -- sh -c 'cargo nextest run --workspace 2>&1 | tee watch-tests.log && echo \"Test run finished at $(date +%Y-%m-%dT%H:%M:%S)\" >> watch-tests.log'"]
 

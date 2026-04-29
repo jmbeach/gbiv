@@ -3,3 +3,4 @@ watch.log
 watch-tests.log
 .claude/scheduled_tasks.lock
 GBIV.md
+.gbork/
