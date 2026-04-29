@@ -81,11 +81,11 @@ Or in one command: `gbiv tidy`
 
 | Component | One-sentence purpose | LLD |
 |---|---|---|
-| **CLI & Palette** | Parse commands, route to handlers, provide ROYGBIV constants and ANSI formatting | `docs/llds/cli-and-palette.md` |
-| **Worktree Lifecycle** | Create, sync, reset, and maintain the 7-color worktree structure | `docs/llds/worktree-lifecycle.md` |
-| **Feature Ledger** | Parse and mutate GBIV.md as the source of truth for feature assignments and status | `docs/llds/feature-ledger.md` |
-| **Observation** | Surface worktree health and run arbitrary commands across worktrees | `docs/llds/observation.md` |
-| **Tmux Mirror** | Keep tmux windows synchronized with the worktree layout | `docs/llds/tmux-mirror.md` |
+| **CLI & Palette** | Parse commands, route to handlers, provide ROYGBIV constants and ANSI formatting | `docs/gbiv/llds/cli-and-palette.md` |
+| **Worktree Lifecycle** | Create, sync, reset, and maintain the 7-color worktree structure | `docs/gbiv/llds/worktree-lifecycle.md` |
+| **Feature Ledger** | Parse and mutate GBIV.md as the source of truth for feature assignments and status | `docs/gbiv/llds/feature-ledger.md` |
+| **Observation** | Surface worktree health and run arbitrary commands across worktrees | `docs/gbiv/llds/observation.md` |
+| **Tmux Mirror** | Keep tmux windows synchronized with the worktree layout | `docs/gbiv/llds/tmux-mirror.md` |
 
 ### Data Flow
 
@@ -170,8 +170,8 @@ Areas where the design is likely to grow:
 
 ## References
 
-- `docs/llds/worktree-lifecycle.md` — init, reset, rebase-all, tidy, git_utils
-- `docs/llds/feature-ledger.md` — GBIV.md format, mark command
-- `docs/llds/observation.md` — status, exec
-- `docs/llds/tmux-mirror.md` — tmux new-session, sync, clean
-- `docs/llds/cli-and-palette.md` — main.rs dispatch, colors.rs constants
+- `docs/gbiv/llds/worktree-lifecycle.md` — init, reset, rebase-all, tidy, git_utils
+- `docs/gbiv/llds/feature-ledger.md` — GBIV.md format, mark command
+- `docs/gbiv/llds/observation.md` — status, exec
+- `docs/gbiv/llds/tmux-mirror.md` — tmux new-session, sync, clean
+- `docs/gbiv/llds/cli-and-palette.md` — main.rs dispatch, colors.rs constants

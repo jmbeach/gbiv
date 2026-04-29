@@ -8,9 +8,9 @@ Command dispatch, argument parsing, and terminal color formatting.
 
 | Artifact | Location |
 |---|---|
-| HLD sections | `docs/high-level-design.md` § Component Architecture > CLI & Palette |
-| LLD | `docs/llds/cli-and-palette.md` |
-| EARS specs | `docs/specs/cli-and-palette.md` |
+| HLD sections | `docs/gbiv/high-level-design.md` § Component Architecture > CLI & Palette |
+| LLD | `docs/gbiv/llds/cli-and-palette.md` |
+| EARS specs | `docs/gbiv/specs/cli-and-palette.md` |
 | Source | `src/main.rs`, `src/colors.rs` |
 | Tests | `src/main.rs` (inline tests for exec parsing) |
 

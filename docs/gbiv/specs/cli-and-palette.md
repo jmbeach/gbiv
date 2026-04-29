@@ -2,7 +2,7 @@
 
 Specs for command dispatch, argument parsing, and terminal color formatting.
 
-**Component LLD**: `docs/llds/cli-and-palette.md`
+**Component LLD**: `docs/gbiv/llds/cli-and-palette.md`
 
 ## Dispatch
 

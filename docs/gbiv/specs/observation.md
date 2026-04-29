@@ -2,7 +2,7 @@
 
 Specs for the status dashboard and cross-worktree command execution.
 
-**Component LLD**: `docs/llds/observation.md`
+**Component LLD**: `docs/gbiv/llds/observation.md`
 
 ## Status
 

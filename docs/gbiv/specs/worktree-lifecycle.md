@@ -2,7 +2,7 @@
 
 Specs for worktree creation, upstream sync, reset, and maintenance.
 
-**Component LLD**: `docs/llds/worktree-lifecycle.md`
+**Component LLD**: `docs/gbiv/llds/worktree-lifecycle.md`
 
 ## Init
 

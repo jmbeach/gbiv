@@ -20,13 +20,15 @@ Mutation, not accumulation — docs reflect current intent, not history.
 
 ### Navigation
 
+Docs are organized per-product. The workspace currently contains two products: `gbiv` (the worktree CLI) and `gbork` (the on-demand orchestration daemon). Pick the matching subtree.
+
 | What you need | Where to look |
 |---|---|
-| High-level design | `docs/high-level-design.md` |
-| Low-level designs | `docs/llds/` |
-| EARS specs | `docs/specs/` |
-| Implementation plans | `docs/planning/` |
-| Arrow of intent tracking | `docs/arrows/index.yaml` |
+| High-level design | `docs/<product>/high-level-design.md` |
+| Low-level designs | `docs/<product>/llds/` |
+| EARS specs | `docs/<product>/specs/` |
+| Implementation plans | `docs/<product>/planning/` |
+| Arrow of intent tracking | `docs/arrows/index.yaml` (unified across products) |
 
 ### Terminology
 

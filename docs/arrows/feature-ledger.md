@@ -8,9 +8,9 @@ GBIV.md parsing, mutation, and the mark command.
 
 | Artifact | Location |
 |---|---|
-| HLD sections | `docs/high-level-design.md` § The Feature Lifecycle |
-| LLD | `docs/llds/feature-ledger.md` |
-| EARS specs | `docs/specs/feature-ledger.md` |
+| HLD sections | `docs/gbiv/high-level-design.md` § The Feature Lifecycle |
+| LLD | `docs/gbiv/llds/feature-ledger.md` |
+| EARS specs | `docs/gbiv/specs/feature-ledger.md` |
 | Source | `src/gbiv_md.rs`, `src/commands/mark.rs` |
 | Tests | `src/gbiv_md.rs` (inline tests) |
 

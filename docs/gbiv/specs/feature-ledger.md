@@ -2,7 +2,7 @@
 
 Specs for GBIV.md parsing, mutation, and the mark command.
 
-**Component LLD**: `docs/llds/feature-ledger.md`
+**Component LLD**: `docs/gbiv/llds/feature-ledger.md`
 
 ## Parsing
 
