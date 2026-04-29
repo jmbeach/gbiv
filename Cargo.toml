@@ -2,6 +2,12 @@
 name = "gbiv"
 version = "0.1.0"
 edition = "2021"
+description = "A CLI tool that turns a git repository into seven parallel color-named worktrees (ROYGBIV) for managing multiple features simultaneously"
+license = "MIT"
+repository = "https://github.com/jmbeach/gbiv"
+keywords = ["git", "worktree", "developer-tools", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+readme = "README.md"
 
 [dependencies]
 clap = { version = "4.5.54", features = ["derive"] }
