@@ -136,6 +136,10 @@ Closes windows for colors that have no corresponding GBIV.md entry.
 
 All tmux interaction is via `std::process::Command` — no tmux library or API.
 
+### Shared with roy via `gbiv-core::tmux`
+
+The lookup primitives — `tmux_available()` (`tmux -V`), `has_session()`, `list_windows()`, and the folder-derived session name — live in `gbiv-core::tmux` and are called from both binaries, so they can't disagree about "is tmux installed" or "what session are we in." Window-mutation ops (`new-session`, `new-window`, `kill-window`, `move-window`) stay in gbiv; capture/send ops stay in roy. See `docs/roy/llds/tmux-driver.md` § "Shared Primitives in `gbiv-core`" for the full split.
+
 ## Observed Design Decisions
 
 | Decision | Chosen | Alternatives Considered | Rationale |

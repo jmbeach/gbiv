@@ -73,6 +73,24 @@ Errors if no entry with that color tag exists (unless unsetting, which is a no-o
 
 Removes all entries with the given color tag, including their note lines. Preserves everything else including the `---` separator and content below it. Cleans up stray blank lines left by removal.
 
+### Error Type
+
+`gbiv_md` is library-style and returns `Result<T, GbivMdError>` (a `thiserror`-derived enum) so the mark command can distinguish "no entry exists for this color" from "I/O failed":
+
+```rust
+#[derive(Debug, thiserror::Error)]
+enum GbivMdError {
+    #[error("no GBIV.md entry tagged [{0}]")]
+    NoEntryForColor(String),
+    #[error("GBIV.md is malformed at line {line}: {detail}")]
+    Malformed { line: usize, detail: String },
+    #[error("io: {0}")]
+    Io(#[from] std::io::Error),
+}
+```
+
+The mark handler converts these into `anyhow::Error` with `.context("editing GBIV.md")` at the boundary. See HLD § "Error Propagation" for the project-wide rule.
+
 ## Mark Command
 
 `gbiv mark (--done | --in-progress | --unset) [<color>]`

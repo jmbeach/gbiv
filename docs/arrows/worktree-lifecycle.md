@@ -8,9 +8,9 @@ Creation, sync, reset, and maintenance of the 7-color worktree structure.
 
 | Artifact | Location |
 |---|---|
-| HLD sections | `docs/high-level-design.md` § The Color Worktree, The Maintenance Loop |
-| LLD | `docs/llds/worktree-lifecycle.md` |
-| EARS specs | `docs/specs/worktree-lifecycle.md` |
+| HLD sections | `docs/gbiv/high-level-design.md` § The Color Worktree, The Maintenance Loop |
+| LLD | `docs/gbiv/llds/worktree-lifecycle.md` |
+| EARS specs | `docs/gbiv/specs/worktree-lifecycle.md` |
 | Source | `src/git_utils.rs`, `src/commands/init.rs`, `src/commands/rebase_all.rs`, `src/commands/reset.rs`, `src/commands/tidy.rs` |
 | Tests | `src/commands/reset_tests.rs`, `src/commands/reset_hard_basic_tests.rs`, `src/commands/reset_hard_allcolor_tests.rs`, `src/commands/reset_hard_stash_tests.rs` |
 

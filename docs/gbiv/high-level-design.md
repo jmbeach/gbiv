@@ -81,11 +81,11 @@ Or in one command: `gbiv tidy`
 
 | Component | One-sentence purpose | LLD |
 |---|---|---|
-| **CLI & Palette** | Parse commands, route to handlers, provide ROYGBIV constants and ANSI formatting | `docs/llds/cli-and-palette.md` |
-| **Worktree Lifecycle** | Create, sync, reset, and maintain the 7-color worktree structure | `docs/llds/worktree-lifecycle.md` |
-| **Feature Ledger** | Parse and mutate GBIV.md as the source of truth for feature assignments and status | `docs/llds/feature-ledger.md` |
-| **Observation** | Surface worktree health and run arbitrary commands across worktrees | `docs/llds/observation.md` |
-| **Tmux Mirror** | Keep tmux windows synchronized with the worktree layout | `docs/llds/tmux-mirror.md` |
+| **CLI & Palette** | Parse commands, route to handlers, provide ROYGBIV constants and ANSI formatting | `docs/gbiv/llds/cli-and-palette.md` |
+| **Worktree Lifecycle** | Create, sync, reset, and maintain the 7-color worktree structure | `docs/gbiv/llds/worktree-lifecycle.md` |
+| **Feature Ledger** | Parse and mutate GBIV.md as the source of truth for feature assignments and status | `docs/gbiv/llds/feature-ledger.md` |
+| **Observation** | Surface worktree health and run arbitrary commands across worktrees | `docs/gbiv/llds/observation.md` |
+| **Tmux Mirror** | Keep tmux windows synchronized with the worktree layout | `docs/gbiv/llds/tmux-mirror.md` |
 
 ### Data Flow
 
@@ -138,7 +138,15 @@ Output and iteration always follow the canonical ROYGBIV order defined by `COLOR
 
 ### Error Propagation
 
-All command handlers return `Result<_, String>`. Errors are user-facing messages (not stack traces). `main()` prints errors to stderr and exits with code 1. Multi-color operations (reset-all, rebase-all, exec-all) collect per-color results rather than failing on the first error.
+gbiv splits errors along the standard Rust library/binary boundary:
+
+- **Library-style modules** (`git_utils`, `gbiv_md`, anything reusable across commands or shared with `roy` via a future `gbiv-core` crate) return typed errors with `thiserror`-derived enums. A typed `GitError` / `GbivMdError` lets callers `match` on variants (e.g., `WorktreeAlreadyExists` vs. `GitFailed`) and lets future test code assert on specific failure modes.
+- **Command handlers and `main()`** use `anyhow::Result<()>`. Each command's job is to either succeed or print one user-facing line and exit non-zero; the precise variant rarely needs to be matched by the caller. Use `.context("…")` to attach breadcrumbs as errors travel up (e.g., `.context(format!("setting up worktree for color {color}"))`).
+- **Boundary**: typed errors convert into `anyhow::Error` automatically via `?` (anyhow accepts any `std::error::Error`). Don't `anyhow!` from inside library modules — that erases type info that any later typed handler would need.
+
+Multi-color operations (reset-all, rebase-all, exec-all) still collect per-color `Result`s rather than failing fast, so one failing color doesn't abort the others.
+
+This replaces the historical `Result<_, String>` pattern; existing code migrates incrementally as files are touched. New code uses the typed/anyhow split from the start.
 
 ## Architectural Boundaries
 
@@ -170,8 +178,8 @@ Areas where the design is likely to grow:
 
 ## References
 
-- `docs/llds/worktree-lifecycle.md` — init, reset, rebase-all, tidy, git_utils
-- `docs/llds/feature-ledger.md` — GBIV.md format, mark command
-- `docs/llds/observation.md` — status, exec
-- `docs/llds/tmux-mirror.md` — tmux new-session, sync, clean
-- `docs/llds/cli-and-palette.md` — main.rs dispatch, colors.rs constants
+- `docs/gbiv/llds/worktree-lifecycle.md` — init, reset, rebase-all, tidy, git_utils
+- `docs/gbiv/llds/feature-ledger.md` — GBIV.md format, mark command
+- `docs/gbiv/llds/observation.md` — status, exec
+- `docs/gbiv/llds/tmux-mirror.md` — tmux new-session, sync, clean
+- `docs/gbiv/llds/cli-and-palette.md` — main.rs dispatch, colors.rs constants
