@@ -34,7 +34,7 @@ All parsing uses `clap` (v4.5.54) with the builder API (not derive). The `cli()`
 
 ### Dispatch Flow
 
-`main()` calls `cli().get_matches()`, then pattern-matches on the subcommand name to call the appropriate handler. Each handler returns `Result<_, String>` — on `Err`, main prints to stderr and exits with code 1.
+`main()` calls `cli().get_matches()`, then pattern-matches on the subcommand name to call the appropriate handler. Each handler returns `anyhow::Result<()>` (migrating from the historical `Result<_, String>` — see HLD § "Error Propagation"). On `Err`, `main` prints the chain to stderr (top-level message by default; full chain when `RUST_LOG=debug`) and exits with code 1.
 
 ### Exec Argument Parsing
 
@@ -72,6 +72,8 @@ This array is the single source of truth for:
 - Valid color arguments (mark, reset, exec)
 - Iteration order (status, exec-all, rebase-all use ROYGBIV order)
 - Tmux window names and sort order
+
+The `COLORS` slice and a small `is_valid_color(name) -> bool` validator live in `gbiv-core::colors` so roy can validate `:color` URL params and iterate `/sessions` in the same canonical order without re-declaring the list. The ANSI codes and formatting constants below stay gbiv-only — roy is JSON-only and has no use for terminal escapes.
 
 ### ANSI Codes
 

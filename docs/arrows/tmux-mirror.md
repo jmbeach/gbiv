@@ -8,9 +8,9 @@ Tmux session/window lifecycle synchronized with worktree layout.
 
 | Artifact | Location |
 |---|---|
-| HLD sections | `docs/high-level-design.md` § Component Architecture > Tmux Mirror |
-| LLD | `docs/llds/tmux-mirror.md` |
-| EARS specs | `docs/specs/tmux-mirror.md` |
+| HLD sections | `docs/gbiv/high-level-design.md` § Component Architecture > Tmux Mirror |
+| LLD | `docs/gbiv/llds/tmux-mirror.md` |
+| EARS specs | `docs/gbiv/specs/tmux-mirror.md` |
 | Source | `src/commands/tmux/mod.rs`, `src/commands/tmux/new_session.rs`, `src/commands/tmux/sync.rs`, `src/commands/tmux/clean.rs` |
 | Tests | (no dedicated test files) |
 

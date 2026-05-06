@@ -2,7 +2,7 @@
 
 Specs for tmux session creation, window synchronization, and cleanup.
 
-**Component LLD**: `docs/llds/tmux-mirror.md`
+**Component LLD**: `docs/gbiv/llds/tmux-mirror.md`
 
 ## New Session
 

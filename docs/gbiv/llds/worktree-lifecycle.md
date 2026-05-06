@@ -148,14 +148,40 @@ The shared module providing git abstractions used across all commands.
 - `pull()` — `git pull`
 
 ### Worktree Navigation
-- `find_gbiv_root()` — walk-up root discovery (described above)
-- `find_repo_in_worktree()` — find the `.git`-containing subdirectory inside a color dir
+- `find_gbiv_root()` — walk-up root discovery (described above) **— lives in `gbiv-core`; roy calls it from `roy start` and from every CLI subcommand to locate `main/<repo>/.roy/port`**
+- `find_repo_in_worktree()` — find the `.git`-containing subdirectory inside a color dir **— lives in `gbiv-core`; roy uses it to resolve `main/<repo>/` from the gbiv root**
 - `resolve_git_dir()` — handle normal `.git` dir vs worktree gitlink file
 - `get_git_dir()` — `git rev-parse --git-common-dir`
-- `infer_color_from_path()` — CWD → color name (described above)
+- `infer_color_from_path()` — CWD → color name (described above) — gbiv-only (roy runs from `main/`, never infers)
 
 ### Housekeeping
-- `ensure_gitignore_entry()` — adds entries to `.git/info/exclude` (used for gbiv state files)
+- `ensure_gitignore_entry()` — adds entries to `.git/info/exclude` (used for gbiv state files) **— lives in `gbiv-core`; roy uses it on `roy start` to ensure `.roy/` is ignored without making the user edit anything**
+
+The state-query and mutating-git-op functions above stay gbiv-only — roy doesn't touch git.
+
+### Error Type
+
+`git_utils` is library-style code consumed by every command and (via `gbiv-core`) by `roy`. Functions return `Result<T, GitError>` where `GitError` is a `thiserror`-derived enum:
+
+```rust
+#[derive(Debug, thiserror::Error)]
+enum GitError {
+    #[error("not inside a gbiv project (no main/<repo> found walking up from {0})")]
+    NotInGbivProject(PathBuf),
+    #[error("git command failed: {cmd}\nstderr: {stderr}")]
+    GitFailed { cmd: String, stderr: String },
+    #[error("rebase conflict in {0}")]
+    RebaseConflict(String),
+    #[error("worktree {0} already exists")]
+    WorktreeExists(String),
+    #[error("io: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("{0}")]
+    Other(String),
+}
+```
+
+Callers `?` these into `anyhow::Error` at the command-handler boundary. New variants are added when a command needs to branch on a specific failure (e.g., reset wants to distinguish `WorktreeExists` from a generic git failure); until then `Other` is the catch-all.
 
 ## Observed Design Decisions
 

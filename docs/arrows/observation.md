@@ -8,9 +8,9 @@ Status dashboard and cross-worktree command execution.
 
 | Artifact | Location |
 |---|---|
-| HLD sections | `docs/high-level-design.md` § Component Architecture > Observation |
-| LLD | `docs/llds/observation.md` |
-| EARS specs | `docs/specs/observation.md` |
+| HLD sections | `docs/gbiv/high-level-design.md` § Component Architecture > Observation |
+| LLD | `docs/gbiv/llds/observation.md` |
+| EARS specs | `docs/gbiv/specs/observation.md` |
 | Source | `src/commands/status.rs`, `src/commands/exec.rs` |
 | Tests | `src/commands/exec.rs` (inline tests) |
 
