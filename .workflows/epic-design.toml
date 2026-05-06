@@ -1,0 +1,190 @@
+workflow = "epic-design"
+description = "{{epic_name}} Epic design workflow: HLD → LLD(s) → child story decomposition → backlog"
+version = 1
+
+[vars.epic_name]
+description = "Human-readable name of the epic"
+required = true
+
+[vars.epic_id]
+description = "VAT ID of the epic backlog item (e.g. 'abc-123')"
+required = true
+
+[[steps]]
+id = "gbiv-active"
+title = "[{{epic_name}}] GBIV set task in-progress"
+description = """
+Set the GBIV worktree task to active by running 'gbiv mark --in-progress'
+"""
+
+[[steps]]
+id = "hld-tradeoffs"
+title = "[{{epic_name}}] HLD — trade-off sketches"
+description = """
+Before drafting the full HLD, identify the 2–3 most consequential architectural
+trade-offs for this epic. For each one:
+- Name the decision point
+- Sketch the competing approaches (~200 words max each)
+- Note downstream consequences of each approach (what becomes easier, what becomes harder)
+
+Write the trade-off sketches to `.claude-cache/<epic-id>-tradeoffs.md`
+(use epic_id = {{epic_id}}).
+
+Then present the trade-off sketches to the user and wait for them to select,
+combine, or redirect. Do not proceed until the user responds.
+"""
+type = "human"
+needs = ["gbiv-active"]
+
+[[steps]]
+id = "hld-draft"
+title = "[{{epic_name}}] HLD — full draft"
+description = """
+Incorporating the user's trade-off selections from the previous step, check whether
+a project-level HLD already exists at `docs/high-level-design.md`.
+
+If the epic adds a new major area: update the HLD to add or expand the relevant
+section(s). The HLD describes the overall system — mutate it in place.
+
+If no changes to the HLD are needed (epic is within an existing area already described),
+note that and proceed.
+
+Write or update the HLD covering:
+- Problem statement and goals
+- Target users and personas
+- System architecture overview
+- Key design decisions and trade-offs (incorporating the selections from the trade-off step)
+- Non-goals (what's explicitly out of scope)
+
+Present the HLD draft to the user. Wait for approval before proceeding.
+"""
+type = "human"
+needs = ["hld-tradeoffs"]
+
+[[steps]]
+id = "lld-draft"
+title = "[{{epic_name}}] LLD(s) — draft + edge case probe"
+description = """
+Create component-specific LLD(s) in `docs/llds/` for each major component introduced
+or significantly changed by this epic. Each LLD file should be named after the
+component it describes.
+
+Consult `/linked-intent-dev` (or the SKILL.md at .claude/skills/linked-intent-dev/)
+for LLD structure guidance and the lld-templates.md reference.
+
+Key principles:
+- Narrative format for complex constraint interactions
+- Structured format for API contracts and interfaces
+- Include data models, error handling, edge cases
+- Reference the HLD for context
+- LLDs are pure design documents — no implementation status tracking
+- Include a Decisions & Alternatives section
+
+After drafting, run an edge case probe: review each LLD and generate a list of
+"what happens when..." questions — missing edge cases, unspecified failure modes,
+implicit assumptions about ordering, concurrency, empty states, or error propagation
+that the LLD doesn't address. Use a subagent for this review if available.
+
+Present both the LLD draft(s) AND the edge case gap list to the user.
+The user decides which gaps to address in the LLD and which are out of scope.
+Update the LLD(s) based on their feedback. Wait for final approval before proceeding.
+"""
+type = "human"
+needs = ["hld-draft"]
+
+[[steps]]
+id = "story-decomposition"
+title = "[{{epic_name}}] Decompose epic into child stories"
+description = """
+Based on the LLD(s) just created, decompose the epic into a set of
+implementable child stories.
+
+Guidelines:
+- Each story should be independently shippable (or clearly depend on one prior story)
+- Size: roughly 1–3 days of focused implementation each
+- Include for each story:
+  - A one-line title (suitable for a backlog bullet)
+  - What it touches (packages/files)
+  - What it depends on (other stories in this epic)
+  - A short description (3–6 sentences) of what's implemented
+
+Order stories by dependency. Draw a dependency graph if there are parallel tracks.
+
+Note: EARS specs are NOT part of epic design — they are written per-story as part
+of the arrow workflow when each story is implemented.
+
+Write the full story breakdown to `.claude-cache/{{epic_id}}-stories.md`.
+
+Present the stories to the user. Wait for approval (or requested changes) before
+proceeding to add them to the backlog.
+"""
+type = "human"
+needs = ["lld-draft"]
+
+[[steps]]
+id = "backlog-sync"
+title = "[{{epic_name}}] Add child stories to backlog and run vat sync"
+description = """
+Using the approved stories from the previous step:
+
+1. Add each child story as a bullet under the epic in `backlog/backlog.md`.
+   Format: `- [parent:{{epic_id}}] <story title>`
+   (No ID yet — vat sync will assign them.)
+   Order them as they appear in the stories file.
+
+2. Run `/vat sync` to assign IDs to all new bullets and extract any notes into
+   `backlog/items/`.
+
+3. Present the assigned IDs to the user so they can be referenced going forward.
+"""
+needs = ["story-decomposition"]
+
+[[steps]]
+id = "cbcp"
+title = "[{{epic_name}}] Commit and push all design artifacts (use /cbcp)"
+description = """
+All design artifacts are now ready. Commit and push:
+
+Files to include:
+- `docs/high-level-design.md` (if modified)
+- `docs/llds/<component>.md` (new/modified LLDs)
+- `.claude-cache/{{epic_id}}-tradeoffs.md`
+- `.claude-cache/{{epic_id}}-stories.md`
+- `backlog/backlog.md`
+- `backlog/.used-ids`
+- Any `backlog/items/<id>.md` files created by vat sync
+
+Use /cbcp. Suggested branch name: `design/{{epic_id}}-<short-slug>`.
+Suggested commit message: `design: {{epic_name}} epic — HLD, LLD(s), and stories`
+"""
+needs = ["backlog-sync"]
+
+[[steps]]
+id = "manual-pr-review"
+title = "[{{epic_name}}] Manually review the PR"
+type = "human"
+description = """
+This is a human step. The user reviews the PR on GitHub to ensure all design
+artifacts look correct before merging.
+
+Ask the user to review and then STOP and wait for their instructions.
+"""
+needs = ["cbcp"]
+
+[[steps]]
+id = "merge"
+title = "[{{epic_name}}] Merge"
+description = """
+Merge the PR.
+This is a human step. STOP to ask the user if they are ready to merge.
+"""
+type = "human"
+needs = ["manual-pr-review"]
+
+[[steps]]
+id = "gbiv-mark-done"
+title = "[{{epic_name}}] Mark gbiv item done"
+description = """
+Mark the GBIV worktree task as completed by running 'gbiv mark --done'
+"""
+needs = ["merge"]
