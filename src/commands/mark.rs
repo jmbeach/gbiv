@@ -8,31 +8,30 @@ pub fn mark_command(
     status: Option<&str>,
     color: Option<&str>,
     root_path: Option<&Path>,
-) -> Result<String, String> {
+) -> anyhow::Result<String> {
     // Determine the working directory to use for finding gbiv root and inferring color
     let cwd = match root_path {
         Some(p) => p.to_path_buf(),
-        None => std::env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {}", e))?,
+        None => std::env::current_dir()?,
     };
 
     // Find gbiv root
     let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
 
     // Resolve color: explicit or inferred from CWD relative to gbiv root
     let resolved_color = match color {
         Some(c) => c.to_string(),
         None => {
             infer_color_from_path(&cwd, &gbiv_root.root)
-                .ok_or_else(|| "Could not infer color from current worktree directory".to_string())?
+                .ok_or_else(|| anyhow::anyhow!("Could not infer color from current worktree directory"))?
                 .to_string()
         }
     };
 
     // Locate GBIV.md in main worktree
     let main_repo = find_repo_in_worktree(&gbiv_root.root.join("main"))
-        .ok_or_else(|| "Could not find main repo to locate GBIV.md".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Could not find main repo to locate GBIV.md"))?;
     let gbiv_md_path = main_repo.join("GBIV.md");
 
     // Map status values
@@ -40,8 +39,8 @@ pub fn mark_command(
         Some("done") => Some("done"),
         Some("in-progress") => Some("in-progress"),
         Some("unset") => None,
-        Some(other) => return Err(format!("Unknown status: {}", other)),
-        None => return Err("No status provided".to_string()),
+        Some(other) => return Err(anyhow::anyhow!("Unknown status: {}", other)),
+        None => return Err(anyhow::anyhow!("No status provided")),
     };
 
     let is_unset = status == Some("unset");
@@ -63,7 +62,7 @@ pub fn mark_command(
             if is_unset {
                 Ok(format!("{}: status cleared", resolved_color))
             } else {
-                Err(e)
+                Err(e.into())
             }
         }
     }
@@ -229,7 +228,7 @@ mod tests {
             "expected Err when no [red] entry, but got: {:?}",
             result
         );
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("red") || err.contains("no feature") || err.contains("not found"),
             "expected error to mention missing color entry, got: {:?}",
@@ -288,7 +287,7 @@ mod tests {
             "expected Err when color cannot be inferred from CWD, got: {:?}",
             result
         );
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("infer") || err.contains("color") || err.contains("worktree"),
             "expected error about unable to infer color, got: {:?}",

@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clap::{Arg, ArgGroup, Command};
 use colors::COLORS;
 use commands::init::init_command;
@@ -123,43 +124,28 @@ pub(crate) fn cli() -> Command {
 }
 
 // @spec CLI-DISPATCH-003, CLI-DISPATCH-007 through CLI-DISPATCH-010
-fn main() {
+fn run() -> Result<()> {
     let matches = cli().get_matches();
 
     match matches.subcommand() {
         Some(("init", sub_matches)) => {
             let folder = sub_matches.get_one::<String>("folder").unwrap();
-            if let Err(e) = init_command(folder) {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
+            init_command(folder)?;
         }
         Some(("status", _)) => {
-            if let Err(e) = status_command() {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
+            status_command()?;
         }
         Some(("tmux", sub_matches)) => {
-            if let Err(e) = tmux::dispatch(sub_matches) {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
+            tmux::dispatch(sub_matches)?;
         }
         Some(("rebase-all", _)) => {
-            if let Err(e) = rebase_all_command() {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
+            rebase_all_command()?;
         }
         Some(("reset", sub_matches)) => {
             let color = sub_matches.get_one::<String>("color").map(|s| s.as_str());
             let hard = sub_matches.get_flag("hard");
             let yes = sub_matches.get_flag("yes");
-            if let Err(e) = reset_command(color, hard, yes) {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
+            reset_command(color, hard, yes)?;
         }
         Some(("exec", sub_matches)) => {
             use commands::exec::exec_command;
@@ -175,27 +161,16 @@ fn main() {
             };
             let command: Vec<String> = rest.into_iter().filter(|a| a != "--").collect();
             if command.is_empty() {
-                eprintln!("Error: no command specified. Usage: gbiv exec [<color>|all] -- <command...>");
-                std::process::exit(1);
+                return Err(anyhow::anyhow!("no command specified. Usage: gbiv exec [<color>|all] -- <command...>"));
             }
             let target_ref = target.as_deref();
-            match exec_command(target_ref, &command, None) {
-                Ok(output) => {
-                    if !output.is_empty() {
-                        print!("{}", output);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("{}", e);
-                    std::process::exit(1);
-                }
+            let output = exec_command(target_ref, &command, None)?;
+            if !output.is_empty() {
+                print!("{}", output);
             }
         }
         Some(("tidy", _)) => {
-            if let Err(e) = tidy_command() {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
+            tidy_command()?;
         }
         Some(("mark", sub_matches)) => {
             let status = if sub_matches.get_flag("done") {
@@ -208,15 +183,24 @@ fn main() {
                 None
             };
             let color = sub_matches.get_one::<String>("color").map(|s| s.as_str());
-            match mark_command(status, color, None) {
-                Ok(msg) => println!("{}", msg),
-                Err(e) => {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
-                }
-            }
+            let msg = mark_command(status, color, None)?;
+            println!("{}", msg);
         }
         _ => unreachable!(),
+    }
+
+    Ok(())
+}
+
+fn main() {
+    if let Err(e) = run() {
+        let debug = std::env::var("RUST_LOG").map(|v| v == "debug").unwrap_or(false);
+        if debug {
+            eprintln!("Error: {:#}", e);
+        } else {
+            eprintln!("Error: {}", e);
+        }
+        std::process::exit(1);
     }
 }
 

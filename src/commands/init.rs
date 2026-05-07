@@ -8,18 +8,17 @@ use crate::git_utils::{get_existing_branches, get_main_branch, has_commits, is_g
 // Leading blank lines give users visible writing space above the --- so it's obvious features go there.
 const GBIV_MD_TEMPLATE: &str = "\n\n\n\n\n\n\n\n\n\n---\n# GBIV.md\n\nAdd features above the `---` line. Each feature starts with `- ` and an optional `[color]` tag.\n\nExample:\n\n- [red] My urgent feature\n  A note about this feature\n- [green] A less urgent feature\n- An untagged backlog item\n\nSupported tags match ROYGBIV colors: red, orange, yellow, green, blue, indigo, violet.\nUntagged items appear with a dim `backlog` label.\nEverything below `---` is ignored by gbiv.";
 
-fn write_gbiv_md_if_absent(main_repo_path: &Path) -> Result<(), String> {
+fn write_gbiv_md_if_absent(main_repo_path: &Path) -> anyhow::Result<()> {
     let gbiv_md_path = main_repo_path.join("GBIV.md");
     if !gbiv_md_path.exists() {
-        fs::write(&gbiv_md_path, GBIV_MD_TEMPLATE)
-            .map_err(|e| format!("Failed to write GBIV.md: {}", e))?;
+        fs::write(&gbiv_md_path, GBIV_MD_TEMPLATE)?;
         println!("Created GBIV.md");
     }
     Ok(())
 }
 
 // @spec WTL-INIT-011
-fn ensure_gbiv_md_in_gitignore(main_repo_path: &Path) -> Result<(), String> {
+fn ensure_gbiv_md_in_gitignore(main_repo_path: &Path) -> anyhow::Result<()> {
     let gitignore_path = main_repo_path.join(".gitignore");
     let existing = fs::read_to_string(&gitignore_path).unwrap_or_default();
     let already_listed = existing
@@ -33,8 +32,7 @@ fn ensure_gbiv_md_in_gitignore(main_repo_path: &Path) -> Result<(), String> {
         new_contents.push('\n');
     }
     new_contents.push_str("GBIV.md\n");
-    fs::write(&gitignore_path, new_contents)
-        .map_err(|e| format!("Failed to update .gitignore: {}", e))?;
+    fs::write(&gitignore_path, new_contents)?;
     println!("Added GBIV.md to .gitignore");
     Ok(())
 }
@@ -49,19 +47,19 @@ fn check_color_branches(path: &Path) -> Vec<String> {
 }
 
 // @spec WTL-INIT-001 through WTL-INIT-011
-pub fn init_command(folder: &str) -> Result<(), String> {
+pub fn init_command(folder: &str) -> anyhow::Result<()> {
     let target_path = Path::new(folder);
 
     if !target_path.exists() {
-        return Err(format!("Folder '{}' does not exist", folder));
+        return Err(anyhow::anyhow!("Folder '{}' does not exist", folder));
     }
 
     if !is_git_repo(target_path) {
-        return Err(format!("Folder '{}' is not a git repository", folder));
+        return Err(anyhow::anyhow!("Folder '{}' is not a git repository", folder));
     }
 
     if !has_commits(target_path) {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "Repository '{}' has no commits. At least one commit is required for worktrees.",
             folder
         ));
@@ -69,14 +67,14 @@ pub fn init_command(folder: &str) -> Result<(), String> {
 
     let conflicting_branches = check_color_branches(target_path);
     if !conflicting_branches.is_empty() {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "Repository has branches named after ROYGBIV colors: {}. Please delete them first.",
             conflicting_branches.join(", ")
         ));
     }
 
     let main_branch = get_main_branch(target_path)
-        .ok_or_else(|| "Could not determine main branch name".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Could not determine main branch name"))?;
 
     println!(
         "Initializing '{}' with ROYGBIV worktree structure...",
@@ -85,7 +83,7 @@ pub fn init_command(folder: &str) -> Result<(), String> {
 
     let temp_name = format!("{}_gbiv_temp", folder);
     fs::rename(folder, &temp_name)
-        .map_err(|e| format!("Failed to move folder temporarily: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to move folder temporarily: {}", e))?;
 
     let rollback = |temp: &str, target: &str| {
         let _ = fs::remove_dir_all(target);
@@ -94,12 +92,12 @@ pub fn init_command(folder: &str) -> Result<(), String> {
 
     if let Err(e) = fs::create_dir_all(format!("{}/main", folder)) {
         rollback(&temp_name, folder);
-        return Err(format!("Failed to create main directory: {}", e));
+        return Err(anyhow::anyhow!("Failed to create main directory: {}", e));
     }
 
     if let Err(e) = fs::rename(&temp_name, format!("{}/main/{}", folder, folder)) {
         rollback(&temp_name, folder);
-        return Err(format!("Failed to move repo to main: {}", e));
+        return Err(anyhow::anyhow!("Failed to move repo to main: {}", e));
     }
 
     let main_repo_path = format!("{}/main/{}", folder, folder);
@@ -134,14 +132,14 @@ pub fn init_command(folder: &str) -> Result<(), String> {
             Ok(o) => {
                 let err_msg = String::from_utf8_lossy(&o.stderr);
                 rollback_after_move(folder);
-                return Err(format!(
+                return Err(anyhow::anyhow!(
                     "Failed to create worktree for {}: {}",
                     color, err_msg
                 ));
             }
             Err(e) => {
                 rollback_after_move(folder);
-                return Err(format!(
+                return Err(anyhow::anyhow!(
                     "Failed to run git worktree add for {}: {}",
                     color, e
                 ));
@@ -296,7 +294,7 @@ mod tests {
     fn test_init_command_folder_not_exist() {
         let result = init_command("nonexistent_folder_xyz");
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("does not exist"));
+        assert!(result.unwrap_err().to_string().contains("does not exist"));
     }
 
     // @spec WTL-INIT-002
@@ -305,7 +303,7 @@ mod tests {
         let test_dir = setup_test_dir("not_git_repo");
         let result = init_command(&test_dir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not a git repository"));
+        assert!(result.unwrap_err().to_string().contains("not a git repository"));
         cleanup_test_dir(&test_dir);
     }
 
@@ -317,7 +315,7 @@ mod tests {
         init_git_repo(&test_dir);
         let result = init_command(&test_dir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("no commits"));
+        assert!(result.unwrap_err().to_string().contains("no commits"));
         cleanup_test_dir(&test_dir);
     }
 
@@ -335,7 +333,7 @@ mod tests {
             .unwrap();
         let result = init_command(&test_dir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("blue"));
+        assert!(result.unwrap_err().to_string().contains("blue"));
         cleanup_test_dir(&test_dir);
     }
 

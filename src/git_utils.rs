@@ -5,6 +5,22 @@ use std::time::Duration;
 
 use crate::colors::COLORS;
 
+#[derive(Debug, thiserror::Error)]
+pub enum GitError {
+    #[error("not inside a gbiv project (no main/<repo> found walking up from {0})")]
+    NotInGbivProject(PathBuf),
+    #[error("git command failed: {cmd}\nstderr: {stderr}")]
+    GitFailed { cmd: String, stderr: String },
+    #[error("rebase conflict in {0}")]
+    RebaseConflict(PathBuf),
+    #[error("worktree {0} already exists")]
+    WorktreeAlreadyExists(String),
+    #[error("io: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("{0}")]
+    Other(String),
+}
+
 pub struct GbivRoot {
     pub root: PathBuf,
     pub folder_name: String,
@@ -175,16 +191,19 @@ pub fn get_remote_main_branch(path: &Path) -> Option<String> {
     None
 }
 
-pub fn checkout_branch(path: &Path, branch: &str) -> Result<(), String> {
+pub fn checkout_branch(path: &Path, branch: &str) -> Result<(), GitError> {
     let output = ProcessCommand::new("git")
         .args(["checkout", branch])
         .current_dir(path)
         .output()
-        .map_err(|e| e.to_string())?;
+        .map_err(GitError::Io)?;
     if output.status.success() {
         Ok(())
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        Err(GitError::GitFailed {
+            cmd: format!("git checkout {}", branch),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        })
     }
 }
 
@@ -258,14 +277,12 @@ pub fn get_git_dir(path: &Path) -> Option<PathBuf> {
     }
 }
 
-pub fn ensure_gitignore_entry(git_dir: &Path, entry: &str) -> Result<(), String> {
+pub fn ensure_gitignore_entry(git_dir: &Path, entry: &str) -> Result<(), GitError> {
     let info_dir = git_dir.join("info");
-    fs::create_dir_all(&info_dir)
-        .map_err(|e| format!("Failed to create {}: {}", info_dir.display(), e))?;
+    fs::create_dir_all(&info_dir)?;
     let exclude_path = info_dir.join("exclude");
     let existing = if exclude_path.exists() {
-        fs::read_to_string(&exclude_path)
-            .map_err(|e| format!("Failed to read {}: {}", exclude_path.display(), e))?
+        fs::read_to_string(&exclude_path)?
     } else {
         String::new()
     };
@@ -278,80 +295,97 @@ pub fn ensure_gitignore_entry(git_dir: &Path, entry: &str) -> Result<(), String>
     }
     content.push_str(entry);
     content.push('\n');
-    fs::write(&exclude_path, content)
-        .map_err(|e| format!("Failed to write {}: {}", exclude_path.display(), e))
+    fs::write(&exclude_path, content)?;
+    Ok(())
 }
 
-pub fn fetch_remote(path: &Path) -> Result<(), String> {
+pub fn fetch_remote(path: &Path) -> Result<(), GitError> {
     let output = ProcessCommand::new("git")
         .args(["fetch", "origin"])
         .current_dir(path)
         .output()
-        .map_err(|e| format!("Failed to run git fetch: {}", e))?;
+        .map_err(GitError::Io)?;
     if output.status.success() {
         Ok(())
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        Err(GitError::GitFailed {
+            cmd: "git fetch origin".to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        })
     }
 }
 
-pub fn pull(path: &Path) -> Result<(), String> {
+pub fn pull(path: &Path) -> Result<(), GitError> {
     let output = ProcessCommand::new("git")
         .args(["pull"])
         .current_dir(path)
         .output()
-        .map_err(|e| format!("Failed to run git pull: {}", e))?;
+        .map_err(GitError::Io)?;
     if output.status.success() {
         Ok(())
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        Err(GitError::GitFailed {
+            cmd: "git pull".to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        })
     }
 }
 
-pub fn reset_hard(path: &Path, target: &str) -> Result<(), String> {
+pub fn reset_hard(path: &Path, target: &str) -> Result<(), GitError> {
     let output = ProcessCommand::new("git")
         .args(["reset", "--hard", target])
         .current_dir(path)
         .output()
-        .map_err(|e| e.to_string())?;
+        .map_err(GitError::Io)?;
     if output.status.success() {
         Ok(())
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        Err(GitError::GitFailed {
+            cmd: format!("git reset --hard {}", target),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        })
     }
 }
 
-pub fn stash_push(path: &Path, message: &str) -> Result<String, String> {
+pub fn stash_push(path: &Path, message: &str) -> Result<String, GitError> {
     let output = ProcessCommand::new("git")
         .args(["stash", "push", "-u", "-m", message])
         .current_dir(path)
         .output()
-        .map_err(|e| format!("Failed to run git stash push: {}", e))?;
+        .map_err(GitError::Io)?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        Err(GitError::GitFailed {
+            cmd: format!("git stash push -u -m {}", message),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        })
     }
 }
 
-pub fn rebase_onto(path: &Path, upstream: &str) -> Result<(), String> {
+pub fn rebase_onto(path: &Path, upstream: &str) -> Result<(), GitError> {
     let output = ProcessCommand::new("git")
         .args(["rebase", upstream])
         .current_dir(path)
         .output()
-        .map_err(|e| format!("Failed to run git rebase: {}", e))?;
+        .map_err(GitError::Io)?;
     if output.status.success() {
         return Ok(());
     }
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let err = format!("{}\n{}", stdout, stderr).trim().to_string();
     // Abort the failed rebase to leave the worktree clean
     let _ = ProcessCommand::new("git")
         .args(["rebase", "--abort"])
         .current_dir(path)
         .output();
-    Err(err)
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.contains("CONFLICT") {
+        Err(GitError::RebaseConflict(path.to_path_buf()))
+    } else {
+        Err(GitError::GitFailed {
+            cmd: format!("git rebase {}", upstream),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -450,16 +484,12 @@ mod tests {
         let result = rebase_onto(&base, "main");
         assert!(result.is_err(), "expected rebase to fail due to conflict");
 
-        let err_msg = result.unwrap_err();
-
-        // Git writes conflict details like "CONFLICT (add/add)" to stdout
-        // during a rebase conflict, while "could not apply" goes to stderr.
-        // The current implementation only captures stderr, so this assertion
-        // should FAIL, proving we need to include stdout in the error.
+        let err = result.unwrap_err();
+        // Git writes "CONFLICT" to stdout; we detect it there and emit RebaseConflict.
         assert!(
-            err_msg.contains("CONFLICT"),
-            "expected error to contain stdout content 'CONFLICT', but got: {}",
-            err_msg
+            matches!(err, GitError::RebaseConflict(_)),
+            "expected RebaseConflict variant, but got: {:?}",
+            err
         );
 
         let _ = fs::remove_dir_all(&base);

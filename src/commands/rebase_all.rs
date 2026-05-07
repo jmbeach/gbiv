@@ -46,36 +46,35 @@ fn rebase_worktree(root: &Path, color: &str, remote_main: &str) -> RebaseResult 
 
     // Fetch to ensure the remote ref is current, then rebase
     if let Err(e) = fetch_remote(&repo_path) {
-        return RebaseResult::FetchFailed(e);
+        return RebaseResult::FetchFailed(e.to_string());
     }
 
     match rebase_onto(&repo_path, remote_main) {
         Ok(()) => RebaseResult::Rebased(remote_main.to_string()),
-        Err(e) => RebaseResult::RebaseFailed(e),
+        Err(e) => RebaseResult::RebaseFailed(e.to_string()),
     }
 }
 
 // @spec WTL-REBASE-001 through WTL-REBASE-017
-pub fn rebase_all_command() -> Result<(), String> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+pub fn rebase_all_command() -> anyhow::Result<()> {
+    let cwd = std::env::current_dir()?;
 
     let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| "Could not find gbiv root".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Could not find gbiv root"))?;
 
     // Pull the main worktree first so colour rebases are based on the latest main
     let main_worktree_dir = gbiv_root.root.join("main");
     let main_repo = find_repo_in_worktree(&main_worktree_dir)
-        .ok_or_else(|| "Could not find git repo in main worktree".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Could not find git repo in main worktree"))?;
 
     let remote_main = get_remote_main_branch(&main_repo)
-        .ok_or_else(|| "Could not determine remote main branch (tried origin/main, origin/master, origin/develop)".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Could not determine remote main branch (tried origin/main, origin/master, origin/develop)"))?;
 
     match pull(&main_repo) {
         Ok(()) => println!("\x1b[0mmain    {}  {}pulled{}", RESET, GREEN, RESET),
         Err(e) => {
             println!("\x1b[0mmain    {}  {}pull failed: {}{}", RESET, RED, e, RESET);
-            return Err("git pull failed in main worktree".to_string());
+            return Err(anyhow::anyhow!("git pull failed in main worktree"));
         }
     }
 
@@ -154,7 +153,7 @@ pub fn rebase_all_command() -> Result<(), String> {
             "{}{}/{} worktrees rebased successfully{} — {} failed",
             YELLOW, succeeded, succeeded + failed, RESET, failed
         );
-        Err(format!("{} worktree(s) failed to rebase", failed))
+        Err(anyhow::anyhow!("{} worktree(s) failed to rebase", failed))
     }
 }
 

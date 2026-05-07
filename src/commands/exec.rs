@@ -6,15 +6,15 @@ use crate::colors::{ansi_color, COLORS, RESET};
 use crate::git_utils::{find_gbiv_root, find_repo_in_worktree, infer_color_from_path};
 
 // @spec OBS-EXEC-005 through OBS-EXEC-009
-pub fn exec_single(root: &Path, color: &str, command: &[String]) -> Result<String, String> {
+pub fn exec_single(root: &Path, color: &str, command: &[String]) -> anyhow::Result<String> {
     // Validate color
     if !COLORS.contains(&color) {
-        return Err(format!("'{}' is not a valid color", color));
+        return Err(anyhow::anyhow!("'{}' is not a valid color", color));
     }
 
     let worktree_dir = root.join(color);
     let repo_path = find_repo_in_worktree(&worktree_dir).ok_or_else(|| {
-        format!(
+        anyhow::anyhow!(
             "Worktree for '{}' does not exist or has no repo at {}",
             color,
             worktree_dir.display()
@@ -26,19 +26,20 @@ pub fn exec_single(root: &Path, color: &str, command: &[String]) -> Result<Strin
         .args(["-c", &joined])
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Failed to execute command: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to execute command: {}", e))?;
 
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
         let mut combined = String::from_utf8_lossy(&output.stdout).to_string();
         combined.push_str(&String::from_utf8_lossy(&output.stderr));
-        Err(combined)
+        Err(anyhow::anyhow!("{}", combined))
     }
 }
 
 // @spec OBS-EXEC-010 through OBS-EXEC-016
-pub fn exec_all(root: &Path, command: &[String]) -> Result<Vec<(String, Result<String, String>)>, String> {
+// inner Result<String, String> is a per-color report shape, not a propagated error
+pub fn exec_all(root: &Path, command: &[String]) -> anyhow::Result<Vec<(String, Result<String, String>)>> {
     // Find which colors have repos
     let mut existing: Vec<(&str, std::path::PathBuf)> = Vec::new();
     for &color in &COLORS {
@@ -82,7 +83,7 @@ pub fn exec_all(root: &Path, command: &[String]) -> Result<Vec<(String, Result<S
     // Join in order — handles are already in ROYGBIV order
     let mut ordered: Vec<(String, Result<String, String>)> = Vec::new();
     for handle in handles {
-        let (color, result) = handle.join().map_err(|_| "Thread panicked".to_string())?;
+        let (color, result) = handle.join().map_err(|_| anyhow::anyhow!("Thread panicked"))?;
         ordered.push((color, result));
     }
 
@@ -94,25 +95,24 @@ pub fn exec_command(
     target: Option<&str>,
     command: &[String],
     cwd: Option<&Path>,
-) -> Result<String, String> {
+) -> anyhow::Result<String> {
     let cwd_path = match cwd {
         Some(p) => p.to_path_buf(),
-        None => std::env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {}", e))?,
+        None => std::env::current_dir()?,
     };
 
     match target {
         None => {
             // Infer color from CWD
             let gbiv_root = find_gbiv_root(&cwd_path)
-                .ok_or_else(|| "Could not infer color: not in a gbiv worktree".to_string())?;
+                .ok_or_else(|| anyhow::anyhow!("Could not infer color: not in a gbiv worktree"))?;
             let color = infer_color_from_path(&cwd_path, &gbiv_root.root)
-                .ok_or_else(|| "Could not infer color from current worktree directory".to_string())?;
+                .ok_or_else(|| anyhow::anyhow!("Could not infer color from current worktree directory"))?;
             exec_single(&gbiv_root.root, color, command)
         }
         Some("all") => {
             let gbiv_root = find_gbiv_root(&cwd_path)
-                .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
+                .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
             let results = exec_all(&gbiv_root.root, command)?;
             let mut output = String::new();
             let mut any_failed = false;
@@ -129,14 +129,14 @@ pub fn exec_command(
                 }
             }
             if any_failed {
-                Err(output)
+                Err(anyhow::anyhow!("{}", output))
             } else {
                 Ok(output)
             }
         }
         Some(color) => {
             let gbiv_root = find_gbiv_root(&cwd_path)
-                .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
+                .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
             exec_single(&gbiv_root.root, color, command)
         }
     }
@@ -242,7 +242,7 @@ mod tests {
             "expected Err when worktree does not exist, but got: {:?}",
             result
         );
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("indigo") || err.contains("does not exist") || err.contains("not found"),
             "expected error to mention missing worktree, got: {:?}",
@@ -263,7 +263,7 @@ mod tests {
             "expected Err for invalid color 'purple', but got: {:?}",
             result
         );
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("purple") || err.contains("invalid") || err.contains("color"),
             "expected error about invalid color, got: {:?}",
@@ -417,7 +417,7 @@ mod tests {
             "expected Err when CWD is not in a color worktree, but got: {:?}",
             result
         );
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("infer") || err.contains("color") || err.contains("worktree"),
             "expected error about failing to infer color from CWD, got: {:?}",

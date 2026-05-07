@@ -54,12 +54,11 @@ fn collect_worktree_status(color: &'static str, repo_path: PathBuf) -> WorktreeS
 }
 
 // @spec OBS-STATUS-001 through OBS-STATUS-026
-pub fn status_command() -> Result<(), String> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+pub fn status_command() -> anyhow::Result<()> {
+    let cwd = std::env::current_dir()?;
 
     let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
 
     let handles: Vec<_> = COLORS
         .iter()

@@ -14,7 +14,7 @@ pub fn tmux_command() -> Command {
         .subcommand(sync::sync_subcommand())
 }
 
-pub fn dispatch(sub_matches: &clap::ArgMatches) -> Result<(), String> {
+pub fn dispatch(sub_matches: &clap::ArgMatches) -> anyhow::Result<()> {
     match sub_matches.subcommand() {
         Some(("new-session", args)) => {
             let session_name = args.get_one::<String>("session-name").map(|s| s.as_str());

@@ -7,26 +7,26 @@ use crate::git_utils::{
 };
 
 // @spec WTL-RESET-001 through WTL-RESET-010, WTL-RESET-020
-pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> Result<String, String> {
+pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> anyhow::Result<String> {
     let worktree_dir = gbiv_root.join(color);
 
     let repo_path = find_repo_in_worktree(&worktree_dir)
-        .ok_or_else(|| format!("No git repo found in {} worktree", color))?;
+        .ok_or_else(|| anyhow::anyhow!("No git repo found in {} worktree", color))?;
 
     let status = get_quick_status(&repo_path);
     let branch = status
         .branch
-        .ok_or_else(|| format!("Could not determine current branch for {} worktree", color))?;
+        .ok_or_else(|| anyhow::anyhow!("Could not determine current branch for {} worktree", color))?;
 
     if branch == color && !hard {
         return Ok(format!("{} worktree is already on the {} branch, skipping", color, color));
     }
 
     let remote_main = get_remote_main_branch(&repo_path)
-        .ok_or_else(|| format!("No remote configured for {} worktree", color))?;
+        .ok_or_else(|| anyhow::anyhow!("No remote configured for {} worktree", color))?;
 
     if !hard && !is_merged_into(&repo_path, &branch, &remote_main) {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "Branch {} is not merged into {} in {} worktree",
             branch, remote_main, color
         ));
@@ -124,13 +124,13 @@ pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> 
                 }
             }
             Err(e) => {
-                if e.contains("not merged") {
+                let e_str = e.to_string();
+                if e_str.contains("not merged") {
                     not_merged += 1;
-                    messages.push(format!("Warning [{}]: {}", color, e));
                 } else {
                     other_errors += 1;
-                    messages.push(format!("Warning [{}]: {}", color, e));
                 }
+                messages.push(format!("Warning [{}]: {}", color, e_str));
             }
         }
     }
@@ -164,11 +164,10 @@ pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> 
 }
 
 // @spec WTL-RESET-016 through WTL-RESET-019
-pub fn reset_command(color: Option<&str>, hard: bool, yes: bool) -> Result<(), String> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+pub fn reset_command(color: Option<&str>, hard: bool, yes: bool) -> anyhow::Result<()> {
+    let cwd = std::env::current_dir()?;
     let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| "Not in a gbiv-structured repository".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
 
     if let Some(c) = color {
         let msg = reset_one(&gbiv_root.root, c, hard)?;
@@ -198,7 +197,7 @@ pub fn reset_command(color: Option<&str>, hard: bool, yes: bool) -> Result<(), S
                 use std::io::Write;
                 std::io::stdout().flush().ok();
                 let mut input = String::new();
-                std::io::stdin().read_line(&mut input).map_err(|e| e.to_string())?;
+                std::io::stdin().read_line(&mut input)?;
                 if !input.trim().eq_ignore_ascii_case("y") {
                     println!("Aborted.");
                     return Ok(());
@@ -270,7 +269,7 @@ mod tests {
 
         let result = reset_one(root.path(), "red", false);
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("No remote"),
             "expected 'No remote' in error: {}",
@@ -651,7 +650,7 @@ mod tests {
 
         let result = reset_one(root.path(), "red", false);
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("not merged"),
             "expected 'not merged' in error: {}",

@@ -3,7 +3,7 @@ use crate::commands::reset::reset_command;
 use crate::commands::tmux::clean::clean_command;
 
 // @spec WTL-TIDY-001 through WTL-TIDY-007
-pub fn tidy_command() -> Result<(), String> {
+pub fn tidy_command() -> anyhow::Result<()> {
     let mut had_error = false;
 
     // Step 1: Rebase all worktrees
@@ -33,7 +33,7 @@ pub fn tidy_command() -> Result<(), String> {
     }
 
     if had_error {
-        Err("tidy encountered errors".to_string())
+        Err(anyhow::anyhow!("tidy encountered errors"))
     } else {
         Ok(())
     }
