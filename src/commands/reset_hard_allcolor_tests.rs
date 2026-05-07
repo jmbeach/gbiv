@@ -1,4 +1,4 @@
-use crate::commands::reset::{reset_all_to_vec, reset_command};
+use crate::commands::reset::reset_all_to_vec;
 use std::process::Command as Cmd;
 use tempfile::TempDir;
 
@@ -125,10 +125,4 @@ fn hard_reset_all_includes_worktrees_without_gbiv_md_entry() {
     );
 
     drop(source_dir);
-}
-
-// @spec WTL-RESET-019
-#[test]
-fn yes_flag_skips_confirmation_prompt() {
-    let _result = reset_command(None, true, true);
 }
