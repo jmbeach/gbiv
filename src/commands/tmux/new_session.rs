@@ -17,7 +17,7 @@ pub fn new_session_subcommand() -> Command {
 }
 
 // @spec TMX-SESSION-001, TMX-SESSION-002, TMX-SESSION-003, TMX-SESSION-004, TMX-SESSION-005, TMX-SESSION-006, TMX-SESSION-007, TMX-SESSION-008, TMX-SESSION-009, TMX-SESSION-010, TMX-SESSION-011, TMX-SESSION-012, TMX-SESSION-013
-pub fn new_session_command(session_name: Option<&str>) -> Result<(), String> {
+pub fn new_session_command(session_name: Option<&str>) -> anyhow::Result<()> {
     // Guard 1: tmux must be available
     let tmux_available = ProcessCommand::new("tmux")
         .arg("-V")
@@ -26,13 +26,13 @@ pub fn new_session_command(session_name: Option<&str>) -> Result<(), String> {
         .unwrap_or(false);
 
     if !tmux_available {
-        return Err("tmux not found. Please install tmux.".to_string());
+        return Err(anyhow::anyhow!("tmux not found. Please install tmux."));
     }
 
     // Guard 2: must be inside a gbiv project
-    let cwd = env::current_dir().map_err(|e| e.to_string())?;
+    let cwd = env::current_dir()?;
     let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| "Not inside a gbiv project. Run `gbiv init` to initialize one.".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one."))?;
 
     // Determine session name
     let name = session_name
@@ -47,7 +47,7 @@ pub fn new_session_command(session_name: Option<&str>) -> Result<(), String> {
         .unwrap_or(false);
 
     if session_exists {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "Session '{}' already exists. Use `tmux attach -t {}` to attach, or pass `--session-name` to use a different name.",
             name, name
         ));
@@ -79,7 +79,7 @@ pub fn new_session_command(session_name: Option<&str>) -> Result<(), String> {
     // Need at least the main path to create the session
     let (first_color, first_path) = existing_paths
         .first()
-        .ok_or_else(|| "No worktree paths exist; cannot create tmux session.".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("No worktree paths exist; cannot create tmux session."))?;
 
     // Create the detached session with the first window.
     // Use .arg() with the PathBuf directly so non-UTF8 paths are handled correctly.
@@ -88,10 +88,10 @@ pub fn new_session_command(session_name: Option<&str>) -> Result<(), String> {
         .arg("-c")
         .arg(first_path)
         .status()
-        .map_err(|e| format!("Failed to run tmux new-session: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to run tmux new-session: {}", e))?;
 
     if !status.success() {
-        return Err(format!("tmux new-session failed with status: {}", status));
+        return Err(anyhow::anyhow!("tmux new-session failed with status: {}", status));
     }
 
     // Create additional windows for the remaining existing paths
@@ -101,10 +101,10 @@ pub fn new_session_command(session_name: Option<&str>) -> Result<(), String> {
             .arg("-c")
             .arg(path)
             .status()
-            .map_err(|e| format!("Failed to run tmux new-window for '{}': {}", color, e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to run tmux new-window for '{}': {}", color, e))?;
 
         if !status.success() {
-            return Err(format!("tmux new-window for '{}' failed with status: {}", color, status));
+            return Err(anyhow::anyhow!("tmux new-window for '{}' failed with status: {}", color, status));
         }
     }
 
@@ -135,7 +135,7 @@ mod tests {
         unsafe { env::set_var("PATH", &original_path) };
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("tmux not found"),
             "Expected 'tmux not found' in error, got: {}",

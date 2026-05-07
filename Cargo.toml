@@ -11,6 +11,8 @@ readme = "README.md"
 
 [dependencies]
 clap = { version = "4.5.54", features = ["derive"] }
+thiserror = "2"
+anyhow = "1"
 
 [dev-dependencies]
 serial_test = "3"

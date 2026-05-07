@@ -72,7 +72,7 @@ pub fn sort_windows_roygbiv(window_names: &[String]) -> Vec<String> {
 }
 
 // @spec TMX-SYNC-001, TMX-SYNC-002, TMX-SYNC-003, TMX-SYNC-004, TMX-SYNC-005, TMX-SYNC-006, TMX-SYNC-007, TMX-SYNC-008, TMX-SYNC-009, TMX-SYNC-010, TMX-SYNC-011, TMX-SYNC-012, TMX-SYNC-013, TMX-SYNC-014, TMX-SYNC-015
-pub fn sync_command(session_name: Option<&str>) -> Result<(), String> {
+pub fn sync_command(session_name: Option<&str>) -> anyhow::Result<()> {
     // Guard 1: tmux must be available
     let tmux_available = ProcessCommand::new("tmux")
         .arg("-V")
@@ -81,13 +81,13 @@ pub fn sync_command(session_name: Option<&str>) -> Result<(), String> {
         .unwrap_or(false);
 
     if !tmux_available {
-        return Err("tmux not found. Please install tmux.".to_string());
+        return Err(anyhow::anyhow!("tmux not found. Please install tmux."));
     }
 
     // Guard 2: must be inside a gbiv project
-    let cwd = env::current_dir().map_err(|e| e.to_string())?;
+    let cwd = env::current_dir()?;
     let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| "Not inside a gbiv project. Run `gbiv init` to initialize one.".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one."))?;
 
     // Determine session name
     let session_name = session_name
@@ -102,7 +102,7 @@ pub fn sync_command(session_name: Option<&str>) -> Result<(), String> {
         .unwrap_or(false);
 
     if !session_exists {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "No tmux session '{}' found. Run `gbiv tmux new-session` to create one.",
             session_name
         ));
@@ -111,11 +111,10 @@ pub fn sync_command(session_name: Option<&str>) -> Result<(), String> {
     // List existing windows
     let output = ProcessCommand::new("tmux")
         .args(["list-windows", "-t", &session_name, "-F", "#{window_name}"])
-        .output()
-        .map_err(|e| e.to_string())?;
+        .output()?;
 
     if !output.status.success() {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "Failed to list windows for session '{}': {}",
             session_name,
             String::from_utf8_lossy(&output.stderr).trim()
@@ -171,11 +170,10 @@ pub fn sync_command(session_name: Option<&str>) -> Result<(), String> {
     // Reorder windows: re-list all windows after creation
     let output = ProcessCommand::new("tmux")
         .args(["list-windows", "-t", &session_name, "-F", "#{window_name}"])
-        .output()
-        .map_err(|e| e.to_string())?;
+        .output()?;
 
     if !output.status.success() {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "Failed to list windows for session '{}': {}",
             session_name,
             String::from_utf8_lossy(&output.stderr).trim()
@@ -361,7 +359,7 @@ mod tests {
         unsafe { env::set_var("PATH", &original_path) };
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("tmux not found"),
             "Expected 'tmux not found' in error, got: {}",

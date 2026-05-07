@@ -19,7 +19,7 @@ pub fn is_orphaned_window(name: &str, active_colors: &HashSet<String>) -> bool {
 }
 
 // @spec TMX-CLEAN-001, TMX-CLEAN-002, TMX-CLEAN-003, TMX-CLEAN-004, TMX-CLEAN-005, TMX-CLEAN-006, TMX-CLEAN-007, TMX-CLEAN-008, TMX-CLEAN-009, TMX-CLEAN-010, TMX-CLEAN-011, TMX-CLEAN-012
-pub fn clean_command() -> Result<(), String> {
+pub fn clean_command() -> anyhow::Result<()> {
     // Guard 1: tmux must be available
     let tmux_available = ProcessCommand::new("tmux")
         .arg("-V")
@@ -28,13 +28,13 @@ pub fn clean_command() -> Result<(), String> {
         .unwrap_or(false);
 
     if !tmux_available {
-        return Err("tmux not found. Please install tmux.".to_string());
+        return Err(anyhow::anyhow!("tmux not found. Please install tmux."));
     }
 
     // Guard 2: must be inside a gbiv project
-    let cwd = env::current_dir().map_err(|e| e.to_string())?;
+    let cwd = env::current_dir()?;
     let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| "Not inside a gbiv project. Run `gbiv init` to initialize one.".to_string())?;
+        .ok_or_else(|| anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one."))?;
 
     let session_name = &gbiv_root.folder_name;
 
@@ -46,7 +46,7 @@ pub fn clean_command() -> Result<(), String> {
         .unwrap_or(false);
 
     if !session_exists {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "No tmux session '{}' found. Run `gbiv tmux new-session` to create one.",
             session_name
         ));
@@ -55,11 +55,10 @@ pub fn clean_command() -> Result<(), String> {
     // List tmux windows
     let output = ProcessCommand::new("tmux")
         .args(["list-windows", "-t", session_name, "-F", "#{window_name}"])
-        .output()
-        .map_err(|e| e.to_string())?;
+        .output()?;
 
     if !output.status.success() {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "Failed to list windows for session '{}': {}",
             session_name,
             String::from_utf8_lossy(&output.stderr).trim()
@@ -110,7 +109,7 @@ pub fn clean_command() -> Result<(), String> {
     }
 
     if had_error {
-        Err("Some windows could not be closed.".to_string())
+        Err(anyhow::anyhow!("Some windows could not be closed."))
     } else {
         Ok(())
     }
@@ -138,7 +137,7 @@ mod tests {
         unsafe { env::set_var("PATH", &original_path) };
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("tmux not found"),
             "Expected 'tmux not found' in error, got: {}",
@@ -188,7 +187,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
 
         assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = result.unwrap_err().to_string();
         assert!(
             err.contains("gbiv tmux new-session"),
             "Expected error mentioning 'gbiv tmux new-session', got: {}",

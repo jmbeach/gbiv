@@ -1,3 +1,13 @@
+#[derive(Debug, thiserror::Error)]
+pub enum GbivMdError {
+    #[error("no GBIV.md entry tagged [{0}]")]
+    NotFound(String),
+    #[error("GBIV.md is malformed at line {line}: {detail}")]
+    Malformed { line: usize, detail: String },
+    #[error("io: {0}")]
+    Io(#[from] std::io::Error),
+}
+
 pub struct GbivFeature {
     pub tag: Option<String>,
     pub status: Option<String>,
@@ -61,11 +71,11 @@ pub fn parse_gbiv_md(path: &std::path::Path) -> Vec<GbivFeature> {
 }
 
 // @spec FL-MUTATE-007 through FL-MUTATE-011
-pub fn remove_gbiv_features_by_tag(path: &std::path::Path, tag: &str) -> Result<(), String> {
+pub fn remove_gbiv_features_by_tag(path: &std::path::Path, tag: &str) -> Result<(), GbivMdError> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(e) => return Err(format!("Failed to read GBIV.md: {}", e)),
+        Err(e) => return Err(GbivMdError::Io(e)),
     };
 
     let lines: Vec<&str> = content.lines().collect();
@@ -119,13 +129,13 @@ pub fn remove_gbiv_features_by_tag(path: &std::path::Path, tag: &str) -> Result<
         return Ok(());
     }
 
-    std::fs::write(path, result).map_err(|e| format!("Failed to write GBIV.md: {}", e))
+    std::fs::write(path, result)?;
+    Ok(())
 }
 
 // @spec FL-MUTATE-001 through FL-MUTATE-006
-pub fn set_gbiv_feature_status(path: &std::path::Path, color: &str, status: Option<&str>) -> Result<(), String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read GBIV.md: {}", e))?;
+pub fn set_gbiv_feature_status(path: &std::path::Path, color: &str, status: Option<&str>) -> Result<(), GbivMdError> {
+    let content = std::fs::read_to_string(path)?;
 
     let mut found = false;
     let mut past_separator = false;
@@ -165,7 +175,7 @@ pub fn set_gbiv_feature_status(path: &std::path::Path, color: &str, status: Opti
     }
 
     if !found {
-        return Err(format!("No entry found with color tag [{}]", color));
+        return Err(GbivMdError::NotFound(color.to_string()));
     }
 
     let mut result = result_lines.join("\n");
@@ -173,7 +183,8 @@ pub fn set_gbiv_feature_status(path: &std::path::Path, color: &str, status: Opti
         result.push('\n');
     }
 
-    std::fs::write(path, result).map_err(|e| format!("Failed to write GBIV.md: {}", e))
+    std::fs::write(path, result)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -415,8 +426,7 @@ mod tests {
         let f = write_temp("- [blue] Fix bug\n");
         let result = set_gbiv_feature_status(f.path(), "red", Some("done"));
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert_ne!(err, "not implemented".to_string(), "stub should be replaced with real error");
+        assert!(matches!(result.unwrap_err(), GbivMdError::NotFound(_)));
     }
 
     // @spec FL-MUTATE-004
