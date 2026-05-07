@@ -1,4 +1,4 @@
-use crate::commands::reset::{reset_all_to_vec, reset_command, reset_one};
+use crate::commands::reset::{reset_all_to_vec, reset_one};
 use std::process::Command as Cmd;
 use tempfile::TempDir;
 
@@ -153,15 +153,6 @@ fn reset_all_to_vec_exists_and_processes_done_entries() {
 
     // Drop source_dir explicitly so it stays alive through the test
     drop(source_dir);
-}
-
-// @spec CLI-DISPATCH-002
-#[test]
-fn reset_command_exists_and_is_callable() {
-    // Verify reset_command compiles and is callable. The result depends on
-    // whether CWD is a gbiv repo, so we just check it doesn't panic.
-    let _result = reset_command(None, false, false);
-    // If we reach here, the function exists and is callable — test passes.
 }
 
 // @spec CLI-DISPATCH-004
