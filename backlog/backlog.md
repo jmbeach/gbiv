@@ -3,8 +3,7 @@ version: 1
 ---
 
 - [gbv-q3t] IDEATION: roy (gbiv orchestrator). A separate binary that let's you control agent harnesses that you're already running in your GBIV worktrees. (see ./items/gbv-q3t.md)
-- [gbv-7r4] [in-progress] [by:jared] [parent:gbv-q3t] gbiv error model migration (thiserror + anyhow)
-- [gbv-c8h] [blocked-by:gbv-7r4] [parent:gbv-q3t] Extract gbiv-core foundations (colors, root discovery, gitignore)
+- [gbv-c8h] [parent:gbv-q3t] Extract gbiv-core foundations (colors, root discovery, gitignore)
 - [gbv-x2v] [blocked-by:gbv-c8h] [parent:gbv-q3t] gbiv-core::tmux primitives + gbiv migration
 - [gbv-9p1] [blocked-by:gbv-x2v] [parent:gbv-q3t] roy crate skeleton + tracing + tmux driver
 - [gbv-h5m] [blocked-by:gbv-9p1] [parent:gbv-q3t] roy pane locator
