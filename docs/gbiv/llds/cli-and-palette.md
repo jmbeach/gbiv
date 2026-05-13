@@ -57,14 +57,17 @@ This logic lives in `main.rs` rather than `exec.rs` because clap's `num_args(0..
 
 Several subcommands accept an optional `<color>` argument. Validation happens at the command handler level (checking against `COLORS`), not at the clap level. This means clap accepts any string and the handler returns a descriptive error like `"'purple' is not a valid color"`.
 
-## Palette (`colors.rs`)
+## Palette
 
-### ROYGBIV Constant
+The palette splits along a binary boundary: the canonical color list is shared with `roy` via `gbiv-core`; ANSI escape codes and terminal formatting stay gbiv-only.
+
+### ROYGBIV Constant — lives in `gbiv-core::colors`
 
 ```rust
 pub const COLORS: [&str; 7] = [
     "red", "orange", "yellow", "green", "blue", "indigo", "violet"
 ];
+pub fn is_valid_color(name: &str) -> bool;
 ```
 
 This array is the single source of truth for:
@@ -73,7 +76,11 @@ This array is the single source of truth for:
 - Iteration order (status, exec-all, rebase-all use ROYGBIV order)
 - Tmux window names and sort order
 
-The `COLORS` slice and a small `is_valid_color(name) -> bool` validator live in `gbiv-core::colors` so roy can validate `:color` URL params and iterate `/sessions` in the same canonical order without re-declaring the list. The ANSI codes and formatting constants below stay gbiv-only — roy is JSON-only and has no use for terminal escapes.
+`COLORS` and `is_valid_color` live in `gbiv-core` so `roy` can validate `:color` URL params and iterate `/sessions` in the same canonical order without re-declaring the list. Both binaries must agree about which seven names are colors, so there can only be one home for this.
+
+### ANSI Codes — gbiv-only (`src/colors.rs`)
+
+The ANSI escape codes and formatting constants below stay in the gbiv binary. `roy` emits JSON and has no use for terminal escapes.
 
 ### ANSI Codes
 
@@ -146,4 +153,5 @@ The palette encodes a consistent visual language across all commands:
 ## References
 
 - `src/main.rs` — CLI definition and dispatch
-- `src/colors.rs` — ROYGBIV constants and ANSI codes
+- `src/colors.rs` — ANSI codes and formatting constants (gbiv-only)
+- `gbiv-core::colors` — `COLORS` slice and `is_valid_color` (shared with roy)

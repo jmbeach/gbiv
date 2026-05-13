@@ -119,3 +119,13 @@ Specs for worktree creation, upstream sync, reset, and maintenance.
 
 - [x] WTL-UTIL-014: When `find_repo_in_worktree` is called, the system shall scan the given worktree directory for a subdirectory containing a `.git` entry, and return its path.
 - [x] WTL-UTIL-015: If no subdirectory contains a `.git` entry, the system shall return `None`.
+
+### ensure_gitignore_entry
+
+- [x] WTL-UTIL-016: When `ensure_gitignore_entry` is called with a `git_dir` that has no `info/` subdirectory, the system shall create the `info/` directory before writing.
+- [x] WTL-UTIL-017: When `ensure_gitignore_entry` is called and no existing line in `info/exclude` trims to the given entry, the system shall append the entry on its own line (prefixed with a newline if the existing content does not end with one).
+- [x] WTL-UTIL-018: When `ensure_gitignore_entry` is called and a line trimming to the given entry already exists in `info/exclude`, the system shall leave the file unchanged.
+
+### is_git_repo
+
+- [x] WTL-UTIL-019: When `is_git_repo` is called on a path, the system shall run `git rev-parse --git-dir` in that path and return true if the command succeeded, false otherwise.

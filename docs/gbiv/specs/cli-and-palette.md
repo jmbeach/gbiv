@@ -43,3 +43,5 @@ Specs for command dispatch, argument parsing, and terminal color formatting.
 - [x] CLI-COLOR-012: The module shall export a YELLOW constant set to \x1b[33m for attention visual semantics.
 - [x] CLI-COLOR-013: The module shall export a GREEN constant set to \x1b[32m for positive visual semantics.
 - [x] CLI-COLOR-014: The module shall export a RED constant set to \x1b[31m for negative visual semantics.
+- [ ] CLI-COLOR-015: When `is_valid_color` is called with a name that matches an entry in the COLORS array, the system shall return true.
+- [ ] CLI-COLOR-016: When `is_valid_color` is called with a name that does not match any entry in the COLORS array, the system shall return false.

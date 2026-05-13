@@ -47,6 +47,7 @@ pub fn find_gbiv_root(start: &Path) -> Option<GbivRoot> {
     None
 }
 
+// @spec WTL-UTIL-019
 pub fn is_git_repo(path: &Path) -> bool {
     let output = ProcessCommand::new("git")
         .args(["rev-parse", "--git-dir"])
@@ -277,6 +278,7 @@ pub fn get_git_dir(path: &Path) -> Option<PathBuf> {
     }
 }
 
+// @spec WTL-UTIL-016, WTL-UTIL-017, WTL-UTIL-018
 pub fn ensure_gitignore_entry(git_dir: &Path, entry: &str) -> Result<(), GitError> {
     let info_dir = git_dir.join("info");
     fs::create_dir_all(&info_dir)?;
