@@ -16,12 +16,6 @@ deny() {
   }'
 }
 
-# Block cargo commands
-if echo "$command" | grep -qE '^\s*cargo\s+'; then
-    deny "Never run cargo commands yourself. The user runs 'cargo make watch' and 'cargo make watch-tests' which output to watch.log and watch-tests.log respectively. You should simply read from those files instead of trying to build/test yourself. If you need a package installed, just ask the user to install it."
-    exit 0
-fi
-
 # Block push to/from main
 if echo "$command" | grep -qE '^\s*git\s+push'; then
     current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
