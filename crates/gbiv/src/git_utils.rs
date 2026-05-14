@@ -92,12 +92,21 @@ pub fn get_quick_status(path: &Path) -> QuickStatus {
         }
     }
 
-    QuickStatus { branch, is_dirty, ahead_behind }
+    QuickStatus {
+        branch,
+        is_dirty,
+        ahead_behind,
+    }
 }
 
 pub fn get_ahead_behind_vs(path: &Path, target: &str) -> Option<(u32, u32)> {
     let output = ProcessCommand::new("git")
-        .args(["rev-list", "--left-right", "--count", &format!("HEAD...{}", target)])
+        .args([
+            "rev-list",
+            "--left-right",
+            "--count",
+            &format!("HEAD...{}", target),
+        ])
         .current_dir(path)
         .output()
         .ok()?;
@@ -317,12 +326,32 @@ mod tests {
     use std::process::Command;
 
     fn init_git_repo(path: &Path) {
-        Command::new("git").args(["init"]).current_dir(path).output().unwrap();
-        Command::new("git").args(["config", "user.email", "test@test.com"]).current_dir(path).output().unwrap();
-        Command::new("git").args(["config", "user.name", "Test"]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["init"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(path)
+            .output()
+            .unwrap();
         fs::write(path.join("test.txt"), "test").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(path).output().unwrap();
-        Command::new("git").args(["commit", "-m", "initial"]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "initial"])
+            .current_dir(path)
+            .output()
+            .unwrap();
     }
 
     // @spec WTL-REBASE-014
@@ -335,16 +364,36 @@ mod tests {
 
         // Create a file on main that we will conflict with
         fs::write(base.join("conflict.txt"), "main content\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(&base).output().unwrap();
-        Command::new("git").args(["commit", "-m", "add conflict file on main"]).current_dir(&base).output().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&base)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "add conflict file on main"])
+            .current_dir(&base)
+            .output()
+            .unwrap();
 
         // Create a feature branch from the initial commit (parent of HEAD)
-        Command::new("git").args(["checkout", "-b", "feature", "HEAD~1"]).current_dir(&base).output().unwrap();
+        Command::new("git")
+            .args(["checkout", "-b", "feature", "HEAD~1"])
+            .current_dir(&base)
+            .output()
+            .unwrap();
 
         // Create a conflicting change on the feature branch
         fs::write(base.join("conflict.txt"), "feature content\n").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(&base).output().unwrap();
-        Command::new("git").args(["commit", "-m", "add conflict file on feature"]).current_dir(&base).output().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&base)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "add conflict file on feature"])
+            .current_dir(&base)
+            .output()
+            .unwrap();
 
         // Attempt to rebase feature onto main — this should fail with a conflict
         let result = rebase_onto(&base, "main");

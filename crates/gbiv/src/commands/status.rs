@@ -46,13 +46,21 @@ fn collect_worktree_status(color: &'static str, repo_path: PathBuf) -> WorktreeS
         };
         let age = get_last_commit_age(&repo_path);
         let ahead_behind = quick.ahead_behind.or_else(|| {
-            remote_main.as_ref().and_then(|rm| get_ahead_behind_vs(&repo_path, rm))
+            remote_main
+                .as_ref()
+                .and_then(|rm| get_ahead_behind_vs(&repo_path, rm))
         });
         (merged, age, ahead_behind)
     } else {
         (None, None, None)
     };
-    WorktreeStatus { branch, is_dirty, merged, age, ahead_behind }
+    WorktreeStatus {
+        branch,
+        is_dirty,
+        merged,
+        age,
+        ahead_behind,
+    }
 }
 
 // @spec OBS-STATUS-001 through OBS-STATUS-026
@@ -93,9 +101,15 @@ pub fn status_command() -> anyhow::Result<()> {
 
                 if branch == color {
                     if is_dirty {
-                        println!("{}{:<8}{}  {}{:<24}{} {}dirty{}", color_code, color, RESET, DIM, branch, RESET, YELLOW, RESET);
+                        println!(
+                            "{}{:<8}{}  {}{:<24}{} {}dirty{}",
+                            color_code, color, RESET, DIM, branch, RESET, YELLOW, RESET
+                        );
                     } else {
-                        println!("{}{:<8}{}  {}{:<24} clean{}", color_code, color, RESET, DIM, branch, RESET);
+                        println!(
+                            "{}{:<8}{}  {}{:<24} clean{}",
+                            color_code, color, RESET, DIM, branch, RESET
+                        );
                     }
                 } else {
                     let dirty_str = if is_dirty {
@@ -108,7 +122,10 @@ pub fn status_command() -> anyhow::Result<()> {
                         Some(false) => ("not merged", YELLOW),
                         None => ("no remote", DIM),
                     };
-                    let age_str = status.age.map(format_age).unwrap_or_else(|| "???".to_string());
+                    let age_str = status
+                        .age
+                        .map(format_age)
+                        .unwrap_or_else(|| "???".to_string());
                     let ab_str = match status.ahead_behind {
                         Some((ahead, behind)) => {
                             let ahead_fmt = if ahead > 0 {
@@ -127,7 +144,18 @@ pub fn status_command() -> anyhow::Result<()> {
                     };
                     println!(
                         "{}{:<8}{}  {:<24} {:<5}  {}{}{}  {}{}  {}{}",
-                        color_code, color, RESET, branch, dirty_str, merged_color, merged_str, RESET, DIM, age_str, ab_str, RESET
+                        color_code,
+                        color,
+                        RESET,
+                        branch,
+                        dirty_str,
+                        merged_color,
+                        merged_str,
+                        RESET,
+                        DIM,
+                        age_str,
+                        ab_str,
+                        RESET
                     );
                 }
             }
@@ -157,10 +185,16 @@ fn format_gbiv_features(features: &[crate::gbiv_md::GbivFeature]) -> String {
                     Some(s) => format!(" [{}]", s),
                     None => String::new(),
                 };
-                out.push_str(&format!("  {}{}{}{}  {}\n", color_code, tag, status_suffix, RESET, feature.description));
+                out.push_str(&format!(
+                    "  {}{}{}{}  {}\n",
+                    color_code, tag, status_suffix, RESET, feature.description
+                ));
             }
             None => {
-                out.push_str(&format!("  {}{:<8}{}  {}\n", DIM, "backlog", RESET, feature.description));
+                out.push_str(&format!(
+                    "  {}{:<8}{}  {}\n",
+                    DIM, "backlog", RESET, feature.description
+                ));
             }
         }
     }
@@ -175,11 +209,21 @@ mod tests {
     use tempfile::TempDir;
 
     fn make_feature(tag: Option<&str>, description: &str) -> GbivFeature {
-        GbivFeature { tag: tag.map(|s| s.to_string()), description: description.to_string(), notes: vec![], status: None }
+        GbivFeature {
+            tag: tag.map(|s| s.to_string()),
+            description: description.to_string(),
+            notes: vec![],
+            status: None,
+        }
     }
 
     fn make_feature_with_status(tag: Option<&str>, description: &str, status: &str) -> GbivFeature {
-        GbivFeature { tag: tag.map(|s| s.to_string()), description: description.to_string(), notes: vec![], status: Some(status.to_string()) }
+        GbivFeature {
+            tag: tag.map(|s| s.to_string()),
+            description: description.to_string(),
+            notes: vec![],
+            status: Some(status.to_string()),
+        }
     }
 
     // @spec OBS-STATUS-022
@@ -275,7 +319,15 @@ mod tests {
             make_feature_with_status(Some("blue"), "Add feature", "in-progress"),
         ];
         let out = format_gbiv_features(&features);
-        assert!(out.contains("red [done]"), "expected 'red [done]' in output, got: {:?}", out);
-        assert!(out.contains("blue [in-progress]"), "expected 'blue [in-progress]' in output, got: {:?}", out);
+        assert!(
+            out.contains("red [done]"),
+            "expected 'red [done]' in output, got: {:?}",
+            out
+        );
+        assert!(
+            out.contains("blue [in-progress]"),
+            "expected 'blue [in-progress]' in output, got: {:?}",
+            out
+        );
     }
 }

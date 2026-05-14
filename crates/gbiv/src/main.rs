@@ -1,13 +1,13 @@
 use anyhow::Result;
 use clap::{Arg, ArgGroup, Command};
-use gbiv_core::colors::{is_valid_color, COLORS};
 use commands::init::init_command;
-use commands::reset::reset_command;
 use commands::mark::mark_command;
 use commands::rebase_all::rebase_all_command;
+use commands::reset::reset_command;
 use commands::status::status_command;
 use commands::tidy::tidy_command;
 use commands::tmux;
+use gbiv_core::colors::{is_valid_color, COLORS};
 
 mod colors;
 mod commands;
@@ -164,7 +164,9 @@ fn run() -> Result<()> {
             };
             let command: Vec<String> = rest.into_iter().filter(|a| a != "--").collect();
             if command.is_empty() {
-                return Err(anyhow::anyhow!("no command specified. Usage: gbiv exec [<color>|all] -- <command...>"));
+                return Err(anyhow::anyhow!(
+                    "no command specified. Usage: gbiv exec [<color>|all] -- <command...>"
+                ));
             }
             let target_ref = target.as_deref();
             let output = exec_command(target_ref, &command, None)?;
@@ -197,7 +199,9 @@ fn run() -> Result<()> {
 
 fn main() {
     if let Err(e) = run() {
-        let debug = std::env::var("RUST_LOG").map(|v| v == "debug").unwrap_or(false);
+        let debug = std::env::var("RUST_LOG")
+            .map(|v| v == "debug")
+            .unwrap_or(false);
         if debug {
             eprintln!("Error: {:#}", e);
         } else {

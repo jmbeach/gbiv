@@ -8,8 +8,7 @@ use gbiv_core::colors::is_valid_color;
 use gbiv_core::root::find_gbiv_root;
 
 pub fn clean_subcommand() -> Command {
-    Command::new("clean")
-        .about("Close ROYGBIV tmux windows with no tagged feature in GBIV.md")
+    Command::new("clean").about("Close ROYGBIV tmux windows with no tagged feature in GBIV.md")
 }
 
 // @spec TMX-CLEAN-005, TMX-CLEAN-006, TMX-CLEAN-007
@@ -33,8 +32,9 @@ pub fn clean_command() -> anyhow::Result<()> {
 
     // Guard 2: must be inside a gbiv project
     let cwd = env::current_dir()?;
-    let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one."))?;
+    let gbiv_root = find_gbiv_root(&cwd).ok_or_else(|| {
+        anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one.")
+    })?;
 
     let session_name = &gbiv_root.folder_name;
 
@@ -167,12 +167,32 @@ mod tests {
         let project_name = "testcleanproject";
         let main_repo = base.join(project_name).join("main").join(project_name);
         std::fs::create_dir_all(&main_repo).unwrap();
-        ProcessCommand::new("git").args(["init"]).current_dir(&main_repo).output().unwrap();
-        ProcessCommand::new("git").args(["config", "user.email", "t@t.com"]).current_dir(&main_repo).output().unwrap();
-        ProcessCommand::new("git").args(["config", "user.name", "T"]).current_dir(&main_repo).output().unwrap();
+        ProcessCommand::new("git")
+            .args(["init"])
+            .current_dir(&main_repo)
+            .output()
+            .unwrap();
+        ProcessCommand::new("git")
+            .args(["config", "user.email", "t@t.com"])
+            .current_dir(&main_repo)
+            .output()
+            .unwrap();
+        ProcessCommand::new("git")
+            .args(["config", "user.name", "T"])
+            .current_dir(&main_repo)
+            .output()
+            .unwrap();
         std::fs::write(main_repo.join("README.md"), "test").unwrap();
-        ProcessCommand::new("git").args(["add", "."]).current_dir(&main_repo).output().unwrap();
-        ProcessCommand::new("git").args(["commit", "-m", "init"]).current_dir(&main_repo).output().unwrap();
+        ProcessCommand::new("git")
+            .args(["add", "."])
+            .current_dir(&main_repo)
+            .output()
+            .unwrap();
+        ProcessCommand::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&main_repo)
+            .output()
+            .unwrap();
         // A color directory is required for find_gbiv_root to recognise the project.
         std::fs::create_dir_all(base.join(project_name).join("red")).unwrap();
 

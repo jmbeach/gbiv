@@ -57,12 +57,32 @@ mod tests {
     use tempfile::TempDir;
 
     fn init_git_repo(path: &Path) {
-        Command::new("git").args(["init"]).current_dir(path).output().unwrap();
-        Command::new("git").args(["config", "user.email", "test@test.com"]).current_dir(path).output().unwrap();
-        Command::new("git").args(["config", "user.name", "Test"]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["init"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(path)
+            .output()
+            .unwrap();
         fs::write(path.join("test.txt"), "test").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(path).output().unwrap();
-        Command::new("git").args(["commit", "-m", "initial"]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "initial"])
+            .current_dir(path)
+            .output()
+            .unwrap();
     }
 
     /// Build a minimal gbiv-shaped layout under `base/<project>` and return the

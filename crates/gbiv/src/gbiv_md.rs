@@ -42,7 +42,11 @@ pub fn parse_gbiv_md(path: &std::path::Path) -> Vec<GbivFeature> {
                         if let Some(close2) = after_tag.find(']') {
                             let candidate = after_tag.get(1..close2).unwrap_or("").to_string();
                             if candidate == "in-progress" || candidate == "done" {
-                                let desc = after_tag.get(close2 + 1..).unwrap_or("").trim_start().to_string();
+                                let desc = after_tag
+                                    .get(close2 + 1..)
+                                    .unwrap_or("")
+                                    .trim_start()
+                                    .to_string();
                                 (Some(tag), Some(candidate), desc)
                             } else {
                                 (Some(tag), None, after_tag.to_string())
@@ -59,7 +63,12 @@ pub fn parse_gbiv_md(path: &std::path::Path) -> Vec<GbivFeature> {
             } else {
                 (None, None, rest.to_string())
             };
-            features.push(GbivFeature { tag, status, description, notes: vec![] });
+            features.push(GbivFeature {
+                tag,
+                status,
+                description,
+                notes: vec![],
+            });
         } else if !line.is_empty() {
             if let Some(last) = features.last_mut() {
                 last.notes.push(line.to_string());
@@ -134,7 +143,11 @@ pub fn remove_gbiv_features_by_tag(path: &std::path::Path, tag: &str) -> Result<
 }
 
 // @spec FL-MUTATE-001 through FL-MUTATE-006
-pub fn set_gbiv_feature_status(path: &std::path::Path, color: &str, status: Option<&str>) -> Result<(), GbivMdError> {
+pub fn set_gbiv_feature_status(
+    path: &std::path::Path,
+    color: &str,
+    status: Option<&str>,
+) -> Result<(), GbivMdError> {
     let content = std::fs::read_to_string(path)?;
 
     let mut found = false;
@@ -435,6 +448,9 @@ mod tests {
         let f = write_temp("- [red] Fix bug\n  Note line one\n  Note line two\n");
         set_gbiv_feature_status(f.path(), "red", Some("done")).unwrap();
         let on_disk = std::fs::read_to_string(f.path()).unwrap();
-        assert_eq!(on_disk, "- [red] [done] Fix bug\n  Note line one\n  Note line two\n");
+        assert_eq!(
+            on_disk,
+            "- [red] [done] Fix bug\n  Note line one\n  Note line two\n"
+        );
     }
 }

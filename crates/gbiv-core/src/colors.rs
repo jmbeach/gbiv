@@ -1,7 +1,9 @@
 use std::path::Path;
 
 // @spec CLI-COLOR-001
-pub const COLORS: [&str; 7] = ["red", "orange", "yellow", "green", "blue", "indigo", "violet"];
+pub const COLORS: [&str; 7] = [
+    "red", "orange", "yellow", "green", "blue", "indigo", "violet",
+];
 
 // @spec CLI-COLOR-015, CLI-COLOR-016
 pub fn is_valid_color(name: &str) -> bool {

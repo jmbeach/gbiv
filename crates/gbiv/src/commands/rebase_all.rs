@@ -62,8 +62,8 @@ fn rebase_worktree(root: &Path, color: &str, remote_main: &str) -> RebaseResult 
 pub fn rebase_all_command() -> anyhow::Result<()> {
     let cwd = std::env::current_dir()?;
 
-    let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| anyhow::anyhow!("Could not find gbiv root"))?;
+    let gbiv_root =
+        find_gbiv_root(&cwd).ok_or_else(|| anyhow::anyhow!("Could not find gbiv root"))?;
 
     // Pull the main worktree first so colour rebases are based on the latest main
     let main_worktree_dir = gbiv_root.root.join("main");
@@ -76,7 +76,10 @@ pub fn rebase_all_command() -> anyhow::Result<()> {
     match pull(&main_repo) {
         Ok(()) => println!("\x1b[0mmain    {}  {}pulled{}", RESET, GREEN, RESET),
         Err(e) => {
-            println!("\x1b[0mmain    {}  {}pull failed: {}{}", RESET, RED, e, RESET);
+            println!(
+                "\x1b[0mmain    {}  {}pull failed: {}{}",
+                RESET, RED, e, RESET
+            );
             return Err(anyhow::anyhow!("git pull failed in main worktree"));
         }
     }
@@ -89,7 +92,10 @@ pub fn rebase_all_command() -> anyhow::Result<()> {
             if let Some(common_git_dir) = get_git_dir(&repo_path) {
                 for &state_file in GBIV_STATE_FILES {
                     if let Err(e) = ensure_gitignore_entry(&common_git_dir, state_file) {
-                        eprintln!("  warning: could not update info/exclude for {}: {}", color, e);
+                        eprintln!(
+                            "  warning: could not update info/exclude for {}: {}",
+                            color, e
+                        );
                     }
                 }
             }
@@ -103,9 +109,7 @@ pub fn rebase_all_command() -> anyhow::Result<()> {
         .map(|&color| {
             let root = root.clone();
             let remote_main = remote_main.clone();
-            thread::spawn(move || {
-                (color, rebase_worktree(&root, color, &remote_main))
-            })
+            thread::spawn(move || (color, rebase_worktree(&root, color, &remote_main)))
         })
         .collect();
 
@@ -124,19 +128,31 @@ pub fn rebase_all_command() -> anyhow::Result<()> {
                 println!("{}{:<8}{}  skipped ({})", color_code, color, RESET, reason);
             }
             RebaseResult::SkippedRebaseInProgress => {
-                println!("{}{:<8}{}  {}skipped (rebase in progress){}", color_code, color, RESET, YELLOW, RESET);
+                println!(
+                    "{}{:<8}{}  {}skipped (rebase in progress){}",
+                    color_code, color, RESET, YELLOW, RESET
+                );
                 failed += 1;
             }
             RebaseResult::AlreadyUpToDate => {
-                println!("{}{:<8}{}  {}already up to date{}", color_code, color, RESET, GREEN, RESET);
+                println!(
+                    "{}{:<8}{}  {}already up to date{}",
+                    color_code, color, RESET, GREEN, RESET
+                );
                 succeeded += 1;
             }
             RebaseResult::Rebased(ref rm) => {
-                println!("{}{:<8}{}  {}rebased onto {}{}", color_code, color, RESET, GREEN, rm, RESET);
+                println!(
+                    "{}{:<8}{}  {}rebased onto {}{}",
+                    color_code, color, RESET, GREEN, rm, RESET
+                );
                 succeeded += 1;
             }
             RebaseResult::FetchFailed(ref e) => {
-                println!("{}{:<8}{}  {}fetch failed: {}{}", color_code, color, RESET, RED, e, RESET);
+                println!(
+                    "{}{:<8}{}  {}fetch failed: {}{}",
+                    color_code, color, RESET, RED, e, RESET
+                );
                 failed += 1;
             }
             RebaseResult::RebaseFailed(ref e) => {
@@ -149,12 +165,22 @@ pub fn rebase_all_command() -> anyhow::Result<()> {
 
     println!();
     if failed == 0 {
-        println!("{}{}/{} worktrees rebased successfully{}", GREEN, succeeded, succeeded + failed, RESET);
+        println!(
+            "{}{}/{} worktrees rebased successfully{}",
+            GREEN,
+            succeeded,
+            succeeded + failed,
+            RESET
+        );
         Ok(())
     } else {
         println!(
             "{}{}/{} worktrees rebased successfully{} — {} failed",
-            YELLOW, succeeded, succeeded + failed, RESET, failed
+            YELLOW,
+            succeeded,
+            succeeded + failed,
+            RESET,
+            failed
         );
         Err(anyhow::anyhow!("{} worktree(s) failed to rebase", failed))
     }
@@ -163,7 +189,10 @@ pub fn rebase_all_command() -> anyhow::Result<()> {
 pub fn format_rebase_error(color: &str, color_code: &str, error: &str) -> String {
     let mut lines = error.lines();
     let first = lines.next().unwrap_or("");
-    let mut result = format!("{}{:<8}{}  {}rebase failed: {}{}", color_code, color, RESET, RED, first, RESET);
+    let mut result = format!(
+        "{}{:<8}{}  {}rebase failed: {}{}",
+        color_code, color, RESET, RED, first, RESET
+    );
     for line in lines {
         result.push('\n');
         result.push_str(&format!("{}          {}{}", RED, line, RESET));
@@ -192,15 +221,35 @@ mod tests {
     }
 
     fn init_git_repo(path: &str) {
-        Command::new("git").args(["init"]).current_dir(path).output().unwrap();
-        Command::new("git").args(["config", "user.email", "t@t.com"]).current_dir(path).output().unwrap();
-        Command::new("git").args(["config", "user.name", "T"]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["init"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "t@t.com"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "T"])
+            .current_dir(path)
+            .output()
+            .unwrap();
     }
 
     fn add_commit(path: &str) {
         fs::write(format!("{}/f.txt", path), "x").unwrap();
-        Command::new("git").args(["add", "."]).current_dir(path).output().unwrap();
-        Command::new("git").args(["commit", "-m", "init"]).current_dir(path).output().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(path)
+            .output()
+            .unwrap();
     }
 
     // @spec WTL-REBASE-006
@@ -229,7 +278,8 @@ mod tests {
         let exclude = fs::read_to_string(git_dir.join("info/exclude")).unwrap_or_default();
         assert!(
             exclude.contains(".last-branch"),
-            "info/exclude should contain .last-branch, got:\n{}", exclude
+            "info/exclude should contain .last-branch, got:\n{}",
+            exclude
         );
 
         let status = get_quick_status(Path::new(&red_repo));
@@ -245,7 +295,10 @@ mod tests {
     #[test]
     fn test_rebase_error_format_includes_branch_name() {
         let result = format_rebase_error("yellow", "", "could not apply 69957f7...");
-        let first_line = result.lines().next().expect("should have at least one line");
+        let first_line = result
+            .lines()
+            .next()
+            .expect("should have at least one line");
         assert!(
             first_line.contains("yellow"),
             "First line should contain the color/branch name 'yellow', got: {}",
@@ -276,11 +329,23 @@ mod tests {
         );
         for (i, line) in lines.iter().enumerate().skip(1) {
             // Strip ANSI escape sequences before checking indentation
-            let stripped: String = line.chars().fold((String::new(), false), |(mut s, in_esc), c| {
-                if c == '\x1b' { (s, true) }
-                else if in_esc { if c == 'm' { (s, false) } else { (s, true) } }
-                else { s.push(c); (s, false) }
-            }).0;
+            let stripped: String = line
+                .chars()
+                .fold((String::new(), false), |(mut s, in_esc), c| {
+                    if c == '\x1b' {
+                        (s, true)
+                    } else if in_esc {
+                        if c == 'm' {
+                            (s, false)
+                        } else {
+                            (s, true)
+                        }
+                    } else {
+                        s.push(c);
+                        (s, false)
+                    }
+                })
+                .0;
             assert!(
                 stripped.starts_with("  ") || stripped.starts_with("\t"),
                 "Detail line {} should be indented, got: '{}'",

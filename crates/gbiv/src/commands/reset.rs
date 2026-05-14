@@ -1,4 +1,3 @@
-use std::path::Path;
 use crate::gbiv_md::remove_gbiv_features_by_tag;
 use crate::git_utils::{
     checkout_branch, get_quick_status, get_remote_main_branch, is_merged_into, reset_hard,
@@ -6,6 +5,7 @@ use crate::git_utils::{
 };
 use gbiv_core::colors::COLORS;
 use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
+use std::path::Path;
 
 // @spec WTL-RESET-001 through WTL-RESET-010, WTL-RESET-020
 pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> anyhow::Result<String> {
@@ -15,12 +15,15 @@ pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> anyhow::Result<St
         .ok_or_else(|| anyhow::anyhow!("No git repo found in {} worktree", color))?;
 
     let status = get_quick_status(&repo_path);
-    let branch = status
-        .branch
-        .ok_or_else(|| anyhow::anyhow!("Could not determine current branch for {} worktree", color))?;
+    let branch = status.branch.ok_or_else(|| {
+        anyhow::anyhow!("Could not determine current branch for {} worktree", color)
+    })?;
 
     if branch == color && !hard {
-        return Ok(format!("{} worktree is already on the {} branch, skipping", color, color));
+        return Ok(format!(
+            "{} worktree is already on the {} branch, skipping",
+            color, color
+        ));
     }
 
     let remote_main = get_remote_main_branch(&repo_path)
@@ -29,7 +32,9 @@ pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> anyhow::Result<St
     if !hard && !is_merged_into(&repo_path, &branch, &remote_main) {
         return Err(anyhow::anyhow!(
             "Branch {} is not merged into {} in {} worktree",
-            branch, remote_main, color
+            branch,
+            remote_main,
+            color
         ));
     }
 
@@ -44,7 +49,10 @@ pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> anyhow::Result<St
     }
     reset_hard(&repo_path, &remote_main)?;
 
-    let message = format!("{} worktree reset (was on {}), reset to {}", color, branch, remote_main);
+    let message = format!(
+        "{} worktree reset (was on {}), reset to {}",
+        color, branch, remote_main
+    );
 
     match find_repo_in_worktree(&gbiv_root.join("main")) {
         Some(main_repo) => {
@@ -52,7 +60,10 @@ pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> anyhow::Result<St
             remove_gbiv_features_by_tag(&gbiv_md_path, color)?;
         }
         None => {
-            eprintln!("Warning [{}]: could not find main repo to update GBIV.md", color);
+            eprintln!(
+                "Warning [{}]: could not find main repo to update GBIV.md",
+                color
+            );
         }
     }
 
@@ -282,8 +293,7 @@ mod tests {
     /// a worktree-style repo that has origin pointing to source, a feature branch
     /// that is already merged (same commit as origin/main), and a local-only "red"
     /// color branch. Returns (source_dir, root) so TempDirs stay alive.
-    fn setup_worktree_with_merged_feature(
-    ) -> (TempDir, TempDir, std::path::PathBuf) {
+    fn setup_worktree_with_merged_feature() -> (TempDir, TempDir, std::path::PathBuf) {
         // Source repo acts as "origin" — has one commit on main
         let source_dir = TempDir::new().unwrap();
         let source_path = source_dir.path().join("source");
@@ -306,7 +316,10 @@ mod tests {
         git(&["checkout", "-b", "red", "origin/main"], &repo_path);
 
         // Create a feature branch from origin/main (already merged since same commit)
-        git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+        git(
+            &["checkout", "-b", "feature-branch", "origin/main"],
+            &repo_path,
+        );
 
         // Also set up main worktree dir so GBIV.md step doesn't warn
         let main_repo = root.path().join("main").join("myrepo");
@@ -432,7 +445,13 @@ mod tests {
     /// Returns (source_dir, root, repo_path, main_repo_path, gbiv_md_path).
     fn setup_worktree_with_gbiv_entry(
         status_tag: Option<&str>,
-    ) -> (TempDir, TempDir, std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
+    ) -> (
+        TempDir,
+        TempDir,
+        std::path::PathBuf,
+        std::path::PathBuf,
+        std::path::PathBuf,
+    ) {
         // Source repo acts as "origin" with one commit on main
         let source_dir = TempDir::new().unwrap();
         let source_path = source_dir.path().join("source");
@@ -451,7 +470,10 @@ mod tests {
         );
         git(&["fetch", "origin"], &repo_path);
         git(&["checkout", "-b", "red", "origin/main"], &repo_path);
-        git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+        git(
+            &["checkout", "-b", "feature-branch", "origin/main"],
+            &repo_path,
+        );
 
         // Set up main worktree with a real git repo so GBIV.md can be written
         let main_repo = root.path().join("main").join("myrepo");
@@ -501,7 +523,9 @@ mod tests {
         );
 
         // Should have a skip message mentioning status
-        let has_skip = messages.iter().any(|msg| msg.contains("without [done] status"));
+        let has_skip = messages
+            .iter()
+            .any(|msg| msg.contains("without [done] status"));
         assert!(
             has_skip,
             "expected skip message about missing [done] status, got: {:?}",
@@ -613,7 +637,10 @@ mod tests {
         let messages = reset_all_to_vec(root.path(), false);
 
         let has_summary = messages.iter().any(|msg| {
-            msg.contains("reset") && (msg.contains("without [done]") || msg.contains("not merged") || msg.contains("already reset"))
+            msg.contains("reset")
+                && (msg.contains("without [done]")
+                    || msg.contains("not merged")
+                    || msg.contains("already reset"))
         });
 
         assert!(

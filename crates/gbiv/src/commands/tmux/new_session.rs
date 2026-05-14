@@ -31,8 +31,9 @@ pub fn new_session_command(session_name: Option<&str>) -> anyhow::Result<()> {
 
     // Guard 2: must be inside a gbiv project
     let cwd = env::current_dir()?;
-    let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one."))?;
+    let gbiv_root = find_gbiv_root(&cwd).ok_or_else(|| {
+        anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one.")
+    })?;
 
     // Determine session name
     let name = session_name
@@ -54,14 +55,13 @@ pub fn new_session_command(session_name: Option<&str>) -> anyhow::Result<()> {
     }
 
     // Build the list of worktree paths: main first, then all ROYGBIV colors
-    let worktree_paths: Vec<(String, std::path::PathBuf)> =
-        std::iter::once("main")
-            .chain(COLORS.iter().copied())
-            .map(|color| {
-                let path = gbiv_root.root.join(color).join(&gbiv_root.folder_name);
-                (color.to_string(), path)
-            })
-            .collect();
+    let worktree_paths: Vec<(String, std::path::PathBuf)> = std::iter::once("main")
+        .chain(COLORS.iter().copied())
+        .map(|color| {
+            let path = gbiv_root.root.join(color).join(&gbiv_root.folder_name);
+            (color.to_string(), path)
+        })
+        .collect();
 
     // Determine which paths exist (warn for missing ones)
     let existing_paths: Vec<(String, std::path::PathBuf)> = worktree_paths
@@ -70,7 +70,11 @@ pub fn new_session_command(session_name: Option<&str>) -> anyhow::Result<()> {
             if path.exists() {
                 true
             } else {
-                eprintln!("Warning: worktree path for '{}' does not exist: {}", color, path.display());
+                eprintln!(
+                    "Warning: worktree path for '{}' does not exist: {}",
+                    color,
+                    path.display()
+                );
                 false
             }
         })
@@ -91,7 +95,10 @@ pub fn new_session_command(session_name: Option<&str>) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to run tmux new-session: {}", e))?;
 
     if !status.success() {
-        return Err(anyhow::anyhow!("tmux new-session failed with status: {}", status));
+        return Err(anyhow::anyhow!(
+            "tmux new-session failed with status: {}",
+            status
+        ));
     }
 
     // Create additional windows for the remaining existing paths
@@ -104,11 +111,19 @@ pub fn new_session_command(session_name: Option<&str>) -> anyhow::Result<()> {
             .map_err(|e| anyhow::anyhow!("Failed to run tmux new-window for '{}': {}", color, e))?;
 
         if !status.success() {
-            return Err(anyhow::anyhow!("tmux new-window for '{}' failed with status: {}", color, status));
+            return Err(anyhow::anyhow!(
+                "tmux new-window for '{}' failed with status: {}",
+                color,
+                status
+            ));
         }
     }
 
-    println!("Created tmux session '{}' with {} window(s).", name, existing_paths.len());
+    println!(
+        "Created tmux session '{}' with {} window(s).",
+        name,
+        existing_paths.len()
+    );
 
     Ok(())
 }
