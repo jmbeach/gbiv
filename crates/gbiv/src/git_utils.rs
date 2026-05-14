@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 use std::time::Duration;
@@ -15,6 +14,8 @@ pub enum GitError {
     WorktreeAlreadyExists(String),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Core(#[from] gbiv_core::error::CoreError),
     #[error("{0}")]
     Other(String),
 }
@@ -218,29 +219,6 @@ pub fn get_git_dir(path: &Path) -> Option<PathBuf> {
     } else {
         None
     }
-}
-
-// @spec WTL-UTIL-016, WTL-UTIL-017, WTL-UTIL-018
-pub fn ensure_gitignore_entry(git_dir: &Path, entry: &str) -> Result<(), GitError> {
-    let info_dir = git_dir.join("info");
-    fs::create_dir_all(&info_dir)?;
-    let exclude_path = info_dir.join("exclude");
-    let existing = if exclude_path.exists() {
-        fs::read_to_string(&exclude_path)?
-    } else {
-        String::new()
-    };
-    if existing.lines().any(|l| l.trim() == entry) {
-        return Ok(());
-    }
-    let mut content = existing;
-    if !content.ends_with('\n') && !content.is_empty() {
-        content.push('\n');
-    }
-    content.push_str(entry);
-    content.push('\n');
-    fs::write(&exclude_path, content)?;
-    Ok(())
 }
 
 pub fn fetch_remote(path: &Path) -> Result<(), GitError> {

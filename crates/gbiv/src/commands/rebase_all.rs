@@ -3,10 +3,11 @@ use std::thread;
 
 use crate::colors::{ansi_color, GREEN, RED, RESET, YELLOW};
 use crate::git_utils::{
-    ensure_gitignore_entry, fetch_remote, get_ahead_behind_vs, get_git_dir, get_remote_main_branch,
-    pull, rebase_onto, resolve_git_dir,
+    fetch_remote, get_ahead_behind_vs, get_git_dir, get_remote_main_branch, pull, rebase_onto,
+    resolve_git_dir,
 };
 use gbiv_core::colors::COLORS;
+use gbiv_core::gitignore::ensure_gitignore_entry;
 use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
 const GBIV_STATE_FILES: &[&str] = &[".last-branch"];
@@ -173,7 +174,8 @@ pub fn format_rebase_error(color: &str, color_code: &str, error: &str) -> String
 #[cfg(test)]
 mod tests {
     use super::format_rebase_error;
-    use crate::git_utils::{ensure_gitignore_entry, get_git_dir, get_quick_status};
+    use crate::git_utils::{get_git_dir, get_quick_status};
+    use gbiv_core::gitignore::ensure_gitignore_entry;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::process::Command;
