@@ -132,7 +132,7 @@ Errors from individual steps are collected but don't short-circuit — all three
 This component's git helpers split between two homes:
 
 - **`gbiv-core`** owns the primitives that both `gbiv` and `roy` depend on: root discovery, the `.git/info/exclude` registration helper, the `is_git_repo` predicate, and color inference. See `gbiv-core` annotations below.
-- **`src/git_utils.rs`** (gbiv-only) owns the dozens of `git`-shell-out wrappers used by gbiv commands (`checkout`, `rebase`, `stash`, `fetch`, `pull`, status queries, …). `roy` does not touch git, so none of these cross the boundary.
+- **`crates/gbiv/src/git_utils.rs`** (gbiv-only) owns the dozens of `git`-shell-out wrappers used by gbiv commands (`checkout`, `rebase`, `stash`, `fetch`, `pull`, status queries, …). `roy` does not touch git, so none of these cross the boundary.
 
 ### State Queries (gbiv-only)
 - `get_quick_status()` — parses `git status --porcelain=v2 --branch` into `QuickStatus { branch, is_dirty, ahead_behind }`
@@ -220,11 +220,11 @@ Callers `?` these into `anyhow::Error` at the command-handler boundary. New vari
 
 ## References
 
-- `src/git_utils.rs` — gbiv-only git command wrappers and state queries
-- `gbiv-core::root` — `find_gbiv_root`, `find_repo_in_worktree`, `is_git_repo` (shared with roy)
-- `gbiv-core::colors` — `infer_color_from_path` (shared with roy)
-- `gbiv-core::gitignore` — `ensure_gitignore_entry` (shared with roy)
-- `src/commands/init.rs` — project bootstrap
-- `src/commands/rebase_all.rs` — upstream sync
-- `src/commands/reset.rs` — worktree reclamation
-- `src/commands/tidy.rs` — maintenance composite
+- `crates/gbiv/src/git_utils.rs` — gbiv-only git command wrappers and state queries
+- `crates/gbiv-core/src/root.rs` — `find_gbiv_root`, `find_repo_in_worktree`, `is_git_repo` (shared with roy)
+- `crates/gbiv-core/src/colors.rs` — `infer_color_from_path` (shared with roy)
+- `crates/gbiv-core/src/gitignore.rs` — `ensure_gitignore_entry` (shared with roy)
+- `crates/gbiv/src/commands/init.rs` — project bootstrap
+- `crates/gbiv/src/commands/rebase_all.rs` — upstream sync
+- `crates/gbiv/src/commands/reset.rs` — worktree reclamation
+- `crates/gbiv/src/commands/tidy.rs` — maintenance composite

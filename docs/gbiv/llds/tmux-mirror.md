@@ -171,7 +171,7 @@ The lookup primitives — `tmux_available()` (`tmux -V`), `has_session()`, `list
 
 ## References
 
-- `src/commands/tmux/mod.rs` — subcommand group declaration
-- `src/commands/tmux/new_session.rs` — session creation
-- `src/commands/tmux/sync.rs` — window sync + reorder
-- `src/commands/tmux/clean.rs` — orphaned window cleanup
+- `crates/gbiv/src/commands/tmux/mod.rs` — subcommand group declaration
+- `crates/gbiv/src/commands/tmux/new_session.rs` — session creation
+- `crates/gbiv/src/commands/tmux/sync.rs` — window sync + reorder
+- `crates/gbiv/src/commands/tmux/clean.rs` — orphaned window cleanup

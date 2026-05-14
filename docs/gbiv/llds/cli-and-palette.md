@@ -78,7 +78,7 @@ This array is the single source of truth for:
 
 `COLORS` and `is_valid_color` live in `gbiv-core` so `roy` can validate `:color` URL params and iterate `/sessions` in the same canonical order without re-declaring the list. Both binaries must agree about which seven names are colors, so there can only be one home for this.
 
-### ANSI Codes — gbiv-only (`src/colors.rs`)
+### ANSI Codes — gbiv-only (`crates/gbiv/src/colors.rs`)
 
 The ANSI escape codes and formatting constants below stay in the gbiv binary. `roy` emits JSON and has no use for terminal escapes.
 
@@ -152,6 +152,6 @@ The palette encodes a consistent visual language across all commands:
 
 ## References
 
-- `src/main.rs` — CLI definition and dispatch
-- `src/colors.rs` — ANSI codes and formatting constants (gbiv-only)
-- `gbiv-core::colors` — `COLORS` slice and `is_valid_color` (shared with roy)
+- `crates/gbiv/src/main.rs` — CLI definition and dispatch
+- `crates/gbiv/src/colors.rs` — ANSI codes and formatting constants (gbiv-only)
+- `crates/gbiv-core/src/colors.rs` — `COLORS` slice, `is_valid_color`, `infer_color_from_path` (shared with roy)

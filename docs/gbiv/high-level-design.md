@@ -140,7 +140,7 @@ Output and iteration always follow the canonical ROYGBIV order defined by `COLOR
 
 gbiv splits errors along the standard Rust library/binary boundary:
 
-- **Library-style modules** (`git_utils`, `gbiv_md`, anything reusable across commands or shared with `roy` via a future `gbiv-core` crate) return typed errors with `thiserror`-derived enums. A typed `GitError` / `GbivMdError` lets callers `match` on variants (e.g., `WorktreeAlreadyExists` vs. `GitFailed`) and lets future test code assert on specific failure modes.
+- **Library-style modules** (`git_utils`, `gbiv_md`, and anything in `gbiv-core` shared with `roy`) return typed errors with `thiserror`-derived enums. A typed `GitError` / `GbivMdError` / `CoreError` lets callers `match` on variants (e.g., `WorktreeAlreadyExists` vs. `GitFailed`) and lets future test code assert on specific failure modes. `gbiv`'s `GitError` includes `#[from] CoreError` so `gbiv-core` failures bubble through `?` without an explicit conversion.
 - **Command handlers and `main()`** use `anyhow::Result<()>`. Each command's job is to either succeed or print one user-facing line and exit non-zero; the precise variant rarely needs to be matched by the caller. Use `.context("…")` to attach breadcrumbs as errors travel up (e.g., `.context(format!("setting up worktree for color {color}"))`).
 - **Boundary**: typed errors convert into `anyhow::Error` automatically via `?` (anyhow accepts any `std::error::Error`). Don't `anyhow!` from inside library modules — that erases type info that any later typed handler would need.
 
