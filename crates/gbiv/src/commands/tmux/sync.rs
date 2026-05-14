@@ -4,8 +4,8 @@ use std::env;
 use std::process::Command as ProcessCommand;
 
 use crate::gbiv_md::{parse_gbiv_md, GbivFeature};
-use crate::git_utils::find_gbiv_root;
 use gbiv_core::colors::COLORS;
+use gbiv_core::root::find_gbiv_root;
 
 pub fn sync_subcommand() -> Command {
     Command::new("sync")

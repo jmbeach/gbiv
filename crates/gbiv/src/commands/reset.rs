@@ -1,10 +1,11 @@
 use std::path::Path;
 use crate::gbiv_md::remove_gbiv_features_by_tag;
-use gbiv_core::colors::COLORS;
 use crate::git_utils::{
-    checkout_branch, find_gbiv_root, find_repo_in_worktree, get_quick_status,
-    get_remote_main_branch, is_merged_into, reset_hard, stash_push,
+    checkout_branch, get_quick_status, get_remote_main_branch, is_merged_into, reset_hard,
+    stash_push,
 };
+use gbiv_core::colors::COLORS;
+use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
 // @spec WTL-RESET-001 through WTL-RESET-010, WTL-RESET-020
 pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> anyhow::Result<String> {

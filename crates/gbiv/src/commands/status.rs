@@ -3,12 +3,13 @@ use std::thread;
 use std::time::Duration;
 
 use crate::colors::{ansi_color, DIM, GREEN, RED, RESET, YELLOW};
-use gbiv_core::colors::COLORS;
 use crate::gbiv_md::parse_gbiv_md;
 use crate::git_utils::{
-    find_gbiv_root, find_repo_in_worktree, get_ahead_behind_vs, get_last_commit_age,
-    get_quick_status, get_remote_main_branch, is_merged_into,
+    get_ahead_behind_vs, get_last_commit_age, get_quick_status, get_remote_main_branch,
+    is_merged_into,
 };
+use gbiv_core::colors::COLORS;
+use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
 struct WorktreeStatus {
     branch: Option<String>,

@@ -3,8 +3,8 @@ use std::process::Command as ProcessCommand;
 use std::thread;
 
 use crate::colors::{ansi_color, RESET};
-use crate::git_utils::{find_gbiv_root, find_repo_in_worktree};
 use gbiv_core::colors::{infer_color_from_path, is_valid_color, COLORS};
+use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
 // @spec OBS-EXEC-005 through OBS-EXEC-009
 pub fn exec_single(root: &Path, color: &str, command: &[String]) -> anyhow::Result<String> {

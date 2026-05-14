@@ -2,8 +2,9 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use crate::git_utils::{get_existing_branches, get_main_branch, has_commits, is_git_repo};
+use crate::git_utils::{get_existing_branches, get_main_branch, has_commits};
 use gbiv_core::colors::COLORS;
+use gbiv_core::root::is_git_repo;
 
 // Leading blank lines give users visible writing space above the --- so it's obvious features go there.
 const GBIV_MD_TEMPLATE: &str = "\n\n\n\n\n\n\n\n\n\n---\n# GBIV.md\n\nAdd features above the `---` line. Each feature starts with `- ` and an optional `[color]` tag.\n\nExample:\n\n- [red] My urgent feature\n  A note about this feature\n- [green] A less urgent feature\n- An untagged backlog item\n\nSupported tags match ROYGBIV colors: red, orange, yellow, green, blue, indigo, violet.\nUntagged items appear with a dim `backlog` label.\nEverything below `---` is ignored by gbiv.";
