@@ -2,7 +2,8 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 
-use crate::colors::{ansi_color, COLORS, DIM, GREEN, RED, RESET, YELLOW};
+use crate::colors::{ansi_color, DIM, GREEN, RED, RESET, YELLOW};
+use gbiv_core::colors::COLORS;
 use crate::gbiv_md::parse_gbiv_md;
 use crate::git_utils::{
     find_gbiv_root, find_repo_in_worktree, get_ahead_behind_vs, get_last_commit_age,

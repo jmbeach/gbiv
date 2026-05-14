@@ -1,7 +1,8 @@
 use std::path::Path;
 use std::thread;
 
-use crate::colors::{ansi_color, COLORS, GREEN, RED, RESET, YELLOW};
+use crate::colors::{ansi_color, GREEN, RED, RESET, YELLOW};
+use gbiv_core::colors::COLORS;
 use crate::git_utils::{
     ensure_gitignore_entry, fetch_remote, find_gbiv_root, find_repo_in_worktree,
     get_ahead_behind_vs, get_git_dir, get_remote_main_branch, pull, rebase_onto, resolve_git_dir,

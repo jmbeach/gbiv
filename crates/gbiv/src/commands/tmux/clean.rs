@@ -3,9 +3,9 @@ use std::collections::HashSet;
 use std::env;
 use std::process::Command as ProcessCommand;
 
-use crate::colors::COLORS;
 use crate::gbiv_md::parse_gbiv_md;
 use crate::git_utils::find_gbiv_root;
+use gbiv_core::colors::is_valid_color;
 
 pub fn clean_subcommand() -> Command {
     Command::new("clean")
@@ -15,7 +15,7 @@ pub fn clean_subcommand() -> Command {
 // @spec TMX-CLEAN-005, TMX-CLEAN-006, TMX-CLEAN-007
 /// Pure filtering predicate — testable without a live tmux process.
 pub fn is_orphaned_window(name: &str, active_colors: &HashSet<String>) -> bool {
-    COLORS.contains(&name) && !active_colors.contains(name)
+    is_valid_color(name) && !active_colors.contains(name)
 }
 
 // @spec TMX-CLEAN-001, TMX-CLEAN-002, TMX-CLEAN-003, TMX-CLEAN-004, TMX-CLEAN-005, TMX-CLEAN-006, TMX-CLEAN-007, TMX-CLEAN-008, TMX-CLEAN-009, TMX-CLEAN-010, TMX-CLEAN-011, TMX-CLEAN-012
@@ -118,6 +118,7 @@ pub fn clean_command() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gbiv_core::colors::COLORS;
     use serial_test::serial;
     use std::process::Command as ProcessCommand;
 

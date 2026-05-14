@@ -1,6 +1,6 @@
 use std::path::Path;
-use crate::colors::COLORS;
 use crate::gbiv_md::remove_gbiv_features_by_tag;
+use gbiv_core::colors::COLORS;
 use crate::git_utils::{
     checkout_branch, find_gbiv_root, find_repo_in_worktree, get_quick_status,
     get_remote_main_branch, is_merged_into, reset_hard, stash_push,

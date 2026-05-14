@@ -2,8 +2,8 @@ use clap::{Arg, Command};
 use std::env;
 use std::process::Command as ProcessCommand;
 
-use crate::colors::COLORS;
 use crate::git_utils::find_gbiv_root;
+use gbiv_core::colors::COLORS;
 
 pub fn new_session_subcommand() -> Command {
     Command::new("new-session")

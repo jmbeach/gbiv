@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Arg, ArgGroup, Command};
-use colors::COLORS;
+use gbiv_core::colors::{is_valid_color, COLORS};
 use commands::init::init_command;
 use commands::reset::reset_command;
 use commands::mark::mark_command;
@@ -113,7 +113,7 @@ pub(crate) fn cli() -> Command {
                             if s == "done" || s == "in-progress" || s == "unset" {
                                 return Err(format!("'{}' is a status flag, not a color. Did you mean: gbiv mark --{}", s, s));
                             }
-                            if COLORS.contains(&s) {
+                            if is_valid_color(s) {
                                 Ok(s.to_string())
                             } else {
                                 Err(format!("invalid color '{}'. Possible values: {}", s, COLORS.join(", ")))

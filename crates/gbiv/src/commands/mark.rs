@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use crate::gbiv_md::set_gbiv_feature_status;
-use crate::git_utils::{find_gbiv_root, find_repo_in_worktree, infer_color_from_path};
+use crate::git_utils::{find_gbiv_root, find_repo_in_worktree};
+use gbiv_core::colors::infer_color_from_path;
 
 // @spec FL-MARK-001 through FL-MARK-011
 pub fn mark_command(

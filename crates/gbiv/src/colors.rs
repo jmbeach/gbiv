@@ -1,6 +1,3 @@
-// @spec CLI-COLOR-001
-pub const COLORS: [&str; 7] = ["red", "orange", "yellow", "green", "blue", "indigo", "violet"];
-
 // @spec CLI-COLOR-002 through CLI-COLOR-009
 pub fn ansi_color(color: &str) -> &'static str {
     match color {

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 use std::time::Duration;
 
-use crate::colors::COLORS;
+use gbiv_core::colors::COLORS;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
@@ -206,15 +206,6 @@ pub fn checkout_branch(path: &Path, branch: &str) -> Result<(), GitError> {
             stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
         })
     }
-}
-
-// @spec WTL-UTIL-004, WTL-UTIL-005, WTL-UTIL-006
-/// Infer the color by finding the path component directly under the gbiv root.
-pub fn infer_color_from_path(cwd: &Path, gbiv_root: &Path) -> Option<&'static str> {
-    let relative = cwd.strip_prefix(gbiv_root).ok()?;
-    let first_component = relative.components().next()?;
-    let name = first_component.as_os_str().to_str()?;
-    COLORS.iter().find(|&&c| c == name).copied()
 }
 
 // @spec WTL-UTIL-014, WTL-UTIL-015
