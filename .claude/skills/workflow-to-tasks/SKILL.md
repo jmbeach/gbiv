@@ -2,7 +2,7 @@
 name: workflow-to-tasks
 description: Materialize a workflow TOML file (like those in `.workflows/`) into a tree of tasks. Reads the workflow definition, prompts for any required variables, substitutes `{{var}}` placeholders in titles and descriptions, calls TaskCreate for each step in dependency order, and wires up blocking relationships from each step's `needs` array. Use when the user says "run the arrow workflow", "kick off the epic-design workflow", "turn .workflows/foo.toml into tasks", or any variation of materializing a workflow file into FleetView tasks.
 argument-hint: <workflow-file> [var=value ...]
-allowed-tools: Read, Bash, AskUserQuestion, ToolSearch, TaskCreate
+allowed-tools: Read, Bash, AskUserQuestion, ToolSearch, TaskCreate, TodoWrite
 ---
 
 # workflow-to-tasks skill
@@ -73,28 +73,35 @@ Variable substitution is literal: replace every occurrence of `{{name}}` (no sur
 
 Order steps so that every step appears after the steps in its `needs` array. Use a stable topological sort: among ready steps, prefer the one declared earliest in the file. This keeps task IDs roughly aligned with file order when no dependencies are involved.
 
-### 4. Discover the TaskCreate schema
+### 4. Choose a sink and discover its schema
 
-Before calling `TaskCreate`, confirm the tool's actual parameters at runtime using `ToolSearch` with `select:TaskCreate`:
+Workflows can be materialized into one of two sinks:
+
+- **Preferred: `TaskCreate`** — the FleetView task store. Persistent across sessions, has first-class dependency edges, returns task IDs you can reference later. Use this whenever available.
+- **Fallback: `TodoWrite`** — the session-local todo list. Ephemeral (does not survive context resets), no native dependency graph (use topological order as a proxy), no per-task IDs to reference from outside the session. Use this only when `TaskCreate` is unavailable.
+
+Probe for `TaskCreate` first:
 
 ```
 ToolSearch(query="select:TaskCreate", max_results=1)
 ```
 
-Read the returned schema to find the actual parameter names for:
+If a schema comes back, use the **TaskCreate path** (§5a). Read the schema to find the actual parameter names for:
 
 - The **title** parameter (likely `title` or `name`)
 - The **description** / body parameter (likely `description`, `body`, or `details`)
 - The **dependency** parameter (could be `blockers`, `blocked_by`, `depends_on`, `predecessors`, `needs`, or similar — pick the one that matches the workflow's `needs` semantics)
 - Any **parent** parameter, if relevant
 
-If the schema does not expose a dependency parameter, fall back to:
+If `TaskCreate` is unavailable (no schema returned, or the tool is listed as deferred but the user's environment does not expose it), use the **TodoWrite path** (§5b). Tell the user once, at the start of materialization, that you're falling back: *"`TaskCreate` not available in this session — materializing into the session todo list via `TodoWrite` instead. Steps will be tracked as todos in topological order; dependency edges will be honored by ordering only (no native blocking relationships) and the list will not persist across sessions."*
+
+If `TaskCreate` is available but its schema does not expose a dependency parameter, do not fall back to TodoWrite — instead:
 
 1. Create all tasks first (capturing the assigned task ID for each step).
 2. After creation, search for a `TaskUpdate` or similar tool that can set dependencies. Use `ToolSearch(query="select:TaskUpdate", max_results=1)`.
 3. If still no dependency mechanism exists, emit a clear warning to the user listing the intended dependency edges (step `A` → blocks step `B`) so they can wire them manually. Do not silently drop the relationships.
 
-### 5. Create tasks
+### 5a. Create tasks (TaskCreate path)
 
 Iterate the topologically ordered step list. For each step:
 
@@ -114,9 +121,29 @@ If a `TaskCreate` call fails, stop immediately. Print:
 
 Do **not** retry automatically — task creation is not idempotent and a retry could create duplicates.
 
+### 5b. Create tasks (TodoWrite fallback path)
+
+`TodoWrite` takes the entire list in one call. Do **not** call it once per step. Build the full todo array first, then emit a single `TodoWrite` invocation.
+
+For each step in topologically-sorted order, build one todo object:
+
+- `content`: `"<step-id>: <substituted title>"`. Keep this concise (one line). The step-id prefix preserves traceability to the workflow file and gives a stable handle for the user to reference.
+- `activeForm`: the present-continuous phrasing of `content`. If a natural gerund form isn't obvious, drop the leading verb-phrase and prefix with the step-id: `"<step-id>: <title>"` is acceptable when no clean gerund exists. Examples: `"Run tests"` → `"Running tests"`; `"plan: Plan the feature and create artifacts"` → `"Planning the feature and creating artifacts"`.
+- `status`: `"pending"` for every step. Do not pre-mark any as in_progress — the agent or user who executes the workflow will flip statuses as they pick up work.
+
+Encoding lossy fields:
+
+- `description` does not have a direct TodoWrite slot. If the workflow's step description carries information the executor needs (commands to run, files to touch, gates to check), append a compact summary to `content` — `"<step-id>: <title> — <one-line summary of description>"`. If the description is long, keep only the first useful sentence and add `"…"` to signal truncation. Do not dump multi-paragraph descriptions into a single todo `content` field.
+- `needs` edges are not stored; the topological sort puts dependent steps after their dependencies. Note this in the user-facing summary (§6).
+- `type = "human"` steps are flagged inline: prepend `"[HUMAN] "` to `content`. The executing agent should pause when it reaches a `[HUMAN]` todo and prompt the user.
+
+Emit one `TodoWrite` call with the full `todos` array. If the call fails, print the full todo array that was attempted plus the tool error, then stop.
+
 ### 6. Report
 
-After all tasks are created, print a summary listing:
+After all tasks are created, print a summary tailored to whichever sink was used.
+
+**TaskCreate path:**
 
 - Workflow name and the resolved variable values
 - One line per created task: `<step-id> → <task-id>: <title>`
@@ -124,14 +151,23 @@ After all tasks are created, print a summary listing:
 - Any human steps (so the user knows where the workflow has manual gates)
 - Whether any dependency edges were left unwired (and why)
 
+**TodoWrite path:**
+
+- Workflow name and the resolved variable values
+- The sink (`TodoWrite — session-local`) and the caveat that the list will not survive a context reset
+- One line per todo: `<step-id>: <title>` (in topological order — this is the same order the executor will work through)
+- Any human steps (call out the `[HUMAN]` markers explicitly so the user can spot the manual gates)
+- The dependency edges that were collapsed into ordering: `<step-id> blocks <step-id>` for each `needs` relationship, with a note that they're enforced by list order only, not by a hard dependency mechanism. If two steps could have run in parallel under TaskCreate (both have no `needs` from each other), call that out too — TodoWrite serialises them.
+
 ## Edge cases
 
-- **Steps with no `needs`**: create them with no dependencies. Multiple steps may have no needs (they become parallel starting points).
+- **Steps with no `needs`**: create them with no dependencies. Multiple steps may have no needs (they become parallel starting points). On the TodoWrite fallback path these collapse into the order they appear in the file (stable topological sort).
 - **Variable referenced in a step but missing from `[vars.*]`**: warn and prompt for it as if it were declared with `required = true` and an empty description.
 - **Workflow file is in a worktree other than the gbiv root**: the path the user gives is what you use; don't try to "find" it.
-- **Substitution leaves stray `{{...}}` tokens**: error out before any `TaskCreate` call. Show the offending text so the user can identify the missing variable.
+- **Substitution leaves stray `{{...}}` tokens**: error out before any `TaskCreate`/`TodoWrite` call. Show the offending text so the user can identify the missing variable.
 - **`needs` references a step that comes later in the file**: that's fine — the topological sort handles it. Don't reject based on file order.
 - **Multiple workflow files in one invocation**: not supported. Run the skill once per file.
+- **Existing todos when falling back to TodoWrite**: if the session already has a todo list, replacing it would clobber unrelated state. Before emitting a fallback `TodoWrite`, list any pre-existing pending/in_progress todos to the user and ask whether to: (a) merge — keep existing todos and append workflow steps, (b) replace — discard existing todos and use only workflow steps, or (c) abort the fallback materialization. Default to (a) merge if the user does not respond.
 
 ## Non-goals
 
@@ -149,6 +185,6 @@ The skill:
 2. Both required vars are pre-filled — no prompts.
 3. Substitutes `{{feature_name}}` and `{{plan_file}}` into all step titles/descriptions.
 4. Topologically orders the 17 steps. `plan` comes first; `gbiv-active` depends on it; etc.
-5. Looks up the TaskCreate schema.
-6. Creates 17 tasks, each blocked by the tasks corresponding to its `needs` entries.
+5. Probes for `TaskCreate` via `ToolSearch`. If found, looks up its schema and creates 17 tasks, each blocked by the tasks corresponding to its `needs` entries. If not found, falls back to `TodoWrite`: builds one todo per step in topological order (with `[HUMAN]` prefixes on human-gated steps), checks for any pre-existing session todos, and emits a single `TodoWrite` call with the merged list.
+6. Prints a summary mapping step IDs to task IDs (or to todo-list positions on the fallback path).
 7. Prints a summary mapping step IDs to task IDs.
