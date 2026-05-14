@@ -11,8 +11,8 @@ Status dashboard and cross-worktree command execution.
 | HLD sections | `docs/gbiv/high-level-design.md` § Component Architecture > Observation |
 | LLD | `docs/gbiv/llds/observation.md` |
 | EARS specs | `docs/gbiv/specs/observation.md` |
-| Source | `src/commands/status.rs`, `src/commands/exec.rs` |
-| Tests | `src/commands/exec.rs` (inline tests) |
+| Source | `crates/gbiv/src/commands/status.rs`, `crates/gbiv/src/commands/exec.rs` |
+| Tests | `crates/gbiv/src/commands/exec.rs` (inline tests) |
 
 ## Key Findings
 
