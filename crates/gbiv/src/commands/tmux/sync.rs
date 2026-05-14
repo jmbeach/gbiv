@@ -4,7 +4,7 @@ use std::env;
 use std::process::Command as ProcessCommand;
 
 use crate::gbiv_md::{parse_gbiv_md, GbivFeature};
-use gbiv_core::colors::COLORS;
+use gbiv_core::colors::{is_valid_color, COLORS};
 use gbiv_core::root::find_gbiv_root;
 
 pub fn sync_subcommand() -> Command {
@@ -21,11 +21,10 @@ pub fn sync_subcommand() -> Command {
 // @spec TMX-SYNC-007
 /// Extract the set of valid ROYGBIV colors that have at least one tagged feature in GBIV.md.
 pub fn active_colors_from_features(features: &[GbivFeature]) -> HashSet<String> {
-    let valid_colors: HashSet<&str> = COLORS.iter().copied().collect();
     features
         .iter()
         .filter_map(|f| f.tag.as_deref())
-        .filter(|tag| valid_colors.contains(tag))
+        .filter(|tag| is_valid_color(tag))
         .map(|s| s.to_string())
         .collect()
 }
@@ -46,7 +45,6 @@ pub fn missing_windows(active_colors: &HashSet<String>, existing_windows: &[Stri
 /// Sort window names into ROYGBIV order: main first, then colors in ROYGBIV order,
 /// then any non-color windows preserving their relative order.
 pub fn sort_windows_roygbiv(window_names: &[String]) -> Vec<String> {
-    let color_set: HashSet<&str> = COLORS.iter().copied().collect();
     let mut result: Vec<String> = Vec::new();
 
     // "main" first
@@ -63,7 +61,7 @@ pub fn sort_windows_roygbiv(window_names: &[String]) -> Vec<String> {
 
     // Non-color, non-main windows preserving relative order
     for w in window_names {
-        if w != "main" && !color_set.contains(w.as_str()) {
+        if w != "main" && !is_valid_color(w) {
             result.push(w.clone());
         }
     }

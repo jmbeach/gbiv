@@ -177,7 +177,7 @@ mod tests {
     use crate::git_utils::{get_git_dir, get_quick_status};
     use gbiv_core::gitignore::ensure_gitignore_entry;
     use std::fs;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
     use std::process::Command;
 
     fn setup_test_dir(name: &str) -> String {
@@ -189,39 +189,6 @@ mod tests {
 
     fn cleanup(path: &str) {
         let _ = fs::remove_dir_all(path);
-    }
-
-    // @spec WTL-REBASE-006
-    #[test]
-    fn test_ensure_gitignore_entry_no_duplicate() {
-        let dir = setup_test_dir("no_dup");
-        let git_dir = PathBuf::from(&dir);
-        fs::create_dir_all(git_dir.join("info")).unwrap();
-
-        ensure_gitignore_entry(&git_dir, ".last-branch").unwrap();
-        ensure_gitignore_entry(&git_dir, ".last-branch").unwrap();
-
-        let content = fs::read_to_string(git_dir.join("info/exclude")).unwrap();
-        let count = content.lines().filter(|l| l.trim() == ".last-branch").count();
-        assert_eq!(count, 1, "Entry should appear exactly once, got:\n{}", content);
-
-        cleanup(&dir);
-    }
-
-    // @spec WTL-REBASE-006
-    #[test]
-    fn test_ensure_gitignore_entry_creates_info_dir() {
-        let dir = setup_test_dir("creates_info");
-        let git_dir = PathBuf::from(&dir);
-
-        ensure_gitignore_entry(&git_dir, ".last-branch").unwrap();
-
-        let exclude = git_dir.join("info/exclude");
-        assert!(exclude.exists(), "info/exclude should have been created");
-        let content = fs::read_to_string(&exclude).unwrap();
-        assert!(content.contains(".last-branch"));
-
-        cleanup(&dir);
     }
 
     fn init_git_repo(path: &str) {

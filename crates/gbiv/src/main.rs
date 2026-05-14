@@ -153,8 +153,11 @@ fn run() -> Result<()> {
                 .get_many::<String>("args")
                 .map(|vals| vals.cloned().collect())
                 .unwrap_or_default();
-            let valid_targets: Vec<&str> = COLORS.iter().copied().chain(std::iter::once("all")).collect();
-            let (target, rest) = if all_args.first().map(|s| valid_targets.contains(&s.as_str())).unwrap_or(false) {
+            let (target, rest) = if all_args
+                .first()
+                .map(|s| is_valid_color(s) || s == "all")
+                .unwrap_or(false)
+            {
                 (Some(all_args[0].clone()), all_args[1..].to_vec())
             } else {
                 (None, all_args)
@@ -217,8 +220,11 @@ mod tests {
             .get_many::<String>("args")
             .map(|vals| vals.cloned().collect())
             .unwrap_or_default();
-        let valid_targets: Vec<&str> = COLORS.iter().copied().chain(std::iter::once("all")).collect();
-        let (target, rest) = if all_args.first().map(|s| valid_targets.contains(&s.as_str())).unwrap_or(false) {
+        let (target, rest) = if all_args
+            .first()
+            .map(|s| is_valid_color(s) || s == "all")
+            .unwrap_or(false)
+        {
             (Some(all_args[0].clone()), all_args[1..].to_vec())
         } else {
             (None, all_args)

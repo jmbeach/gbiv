@@ -54,6 +54,7 @@ pub fn find_repo_in_worktree(worktree_dir: &Path) -> Option<PathBuf> {
 mod tests {
     use super::*;
     use std::fs;
+    use tempfile::TempDir;
 
     fn init_git_repo(path: &Path) {
         Command::new("git").args(["init"]).current_dir(path).output().unwrap();
@@ -64,55 +65,42 @@ mod tests {
         Command::new("git").args(["commit", "-m", "initial"]).current_dir(path).output().unwrap();
     }
 
+    /// Build a minimal gbiv-shaped layout under `base/<project>` and return the
+    /// project root + main repo path. Caller's TempDir owns cleanup.
+    fn setup_gbiv_layout(base: &Path, project: &str) -> (PathBuf, PathBuf) {
+        let project_root = base.join(project);
+        let main_repo = project_root.join("main").join(project);
+        fs::create_dir_all(&main_repo).unwrap();
+        init_git_repo(&main_repo);
+        fs::create_dir_all(project_root.join("red")).unwrap();
+        (project_root, main_repo)
+    }
+
     // @spec WTL-UTIL-001, WTL-UTIL-002
     #[test]
     fn test_find_gbiv_root_some() {
-        let base = PathBuf::from("/tmp/gbiv_core_test_find_root_some");
-        let _ = fs::remove_dir_all(&base);
-        let project_name = "myproject";
-        let main_repo = base.join(project_name).join("main").join(project_name);
-        fs::create_dir_all(&main_repo).unwrap();
-        init_git_repo(&main_repo);
-        fs::create_dir_all(base.join(project_name).join("red")).unwrap();
+        let base = TempDir::new().unwrap();
+        let (project_root, _) = setup_gbiv_layout(base.path(), "myproject");
 
-        let result = find_gbiv_root(&base.join(project_name));
-        assert!(result.is_some(), "expected Some but got None");
-        let gbiv_root = result.unwrap();
-        assert_eq!(gbiv_root.folder_name, project_name);
-        assert_eq!(gbiv_root.root, base.join(project_name));
-
-        let _ = fs::remove_dir_all(&base);
+        let result = find_gbiv_root(&project_root).expect("expected Some");
+        assert_eq!(result.folder_name, "myproject");
+        assert_eq!(result.root, project_root);
     }
 
     // @spec WTL-UTIL-001, WTL-UTIL-002
     #[test]
     fn test_find_gbiv_root_some_from_nested() {
-        let base = PathBuf::from("/tmp/gbiv_core_test_find_root_nested");
-        let _ = fs::remove_dir_all(&base);
-        let project_name = "myproject";
-        let main_repo = base.join(project_name).join("main").join(project_name);
-        fs::create_dir_all(&main_repo).unwrap();
-        init_git_repo(&main_repo);
-        fs::create_dir_all(base.join(project_name).join("red")).unwrap();
+        let base = TempDir::new().unwrap();
+        let (_, main_repo) = setup_gbiv_layout(base.path(), "myproject");
 
-        let result = find_gbiv_root(&main_repo);
-        assert!(result.is_some(), "expected Some but got None");
-        let gbiv_root = result.unwrap();
-        assert_eq!(gbiv_root.folder_name, project_name);
-
-        let _ = fs::remove_dir_all(&base);
+        let result = find_gbiv_root(&main_repo).expect("expected Some");
+        assert_eq!(result.folder_name, "myproject");
     }
 
     // @spec WTL-UTIL-003
     #[test]
     fn test_find_gbiv_root_none() {
-        let base = PathBuf::from("/tmp/gbiv_core_test_find_root_none");
-        let _ = fs::remove_dir_all(&base);
-        fs::create_dir_all(&base).unwrap();
-
-        let result = find_gbiv_root(&base);
-        assert!(result.is_none(), "expected None but got Some");
-
-        let _ = fs::remove_dir_all(&base);
+        let base = TempDir::new().unwrap();
+        assert!(find_gbiv_root(base.path()).is_none());
     }
 }
