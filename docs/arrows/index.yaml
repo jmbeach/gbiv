@@ -1,63 +1,135 @@
+schema_version: 1
+last_updated: 2026-05-15
+
+# Taxonomy groups segments by product. Purely organizational.
+taxonomy:
+  gbiv:
+    - cli-and-palette
+    - worktree-lifecycle
+    - feature-ledger
+    - observation
+    - tmux-mirror
+  roy:
+    - tmux-driver
+    - pane-locator
+    - http-server
+    - roy-cli
+    - roy-skill
+
 arrows:
-  - name: worktree-lifecycle
-    description: Creation, sync, reset, and maintenance of the 7-color worktree structure
-    status: MAPPED
-    hld_section: "Core Concepts > The Color Worktree, The Maintenance Loop"
-    lld: docs/gbiv/llds/worktree-lifecycle.md
-    specs: docs/gbiv/specs/worktree-lifecycle.md
-    arrow_doc: docs/arrows/worktree-lifecycle.md
-    source_dirs:
-      - crates/gbiv-core/src/root.rs
-      - crates/gbiv-core/src/gitignore.rs
-      - crates/gbiv/src/git_utils.rs
-      - crates/gbiv/src/commands/init.rs
-      - crates/gbiv/src/commands/rebase_all.rs
-      - crates/gbiv/src/commands/reset.rs
-      - crates/gbiv/src/commands/tidy.rs
+  cli-and-palette:
+    status: AUDITED
+    sampled: 2026-04-23
+    audited: 2026-05-15
+    audited_sha: 1638fe0
+    blocks: [worktree-lifecycle, feature-ledger, observation, tmux-mirror]
+    blockedBy: []
+    detail: cli-and-palette.md
+    next: null
+    drift: null
 
-  - name: feature-ledger
-    description: GBIV.md parsing, mutation, and the mark command
-    status: MAPPED
-    hld_section: "Core Concepts > The Feature Lifecycle"
-    lld: docs/gbiv/llds/feature-ledger.md
-    specs: docs/gbiv/specs/feature-ledger.md
-    arrow_doc: docs/arrows/feature-ledger.md
-    source_dirs:
-      - crates/gbiv/src/gbiv_md.rs
-      - crates/gbiv/src/commands/mark.rs
+  worktree-lifecycle:
+    status: AUDITED
+    sampled: 2026-04-23
+    audited: 2026-05-15
+    audited_sha: 1638fe0
+    blocks: [observation, tmux-mirror, feature-ledger]
+    blockedBy: [cli-and-palette, feature-ledger]
+    detail: worktree-lifecycle.md
+    next: "Resolve WTL-INIT-011 marker drift (see drift field)"
+    drift: "WTL-INIT-011 marked [ ] in specs but ensure_gbiv_md_in_gitignore() and 4 passing tests are annotated for it in init.rs"
 
-  - name: observation
-    description: Status dashboard and cross-worktree command execution
-    status: MAPPED
-    hld_section: "Component Architecture > Observation"
-    lld: docs/gbiv/llds/observation.md
-    specs: docs/gbiv/specs/observation.md
-    arrow_doc: docs/arrows/observation.md
-    source_dirs:
-      - crates/gbiv/src/commands/status.rs
-      - crates/gbiv/src/commands/exec.rs
+  feature-ledger:
+    status: AUDITED
+    sampled: 2026-04-23
+    audited: 2026-05-15
+    audited_sha: 1638fe0
+    blocks: [worktree-lifecycle, observation, tmux-mirror]
+    blockedBy: [cli-and-palette, worktree-lifecycle]
+    detail: feature-ledger.md
+    next: null
+    drift: null
 
-  - name: tmux-mirror
-    description: Tmux session/window lifecycle synchronized with worktree layout
-    status: MAPPED
-    hld_section: "Component Architecture > Tmux Mirror"
-    lld: docs/gbiv/llds/tmux-mirror.md
-    specs: docs/gbiv/specs/tmux-mirror.md
-    arrow_doc: docs/arrows/tmux-mirror.md
-    source_dirs:
-      - crates/gbiv/src/commands/tmux/mod.rs
-      - crates/gbiv/src/commands/tmux/new_session.rs
-      - crates/gbiv/src/commands/tmux/sync.rs
-      - crates/gbiv/src/commands/tmux/clean.rs
+  observation:
+    status: AUDITED
+    sampled: 2026-04-23
+    audited: 2026-05-15
+    audited_sha: 1638fe0
+    blocks: []
+    blockedBy: [cli-and-palette, worktree-lifecycle, feature-ledger]
+    detail: observation.md
+    next: null
+    drift: null
 
-  - name: cli-and-palette
-    description: Command dispatch, argument parsing, and terminal color formatting
-    status: MAPPED
-    hld_section: "Component Architecture > CLI & Palette"
-    lld: docs/gbiv/llds/cli-and-palette.md
-    specs: docs/gbiv/specs/cli-and-palette.md
-    arrow_doc: docs/arrows/cli-and-palette.md
-    source_dirs:
-      - crates/gbiv-core/src/colors.rs
-      - crates/gbiv/src/main.rs
-      - crates/gbiv/src/colors.rs
+  tmux-mirror:
+    status: PARTIAL
+    sampled: 2026-04-23
+    audited: 2026-05-15
+    audited_sha: 1638fe0
+    blocks: [worktree-lifecycle]
+    blockedBy: [cli-and-palette, worktree-lifecycle, feature-ledger]
+    detail: tmux-mirror.md
+    next: "Implement TMX-CLEAN-013 (clean --session-name) or mark deferred"
+    drift: null
+
+  # roy product — designed (HLD + LLDs) but not yet implemented; no code or EARS specs exist
+  tmux-driver:
+    status: UNMAPPED
+    sampled: 2026-05-15
+    audited: null
+    audited_sha: null
+    blocks: [pane-locator, http-server]
+    blockedBy: []
+    detail: tmux-driver.md
+    next: "Author EARS specs in docs/roy/specs/tmux-driver.md"
+    drift: null
+
+  pane-locator:
+    status: UNMAPPED
+    sampled: 2026-05-15
+    audited: null
+    audited_sha: null
+    blocks: [http-server]
+    blockedBy: [tmux-driver]
+    detail: pane-locator.md
+    next: "Author EARS specs in docs/roy/specs/pane-locator.md"
+    drift: null
+
+  http-server:
+    status: UNMAPPED
+    sampled: 2026-05-15
+    audited: null
+    audited_sha: null
+    blocks: [roy-cli]
+    blockedBy: [tmux-driver, pane-locator]
+    detail: http-server.md
+    next: "Author EARS specs in docs/roy/specs/http-server.md"
+    drift: null
+
+  roy-cli:
+    status: UNMAPPED
+    sampled: 2026-05-15
+    audited: null
+    audited_sha: null
+    blocks: []
+    blockedBy: [http-server]
+    detail: roy-cli.md
+    next: "Author EARS specs in docs/roy/specs/roy-cli.md"
+    drift: null
+
+  roy-skill:
+    status: UNMAPPED
+    sampled: 2026-05-15
+    audited: null
+    audited_sha: null
+    blocks: []
+    blockedBy: []
+    detail: roy-skill.md
+    next: "Author EARS specs in docs/roy/specs/roy-skill.md"
+    drift: null
+
+# Items found during mapping that don't yet belong to a segment.
+unmapped:
+  docs:
+    llds: []
+    specs: []

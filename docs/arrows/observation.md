@@ -2,7 +2,7 @@
 
 Status dashboard and cross-worktree command execution.
 
-**Status**: MAPPED (2026-04-23) — Brownfield inventory complete. All current behavior documented.
+**Status**: AUDITED (audited 2026-05-15, git `1638fe0`) — All 46 specs implemented.
 
 ## References
 
@@ -13,6 +13,14 @@ Status dashboard and cross-worktree command execution.
 | EARS specs | `docs/gbiv/specs/observation.md` |
 | Source | `crates/gbiv/src/commands/status.rs`, `crates/gbiv/src/commands/exec.rs` |
 | Tests | `crates/gbiv/src/commands/exec.rs` (inline tests) |
+
+## Spec Coverage
+
+| Category | Spec IDs | Implemented | Deferred | Gaps |
+|---|---|---|---|---|
+| Status | OBS-STATUS-001..026 | 26 | 0 | 0 |
+| Exec | OBS-EXEC-001..020 | 20 | 0 | 0 |
+| **Total** | | **46** | **0** | **0** |
 
 ## Key Findings
 

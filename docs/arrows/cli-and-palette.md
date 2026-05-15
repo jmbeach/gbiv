@@ -2,7 +2,7 @@
 
 Command dispatch, argument parsing, and terminal color formatting.
 
-**Status**: MAPPED (2026-04-23) — Brownfield inventory complete. All current behavior documented.
+**Status**: AUDITED (audited 2026-05-15, git `1638fe0`) — All 33 specs implemented.
 
 ## References
 
@@ -13,6 +13,15 @@ Command dispatch, argument parsing, and terminal color formatting.
 | EARS specs | `docs/gbiv/specs/cli-and-palette.md` |
 | Source | `crates/gbiv-core/src/colors.rs`, `crates/gbiv/src/main.rs`, `crates/gbiv/src/colors.rs` |
 | Tests | `crates/gbiv-core/src/colors.rs` (palette unit tests), `crates/gbiv/src/main.rs` (inline tests for exec parsing) |
+
+## Spec Coverage
+
+| Category | Spec IDs | Implemented | Deferred | Gaps |
+|---|---|---|---|---|
+| Dispatch | CLI-DISPATCH-001..010 | 10 | 0 | 0 |
+| Exec Argument Parsing | CLI-EXEC-PARSE-001..007 | 7 | 0 | 0 |
+| Color Palette | CLI-COLOR-001..016 | 16 | 0 | 0 |
+| **Total** | | **33** | **0** | **0** |
 
 ## Key Findings
 
