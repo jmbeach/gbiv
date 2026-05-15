@@ -52,4 +52,3 @@ Specs for tmux session creation, window synchronization, and cleanup.
 - [x] TMX-CLEAN-010: When killing a window fails, the system shall print a warning to stderr and continue attempting to kill remaining orphaned windows.
 - [x] TMX-CLEAN-011: When any window kill failed, the system shall return an error after processing all orphaned windows.
 - [x] TMX-CLEAN-012: When no orphaned windows are found, the system shall print "Nothing to clean." and return Ok.
-- [ ] TMX-CLEAN-013: The `clean` subcommand should accept `--session-name` for consistency with `new-session` and `sync`.

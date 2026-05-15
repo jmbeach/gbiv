@@ -2,7 +2,7 @@
 
 Status dashboard and cross-worktree command execution.
 
-**Status**: AUDITED (audited 2026-05-15, git `1638fe0`) — All 46 specs implemented.
+**Status**: OK (audited 2026-05-15, git `1638fe0`) — All 46 specs implemented.
 
 ## References
 

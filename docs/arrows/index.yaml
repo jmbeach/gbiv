@@ -18,7 +18,7 @@ taxonomy:
 
 arrows:
   cli-and-palette:
-    status: AUDITED
+    status: OK
     sampled: 2026-04-23
     audited: 2026-05-15
     audited_sha: 1638fe0
@@ -29,18 +29,18 @@ arrows:
     drift: null
 
   worktree-lifecycle:
-    status: AUDITED
+    status: OK
     sampled: 2026-04-23
     audited: 2026-05-15
     audited_sha: 1638fe0
     blocks: [observation, tmux-mirror, feature-ledger]
     blockedBy: [cli-and-palette, feature-ledger]
     detail: worktree-lifecycle.md
-    next: "Resolve WTL-INIT-011 marker drift (see drift field)"
-    drift: "WTL-INIT-011 marked [ ] in specs but ensure_gbiv_md_in_gitignore() and 4 passing tests are annotated for it in init.rs"
+    next: null
+    drift: null
 
   feature-ledger:
-    status: AUDITED
+    status: OK
     sampled: 2026-04-23
     audited: 2026-05-15
     audited_sha: 1638fe0
@@ -51,7 +51,7 @@ arrows:
     drift: null
 
   observation:
-    status: AUDITED
+    status: OK
     sampled: 2026-04-23
     audited: 2026-05-15
     audited_sha: 1638fe0
@@ -62,14 +62,14 @@ arrows:
     drift: null
 
   tmux-mirror:
-    status: PARTIAL
+    status: OK
     sampled: 2026-04-23
     audited: 2026-05-15
     audited_sha: 1638fe0
     blocks: [worktree-lifecycle]
     blockedBy: [cli-and-palette, worktree-lifecycle, feature-ledger]
     detail: tmux-mirror.md
-    next: "Implement TMX-CLEAN-013 (clean --session-name) or mark deferred"
+    next: null
     drift: null
 
   # roy product — designed (HLD + LLDs) but not yet implemented; no code or EARS specs exist

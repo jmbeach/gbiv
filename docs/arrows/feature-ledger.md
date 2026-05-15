@@ -2,7 +2,7 @@
 
 GBIV.md parsing, mutation, and the mark command.
 
-**Status**: AUDITED (audited 2026-05-15, git `1638fe0`) — All 36 specs implemented.
+**Status**: OK (audited 2026-05-15, git `1638fe0`) — All 36 specs implemented.
 
 ## References
 

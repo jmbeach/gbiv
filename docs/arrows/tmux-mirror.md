@@ -2,7 +2,7 @@
 
 Tmux session/window lifecycle synchronized with worktree layout.
 
-**Status**: PARTIAL (audited 2026-05-15, git `1638fe0`) — 40 of 41 specs implemented; TMX-CLEAN-013 unimplemented (clean lacks `--session-name`).
+**Status**: OK (audited 2026-05-15, git `1638fe0`) — All 40 specs implemented.
 
 ## References
 
@@ -20,8 +20,8 @@ Tmux session/window lifecycle synchronized with worktree layout.
 |---|---|---|---|---|
 | New Session | TMX-SESSION-001..013 | 13 | 0 | 0 |
 | Sync | TMX-SYNC-001..015 | 15 | 0 | 0 |
-| Clean | TMX-CLEAN-001..013 | 12 | 0 | 1 (TMX-CLEAN-013) |
-| **Total** | | **40** | **0** | **1** |
+| Clean | TMX-CLEAN-001..012 | 12 | 0 | 0 |
+| **Total** | | **40** | **0** | **0** |
 
 ## Key Findings
 

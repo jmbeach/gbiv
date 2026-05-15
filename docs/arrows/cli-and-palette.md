@@ -2,7 +2,7 @@
 
 Command dispatch, argument parsing, and terminal color formatting.
 
-**Status**: AUDITED (audited 2026-05-15, git `1638fe0`) — All 33 specs implemented.
+**Status**: OK (audited 2026-05-15, git `1638fe0`) — All 33 specs implemented.
 
 ## References
 
