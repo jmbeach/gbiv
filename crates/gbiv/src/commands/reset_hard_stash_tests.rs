@@ -40,7 +40,10 @@ fn dirty_worktree_is_stashed_before_reset() {
     );
     git(&["fetch", "origin"], &repo_path);
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
-    git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-branch", "origin/main"],
+        &repo_path,
+    );
 
     // Introduce a dirty uncommitted change
     std::fs::write(repo_path.join("dirty.txt"), "uncommitted work").unwrap();
@@ -50,7 +53,11 @@ fn dirty_worktree_is_stashed_before_reset() {
     git(&["init"], &main_repo);
 
     let result = reset_one(root.path(), "red", true);
-    assert!(result.is_ok(), "expected Ok from hard reset of dirty worktree, got: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "expected Ok from hard reset of dirty worktree, got: {:?}",
+        result
+    );
 
     // (a) worktree should be on the color branch
     let output = Cmd::new("git")
@@ -100,14 +107,21 @@ fn clean_worktree_skips_stash() {
     );
     git(&["fetch", "origin"], &repo_path);
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
-    git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-branch", "origin/main"],
+        &repo_path,
+    );
 
     let main_repo = root.path().join("main").join("myrepo");
     std::fs::create_dir_all(&main_repo).unwrap();
     git(&["init"], &main_repo);
 
     let result = reset_one(root.path(), "red", true);
-    assert!(result.is_ok(), "expected Ok from hard reset of clean worktree, got: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "expected Ok from hard reset of clean worktree, got: {:?}",
+        result
+    );
 
     // (a) worktree should be on the color branch
     let output = Cmd::new("git")
@@ -128,7 +142,9 @@ fn clean_worktree_skips_stash() {
         .current_dir(&repo_path)
         .output()
         .unwrap();
-    let stash_list = String::from_utf8_lossy(&stash_output.stdout).trim().to_string();
+    let stash_list = String::from_utf8_lossy(&stash_output.stdout)
+        .trim()
+        .to_string();
     assert!(
         stash_list.is_empty(),
         "expected empty stash list for a clean worktree, got: {:?}",
@@ -157,7 +173,10 @@ fn stash_failure_aborts_reset() {
     );
     git(&["fetch", "origin"], &repo_path);
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
-    git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-branch", "origin/main"],
+        &repo_path,
+    );
 
     // Introduce dirty change so stash would be attempted
     std::fs::write(repo_path.join("dirty.txt"), "uncommitted work").unwrap();
@@ -228,7 +247,10 @@ fn gbiv_md_entry_removed_after_hard_reset() {
     );
     git(&["fetch", "origin"], &repo_path);
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
-    git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-branch", "origin/main"],
+        &repo_path,
+    );
 
     let main_repo = root.path().join("main").join("myrepo");
     std::fs::create_dir_all(&main_repo).unwrap();
@@ -249,7 +271,11 @@ fn gbiv_md_entry_removed_after_hard_reset() {
     );
 
     let result = reset_one(root.path(), "red", true);
-    assert!(result.is_ok(), "expected Ok from hard reset, got: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "expected Ok from hard reset, got: {:?}",
+        result
+    );
 
     let content_after = std::fs::read_to_string(&gbiv_md_path).unwrap();
     assert!(
@@ -280,7 +306,10 @@ fn no_gbiv_md_entry_proceeds_without_error() {
     );
     git(&["fetch", "origin"], &repo_path);
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
-    git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-branch", "origin/main"],
+        &repo_path,
+    );
 
     let main_repo = root.path().join("main").join("myrepo");
     std::fs::create_dir_all(&main_repo).unwrap();

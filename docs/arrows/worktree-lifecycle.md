@@ -11,8 +11,8 @@ Creation, sync, reset, and maintenance of the 7-color worktree structure.
 | HLD sections | `docs/gbiv/high-level-design.md` § The Color Worktree, The Maintenance Loop |
 | LLD | `docs/gbiv/llds/worktree-lifecycle.md` |
 | EARS specs | `docs/gbiv/specs/worktree-lifecycle.md` |
-| Source | `src/git_utils.rs`, `src/commands/init.rs`, `src/commands/rebase_all.rs`, `src/commands/reset.rs`, `src/commands/tidy.rs` |
-| Tests | `src/commands/reset_tests.rs`, `src/commands/reset_hard_basic_tests.rs`, `src/commands/reset_hard_allcolor_tests.rs`, `src/commands/reset_hard_stash_tests.rs` |
+| Source | `crates/gbiv-core/src/root.rs`, `crates/gbiv-core/src/gitignore.rs`, `crates/gbiv/src/git_utils.rs`, `crates/gbiv/src/commands/init.rs`, `crates/gbiv/src/commands/rebase_all.rs`, `crates/gbiv/src/commands/reset.rs`, `crates/gbiv/src/commands/tidy.rs` |
+| Tests | `crates/gbiv/src/commands/reset_tests.rs`, `crates/gbiv/src/commands/reset_hard_basic_tests.rs`, `crates/gbiv/src/commands/reset_hard_allcolor_tests.rs`, `crates/gbiv/src/commands/reset_hard_stash_tests.rs` |
 
 ## Key Findings
 

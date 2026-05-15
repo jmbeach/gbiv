@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use crate::gbiv_md::set_gbiv_feature_status;
-use crate::git_utils::{find_gbiv_root, find_repo_in_worktree, infer_color_from_path};
+use gbiv_core::colors::infer_color_from_path;
+use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
 // @spec FL-MARK-001 through FL-MARK-011
 pub fn mark_command(
@@ -22,11 +23,11 @@ pub fn mark_command(
     // Resolve color: explicit or inferred from CWD relative to gbiv root
     let resolved_color = match color {
         Some(c) => c.to_string(),
-        None => {
-            infer_color_from_path(&cwd, &gbiv_root.root)
-                .ok_or_else(|| anyhow::anyhow!("Could not infer color from current worktree directory"))?
-                .to_string()
-        }
+        None => infer_color_from_path(&cwd, &gbiv_root.root)
+            .ok_or_else(|| {
+                anyhow::anyhow!("Could not infer color from current worktree directory")
+            })?
+            .to_string(),
     };
 
     // Locate GBIV.md in main worktree
@@ -263,7 +264,11 @@ mod tests {
         // as the cwd (root_path here represents the current working directory).
         let red_worktree = root.path().join("red");
         let result = mark_command(Some("done"), None, Some(&red_worktree));
-        assert!(result.is_ok(), "expected Ok when color inferred from CWD, got: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "expected Ok when color inferred from CWD, got: {:?}",
+            result
+        );
 
         let content = fs::read_to_string(&gbiv_md_path).unwrap();
         assert!(

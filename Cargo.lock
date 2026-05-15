@@ -185,7 +185,16 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "gbiv-core",
  "serial_test",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "gbiv-core"
+version = "0.0.0"
+dependencies = [
  "tempfile",
  "thiserror",
 ]

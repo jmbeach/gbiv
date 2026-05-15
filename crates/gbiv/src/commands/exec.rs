@@ -2,13 +2,14 @@ use std::path::Path;
 use std::process::Command as ProcessCommand;
 use std::thread;
 
-use crate::colors::{ansi_color, COLORS, RESET};
-use crate::git_utils::{find_gbiv_root, find_repo_in_worktree, infer_color_from_path};
+use crate::colors::{ansi_color, RESET};
+use gbiv_core::colors::{infer_color_from_path, is_valid_color, COLORS};
+use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
 // @spec OBS-EXEC-005 through OBS-EXEC-009
 pub fn exec_single(root: &Path, color: &str, command: &[String]) -> anyhow::Result<String> {
     // Validate color
-    if !COLORS.contains(&color) {
+    if !is_valid_color(color) {
         return Err(anyhow::anyhow!("'{}' is not a valid color", color));
     }
 
@@ -39,7 +40,10 @@ pub fn exec_single(root: &Path, color: &str, command: &[String]) -> anyhow::Resu
 
 // @spec OBS-EXEC-010 through OBS-EXEC-016
 // inner Result<String, String> is a per-color report shape, not a propagated error
-pub fn exec_all(root: &Path, command: &[String]) -> anyhow::Result<Vec<(String, Result<String, String>)>> {
+pub fn exec_all(
+    root: &Path,
+    command: &[String],
+) -> anyhow::Result<Vec<(String, Result<String, String>)>> {
     // Find which colors have repos
     let mut existing: Vec<(&str, std::path::PathBuf)> = Vec::new();
     for &color in &COLORS {
@@ -83,7 +87,9 @@ pub fn exec_all(root: &Path, command: &[String]) -> anyhow::Result<Vec<(String, 
     // Join in order — handles are already in ROYGBIV order
     let mut ordered: Vec<(String, Result<String, String>)> = Vec::new();
     for handle in handles {
-        let (color, result) = handle.join().map_err(|_| anyhow::anyhow!("Thread panicked"))?;
+        let (color, result) = handle
+            .join()
+            .map_err(|_| anyhow::anyhow!("Thread panicked"))?;
         ordered.push((color, result));
     }
 
@@ -106,8 +112,9 @@ pub fn exec_command(
             // Infer color from CWD
             let gbiv_root = find_gbiv_root(&cwd_path)
                 .ok_or_else(|| anyhow::anyhow!("Could not infer color: not in a gbiv worktree"))?;
-            let color = infer_color_from_path(&cwd_path, &gbiv_root.root)
-                .ok_or_else(|| anyhow::anyhow!("Could not infer color from current worktree directory"))?;
+            let color = infer_color_from_path(&cwd_path, &gbiv_root.root).ok_or_else(|| {
+                anyhow::anyhow!("Could not infer color from current worktree directory")
+            })?;
             exec_single(&gbiv_root.root, color, command)
         }
         Some("all") => {
@@ -272,12 +279,7 @@ mod tests {
     }
 
     fn setup_color_repo(root: &Path, color: &str) -> PathBuf {
-        let folder_name = root
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
+        let folder_name = root.file_name().unwrap().to_str().unwrap().to_string();
         let repo_dir = root.join(color).join(&folder_name);
         fs::create_dir_all(&repo_dir).unwrap();
         git(&["init"], &repo_dir);
@@ -330,7 +332,11 @@ mod tests {
         let command: Vec<String> = vec!["echo".to_string(), "hello".to_string()];
         let result = exec_all(root.path(), &command);
 
-        assert!(result.is_ok(), "expected Ok from exec_all, got: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "expected Ok from exec_all, got: {:?}",
+            result
+        );
         let entries = result.unwrap();
 
         let colors: Vec<&str> = entries.iter().map(|(c, _)| c.as_str()).collect();
@@ -349,7 +355,12 @@ mod tests {
         );
 
         for (color, res) in &entries {
-            assert!(res.is_ok(), "expected Ok for color {}, got: {:?}", color, res);
+            assert!(
+                res.is_ok(),
+                "expected Ok for color {}, got: {:?}",
+                color,
+                res
+            );
         }
     }
 

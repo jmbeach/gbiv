@@ -2,8 +2,10 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use crate::colors::COLORS;
-use crate::git_utils::{get_existing_branches, get_main_branch, has_commits, is_git_repo};
+use gbiv_core::colors::COLORS;
+use gbiv_core::root::is_git_repo;
+
+use crate::git_utils::{get_existing_branches, get_main_branch, has_commits};
 
 // Leading blank lines give users visible writing space above the --- so it's obvious features go there.
 const GBIV_MD_TEMPLATE: &str = "\n\n\n\n\n\n\n\n\n\n---\n# GBIV.md\n\nAdd features above the `---` line. Each feature starts with `- ` and an optional `[color]` tag.\n\nExample:\n\n- [red] My urgent feature\n  A note about this feature\n- [green] A less urgent feature\n- An untagged backlog item\n\nSupported tags match ROYGBIV colors: red, orange, yellow, green, blue, indigo, violet.\nUntagged items appear with a dim `backlog` label.\nEverything below `---` is ignored by gbiv.";
@@ -55,7 +57,10 @@ pub fn init_command(folder: &str) -> anyhow::Result<()> {
     }
 
     if !is_git_repo(target_path) {
-        return Err(anyhow::anyhow!("Folder '{}' is not a git repository", folder));
+        return Err(anyhow::anyhow!(
+            "Folder '{}' is not a git repository",
+            folder
+        ));
     }
 
     if !has_commits(target_path) {
@@ -134,14 +139,16 @@ pub fn init_command(folder: &str) -> anyhow::Result<()> {
                 rollback_after_move(folder);
                 return Err(anyhow::anyhow!(
                     "Failed to create worktree for {}: {}",
-                    color, err_msg
+                    color,
+                    err_msg
                 ));
             }
             Err(e) => {
                 rollback_after_move(folder);
                 return Err(anyhow::anyhow!(
                     "Failed to run git worktree add for {}: {}",
-                    color, e
+                    color,
+                    e
                 ));
             }
         }
@@ -303,7 +310,10 @@ mod tests {
         let test_dir = setup_test_dir("not_git_repo");
         let result = init_command(&test_dir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not a git repository"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not a git repository"));
         cleanup_test_dir(&test_dir);
     }
 
@@ -370,11 +380,26 @@ mod tests {
         assert!(gbiv_md.exists(), "GBIV.md should be created");
 
         let content = fs::read_to_string(&gbiv_md).unwrap();
-        assert!(content.starts_with("\n\n\n\n\n\n\n\n\n\n---\n"), "file should start with 10 newlines then ---");
-        assert!(content.contains("# GBIV.md"), "file should contain usage header");
-        assert!(content.contains("Add features above the `---` line"), "file should contain instructions");
-        assert!(content.contains("- [red] My urgent feature"), "file should contain example");
-        assert!(content.contains("Everything below `---` is ignored by gbiv."), "file should end with ignore note");
+        assert!(
+            content.starts_with("\n\n\n\n\n\n\n\n\n\n---\n"),
+            "file should start with 10 newlines then ---"
+        );
+        assert!(
+            content.contains("# GBIV.md"),
+            "file should contain usage header"
+        );
+        assert!(
+            content.contains("Add features above the `---` line"),
+            "file should contain instructions"
+        );
+        assert!(
+            content.contains("- [red] My urgent feature"),
+            "file should contain example"
+        );
+        assert!(
+            content.contains("Everything below `---` is ignored by gbiv."),
+            "file should end with ignore note"
+        );
 
         cleanup_test_dir(&dir);
     }
@@ -432,7 +457,10 @@ mod tests {
         write_gbiv_md_if_absent(Path::new(&dir)).unwrap();
 
         let content = fs::read_to_string(Path::new(&dir).join("GBIV.md")).unwrap();
-        assert_eq!(content, existing_content, "existing GBIV.md should not be overwritten");
+        assert_eq!(
+            content, existing_content,
+            "existing GBIV.md should not be overwritten"
+        );
 
         cleanup_test_dir(&dir);
     }

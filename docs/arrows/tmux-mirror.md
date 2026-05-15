@@ -11,7 +11,7 @@ Tmux session/window lifecycle synchronized with worktree layout.
 | HLD sections | `docs/gbiv/high-level-design.md` § Component Architecture > Tmux Mirror |
 | LLD | `docs/gbiv/llds/tmux-mirror.md` |
 | EARS specs | `docs/gbiv/specs/tmux-mirror.md` |
-| Source | `src/commands/tmux/mod.rs`, `src/commands/tmux/new_session.rs`, `src/commands/tmux/sync.rs`, `src/commands/tmux/clean.rs` |
+| Source | `crates/gbiv/src/commands/tmux/mod.rs`, `crates/gbiv/src/commands/tmux/new_session.rs`, `crates/gbiv/src/commands/tmux/sync.rs`, `crates/gbiv/src/commands/tmux/clean.rs` |
 | Tests | (no dedicated test files) |
 
 ## Key Findings

@@ -58,8 +58,13 @@ Or build from source:
 ```bash
 git clone https://github.com/jmbeach/gbiv.git
 cd gbiv
-cargo build --release
+cargo install --path crates/gbiv
 ```
+
+`gbiv` lives inside a Cargo workspace (the repo root is a `[workspace]`
+manifest, not a package), so `cargo install --path .` will not work —
+point cargo at the `crates/gbiv` package directly. The crates.io install
+above is unaffected.
 
 ## Usage
 

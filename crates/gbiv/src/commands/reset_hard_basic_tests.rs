@@ -54,7 +54,10 @@ fn setup_worktree_with_unmerged_feature() -> (TempDir, TempDir, std::path::PathB
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
 
     // Create a feature branch with an extra commit — NOT merged into origin/main
-    git(&["checkout", "-b", "feature-unmerged", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-unmerged", "origin/main"],
+        &repo_path,
+    );
     std::fs::write(repo_path.join("feature.txt"), "unmerged work").unwrap();
     git(&["add", "."], &repo_path);
     git(&["commit", "-m", "unmerged feature work"], &repo_path);
@@ -91,7 +94,10 @@ fn setup_worktree_with_merged_feature() -> (TempDir, TempDir, std::path::PathBuf
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
 
     // Create a feature branch at the same commit as origin/main (already merged)
-    git(&["checkout", "-b", "feature-merged", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-merged", "origin/main"],
+        &repo_path,
+    );
 
     // Set up main worktree dir so GBIV.md step doesn't warn
     let main_repo = root.path().join("main").join("myrepo");

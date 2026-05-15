@@ -40,7 +40,10 @@ fn hard_reset_all_bypasses_done_filter() {
     );
     git(&["fetch", "origin"], &repo_path);
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
-    git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-branch", "origin/main"],
+        &repo_path,
+    );
 
     let main_repo = root.path().join("main").join("myrepo");
     std::fs::create_dir_all(&main_repo).unwrap();
@@ -93,7 +96,10 @@ fn hard_reset_all_includes_worktrees_without_gbiv_md_entry() {
     );
     git(&["fetch", "origin"], &repo_path);
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
-    git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-branch", "origin/main"],
+        &repo_path,
+    );
 
     let main_repo = root.path().join("main").join("myrepo");
     std::fs::create_dir_all(&main_repo).unwrap();

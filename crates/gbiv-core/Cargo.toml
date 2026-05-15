@@ -1,0 +1,14 @@
+[package]
+name = "gbiv-core"
+version = "0.0.0"
+edition = "2021"
+description = "Internal shared primitives for the gbiv binary and the future roy daemon — workspace-only, not published."
+license = "MIT"
+repository = "https://github.com/jmbeach/gbiv"
+publish = false
+
+[dependencies]
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

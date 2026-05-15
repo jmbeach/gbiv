@@ -59,7 +59,10 @@ fn setup_worktree_with_merged_feature() -> (TempDir, TempDir, std::path::PathBuf
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
 
     // Create a feature branch from origin/main (already merged since same commit)
-    git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-branch", "origin/main"],
+        &repo_path,
+    );
 
     // Also set up main worktree dir so GBIV.md step doesn't warn
     let main_repo = root.path().join("main").join("myrepo");
@@ -128,7 +131,10 @@ fn reset_all_to_vec_exists_and_processes_done_entries() {
     );
     git(&["fetch", "origin"], &repo_path);
     git(&["checkout", "-b", "red", "origin/main"], &repo_path);
-    git(&["checkout", "-b", "feature-branch", "origin/main"], &repo_path);
+    git(
+        &["checkout", "-b", "feature-branch", "origin/main"],
+        &repo_path,
+    );
 
     // Set up main worktree with a real git repo and a GBIV.md with [done] entry
     let main_repo = root.path().join("main").join("myrepo");

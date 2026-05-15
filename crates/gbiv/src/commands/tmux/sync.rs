@@ -3,9 +3,9 @@ use std::collections::HashSet;
 use std::env;
 use std::process::Command as ProcessCommand;
 
-use crate::colors::COLORS;
 use crate::gbiv_md::{parse_gbiv_md, GbivFeature};
-use crate::git_utils::find_gbiv_root;
+use gbiv_core::colors::{is_valid_color, COLORS};
+use gbiv_core::root::find_gbiv_root;
 
 pub fn sync_subcommand() -> Command {
     Command::new("sync")
@@ -21,11 +21,10 @@ pub fn sync_subcommand() -> Command {
 // @spec TMX-SYNC-007
 /// Extract the set of valid ROYGBIV colors that have at least one tagged feature in GBIV.md.
 pub fn active_colors_from_features(features: &[GbivFeature]) -> HashSet<String> {
-    let valid_colors: HashSet<&str> = COLORS.iter().copied().collect();
     features
         .iter()
         .filter_map(|f| f.tag.as_deref())
-        .filter(|tag| valid_colors.contains(tag))
+        .filter(|tag| is_valid_color(tag))
         .map(|s| s.to_string())
         .collect()
 }
@@ -33,7 +32,10 @@ pub fn active_colors_from_features(features: &[GbivFeature]) -> HashSet<String> 
 // @spec TMX-SYNC-008
 /// Given the set of active colors and the list of existing window names,
 /// return the colors that need new windows created.
-pub fn missing_windows(active_colors: &HashSet<String>, existing_windows: &[String]) -> Vec<String> {
+pub fn missing_windows(
+    active_colors: &HashSet<String>,
+    existing_windows: &[String],
+) -> Vec<String> {
     let existing_set: HashSet<&str> = existing_windows.iter().map(|s| s.as_str()).collect();
     COLORS
         .iter()
@@ -46,7 +48,6 @@ pub fn missing_windows(active_colors: &HashSet<String>, existing_windows: &[Stri
 /// Sort window names into ROYGBIV order: main first, then colors in ROYGBIV order,
 /// then any non-color windows preserving their relative order.
 pub fn sort_windows_roygbiv(window_names: &[String]) -> Vec<String> {
-    let color_set: HashSet<&str> = COLORS.iter().copied().collect();
     let mut result: Vec<String> = Vec::new();
 
     // "main" first
@@ -63,7 +64,7 @@ pub fn sort_windows_roygbiv(window_names: &[String]) -> Vec<String> {
 
     // Non-color, non-main windows preserving relative order
     for w in window_names {
-        if w != "main" && !color_set.contains(w.as_str()) {
+        if w != "main" && !is_valid_color(w) {
             result.push(w.clone());
         }
     }
@@ -86,8 +87,9 @@ pub fn sync_command(session_name: Option<&str>) -> anyhow::Result<()> {
 
     // Guard 2: must be inside a gbiv project
     let cwd = env::current_dir()?;
-    let gbiv_root = find_gbiv_root(&cwd)
-        .ok_or_else(|| anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one."))?;
+    let gbiv_root = find_gbiv_root(&cwd).ok_or_else(|| {
+        anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one.")
+    })?;
 
     // Determine session name
     let session_name = session_name
@@ -143,16 +145,23 @@ pub fn sync_command(session_name: Option<&str>) -> anyhow::Result<()> {
     for color in &missing {
         let worktree_path = gbiv_root.root.join(color).join(&gbiv_root.folder_name);
         if !worktree_path.exists() {
-            println!("Warning: worktree path '{}' does not exist, skipping window '{}'", worktree_path.display(), color);
+            println!(
+                "Warning: worktree path '{}' does not exist, skipping window '{}'",
+                worktree_path.display(),
+                color
+            );
             continue;
         }
 
         let create_result = ProcessCommand::new("tmux")
             .args([
                 "new-window",
-                "-t", &session_name,
-                "-n", color,
-                "-c", &worktree_path.to_string_lossy(),
+                "-t",
+                &session_name,
+                "-n",
+                color,
+                "-c",
+                &worktree_path.to_string_lossy(),
             ])
             .output();
 
@@ -228,9 +237,24 @@ mod tests {
     #[test]
     fn test_active_colors_extracts_valid_roygbiv_tags() {
         let features = vec![
-            GbivFeature { tag: Some("red".to_string()), status: None, description: "Fix bug".to_string(), notes: vec![] },
-            GbivFeature { tag: Some("blue".to_string()), status: None, description: "Add feature".to_string(), notes: vec![] },
-            GbivFeature { tag: None, status: None, description: "Untagged".to_string(), notes: vec![] },
+            GbivFeature {
+                tag: Some("red".to_string()),
+                status: None,
+                description: "Fix bug".to_string(),
+                notes: vec![],
+            },
+            GbivFeature {
+                tag: Some("blue".to_string()),
+                status: None,
+                description: "Add feature".to_string(),
+                notes: vec![],
+            },
+            GbivFeature {
+                tag: None,
+                status: None,
+                description: "Untagged".to_string(),
+                notes: vec![],
+            },
         ];
         let active = active_colors_from_features(&features);
         assert!(active.contains("red"));
@@ -242,8 +266,18 @@ mod tests {
     #[test]
     fn test_active_colors_excludes_invalid_tags() {
         let features = vec![
-            GbivFeature { tag: Some("purple".to_string()), status: None, description: "Invalid color".to_string(), notes: vec![] },
-            GbivFeature { tag: Some("red".to_string()), status: None, description: "Valid".to_string(), notes: vec![] },
+            GbivFeature {
+                tag: Some("purple".to_string()),
+                status: None,
+                description: "Invalid color".to_string(),
+                notes: vec![],
+            },
+            GbivFeature {
+                tag: Some("red".to_string()),
+                status: None,
+                description: "Valid".to_string(),
+                notes: vec![],
+            },
         ];
         let active = active_colors_from_features(&features);
         assert!(active.contains("red"));
@@ -255,8 +289,18 @@ mod tests {
     #[test]
     fn test_active_colors_deduplicates() {
         let features = vec![
-            GbivFeature { tag: Some("red".to_string()), status: None, description: "First".to_string(), notes: vec![] },
-            GbivFeature { tag: Some("red".to_string()), status: None, description: "Second".to_string(), notes: vec![] },
+            GbivFeature {
+                tag: Some("red".to_string()),
+                status: None,
+                description: "First".to_string(),
+                notes: vec![],
+            },
+            GbivFeature {
+                tag: Some("red".to_string()),
+                status: None,
+                description: "Second".to_string(),
+                notes: vec![],
+            },
         ];
         let active = active_colors_from_features(&features);
         assert_eq!(active.len(), 1);
@@ -304,7 +348,10 @@ mod tests {
     #[test]
     fn test_sort_windows_roygbiv_basic_order() {
         let windows = vec![
-            "yellow".to_string(), "red".to_string(), "main".to_string(), "indigo".to_string(),
+            "yellow".to_string(),
+            "red".to_string(),
+            "main".to_string(),
+            "indigo".to_string(),
         ];
         let sorted = sort_windows_roygbiv(&windows);
         assert_eq!(sorted, vec!["main", "red", "yellow", "indigo"]);
@@ -314,7 +361,10 @@ mod tests {
     #[test]
     fn test_sort_windows_roygbiv_non_color_windows_at_end() {
         let windows = vec![
-            "bash".to_string(), "red".to_string(), "main".to_string(), "htop".to_string(),
+            "bash".to_string(),
+            "red".to_string(),
+            "main".to_string(),
+            "htop".to_string(),
         ];
         let sorted = sort_windows_roygbiv(&windows);
         assert_eq!(sorted, vec!["main", "red", "bash", "htop"]);
@@ -324,9 +374,14 @@ mod tests {
     #[test]
     fn test_sort_windows_roygbiv_full_set() {
         let windows = vec![
-            "violet".to_string(), "indigo".to_string(), "blue".to_string(),
-            "green".to_string(), "yellow".to_string(), "orange".to_string(),
-            "red".to_string(), "main".to_string(),
+            "violet".to_string(),
+            "indigo".to_string(),
+            "blue".to_string(),
+            "green".to_string(),
+            "yellow".to_string(),
+            "orange".to_string(),
+            "red".to_string(),
+            "main".to_string(),
         ];
         let sorted = sort_windows_roygbiv(&windows);
         assert_eq!(

@@ -1,13 +1,13 @@
 use anyhow::Result;
 use clap::{Arg, ArgGroup, Command};
-use colors::COLORS;
 use commands::init::init_command;
-use commands::reset::reset_command;
 use commands::mark::mark_command;
 use commands::rebase_all::rebase_all_command;
+use commands::reset::reset_command;
 use commands::status::status_command;
 use commands::tidy::tidy_command;
 use commands::tmux;
+use gbiv_core::colors::{is_valid_color, COLORS};
 
 mod colors;
 mod commands;
@@ -113,7 +113,7 @@ pub(crate) fn cli() -> Command {
                             if s == "done" || s == "in-progress" || s == "unset" {
                                 return Err(format!("'{}' is a status flag, not a color. Did you mean: gbiv mark --{}", s, s));
                             }
-                            if COLORS.contains(&s) {
+                            if is_valid_color(s) {
                                 Ok(s.to_string())
                             } else {
                                 Err(format!("invalid color '{}'. Possible values: {}", s, COLORS.join(", ")))
@@ -153,15 +153,20 @@ fn run() -> Result<()> {
                 .get_many::<String>("args")
                 .map(|vals| vals.cloned().collect())
                 .unwrap_or_default();
-            let valid_targets: Vec<&str> = COLORS.iter().copied().chain(std::iter::once("all")).collect();
-            let (target, rest) = if all_args.first().map(|s| valid_targets.contains(&s.as_str())).unwrap_or(false) {
+            let (target, rest) = if all_args
+                .first()
+                .map(|s| is_valid_color(s) || s == "all")
+                .unwrap_or(false)
+            {
                 (Some(all_args[0].clone()), all_args[1..].to_vec())
             } else {
                 (None, all_args)
             };
             let command: Vec<String> = rest.into_iter().filter(|a| a != "--").collect();
             if command.is_empty() {
-                return Err(anyhow::anyhow!("no command specified. Usage: gbiv exec [<color>|all] -- <command...>"));
+                return Err(anyhow::anyhow!(
+                    "no command specified. Usage: gbiv exec [<color>|all] -- <command...>"
+                ));
             }
             let target_ref = target.as_deref();
             let output = exec_command(target_ref, &command, None)?;
@@ -194,7 +199,9 @@ fn run() -> Result<()> {
 
 fn main() {
     if let Err(e) = run() {
-        let debug = std::env::var("RUST_LOG").map(|v| v == "debug").unwrap_or(false);
+        let debug = std::env::var("RUST_LOG")
+            .map(|v| v == "debug")
+            .unwrap_or(false);
         if debug {
             eprintln!("Error: {:#}", e);
         } else {
@@ -217,8 +224,11 @@ mod tests {
             .get_many::<String>("args")
             .map(|vals| vals.cloned().collect())
             .unwrap_or_default();
-        let valid_targets: Vec<&str> = COLORS.iter().copied().chain(std::iter::once("all")).collect();
-        let (target, rest) = if all_args.first().map(|s| valid_targets.contains(&s.as_str())).unwrap_or(false) {
+        let (target, rest) = if all_args
+            .first()
+            .map(|s| is_valid_color(s) || s == "all")
+            .unwrap_or(false)
+        {
             (Some(all_args[0].clone()), all_args[1..].to_vec())
         } else {
             (None, all_args)
