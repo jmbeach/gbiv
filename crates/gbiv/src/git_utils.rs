@@ -10,14 +10,6 @@ pub enum GitError {
     RebaseConflict(PathBuf),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
-    // Anchor for the gbiv ↔ gbiv-core error contract: any future gbiv-core
-    // primitive that returns `Result<_, CoreError>` will compose through `?`
-    // here without churning every call site. Today no caller propagates a
-    // CoreError (the sole gbiv-core failure path, ensure_gitignore_entry, is
-    // handled inline as a non-fatal warning), hence `allow(dead_code)`.
-    #[allow(dead_code)]
-    #[error(transparent)]
-    Core(#[from] gbiv_core::error::CoreError),
 }
 
 pub fn has_commits(path: &Path) -> bool {
