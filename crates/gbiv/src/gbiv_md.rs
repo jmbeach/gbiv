@@ -2,8 +2,6 @@
 pub enum GbivMdError {
     #[error("no GBIV.md entry tagged [{0}]")]
     NotFound(String),
-    #[error("GBIV.md is malformed at line {line}: {detail}")]
-    Malformed { line: usize, detail: String },
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
 }
