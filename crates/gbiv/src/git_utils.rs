@@ -4,26 +4,12 @@ use std::time::Duration;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
-    #[error("not inside a gbiv project (no main/<repo> found walking up from {0})")]
-    NotInGbivProject(PathBuf),
     #[error("git command failed: {cmd}\nstderr: {stderr}")]
     GitFailed { cmd: String, stderr: String },
     #[error("rebase conflict in {0}")]
     RebaseConflict(PathBuf),
-    #[error("worktree {0} already exists")]
-    WorktreeAlreadyExists(String),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
-    // Anchor for the gbiv ↔ gbiv-core error contract: any future gbiv-core
-    // primitive that returns `Result<_, CoreError>` will compose through `?`
-    // here without churning every call site. Today no caller propagates a
-    // CoreError (the sole gbiv-core failure path, ensure_gitignore_entry, is
-    // handled inline as a non-fatal warning), hence `allow(dead_code)`.
-    #[allow(dead_code)]
-    #[error(transparent)]
-    Core(#[from] gbiv_core::error::CoreError),
-    #[error("{0}")]
-    Other(String),
 }
 
 pub fn has_commits(path: &Path) -> bool {
