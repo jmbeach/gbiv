@@ -16,7 +16,7 @@ Specs for worktree creation, upstream sync, reset, and maintenance.
 - [x] WTL-INIT-008: If a `GBIV.md` file already exists in the main repo, the system shall not overwrite it.
 - [x] WTL-INIT-009: If any worktree creation fails, the system shall roll back by removing all created worktrees and restoring the original folder to its pre-init state.
 - [x] WTL-INIT-010: If the directory structure creation fails, the system shall roll back by restoring the original folder from the temporary name.
-- [ ] WTL-INIT-011: When `GBIV.md` is written, the system shall ensure `GBIV.md` is listed in the main repo's `.gitignore` (creating the file if needed, appending if missing, and leaving it untouched if already present).
+- [x] WTL-INIT-011: When `GBIV.md` is written, the system shall ensure `GBIV.md` is listed in the main repo's `.gitignore` (creating the file if needed, appending if missing, and leaving it untouched if already present).
 
 ## Rebase
 

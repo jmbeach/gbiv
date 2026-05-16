@@ -2,7 +2,7 @@
 
 Tmux session/window lifecycle synchronized with worktree layout.
 
-**Status**: MAPPED (2026-04-23) — Brownfield inventory complete. All current behavior documented.
+**Status**: OK (audited 2026-05-15, git `1638fe0`) — All 40 specs implemented.
 
 ## References
 
@@ -13,6 +13,15 @@ Tmux session/window lifecycle synchronized with worktree layout.
 | EARS specs | `docs/gbiv/specs/tmux-mirror.md` |
 | Source | `crates/gbiv/src/commands/tmux/mod.rs`, `crates/gbiv/src/commands/tmux/new_session.rs`, `crates/gbiv/src/commands/tmux/sync.rs`, `crates/gbiv/src/commands/tmux/clean.rs` |
 | Tests | (no dedicated test files) |
+
+## Spec Coverage
+
+| Category | Spec IDs | Implemented | Deferred | Gaps |
+|---|---|---|---|---|
+| New Session | TMX-SESSION-001..013 | 13 | 0 | 0 |
+| Sync | TMX-SYNC-001..015 | 15 | 0 | 0 |
+| Clean | TMX-CLEAN-001..012 | 12 | 0 | 0 |
+| **Total** | | **40** | **0** | **0** |
 
 ## Key Findings
 

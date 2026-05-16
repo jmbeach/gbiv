@@ -2,7 +2,7 @@
 
 GBIV.md parsing, mutation, and the mark command.
 
-**Status**: MAPPED (2026-04-23) — Brownfield inventory complete. All current behavior documented.
+**Status**: OK (audited 2026-05-15, git `1638fe0`) — All 36 specs implemented.
 
 ## References
 
@@ -13,6 +13,15 @@ GBIV.md parsing, mutation, and the mark command.
 | EARS specs | `docs/gbiv/specs/feature-ledger.md` |
 | Source | `crates/gbiv/src/gbiv_md.rs`, `crates/gbiv/src/commands/mark.rs` |
 | Tests | `crates/gbiv/src/gbiv_md.rs` (inline tests) |
+
+## Spec Coverage
+
+| Category | Spec IDs | Implemented | Deferred | Gaps |
+|---|---|---|---|---|
+| Parsing | FL-PARSE-001..014 | 14 | 0 | 0 |
+| Mutations | FL-MUTATE-001..011 | 11 | 0 | 0 |
+| Mark Command | FL-MARK-001..011 | 11 | 0 | 0 |
+| **Total** | | **36** | **0** | **0** |
 
 ## Key Findings
 
