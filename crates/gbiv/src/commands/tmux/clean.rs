@@ -125,14 +125,21 @@ mod tests {
     #[test]
     #[serial]
     fn test_clean_command_session_not_found() {
-        // This test requires a live tmux binary; skip gracefully if not present.
-        let tmux_available = ProcessCommand::new("tmux")
+        // This test requires a live tmux binary AND a working tmux server;
+        // headless CI runners may have the binary but no usable socket dir.
+        let tmux_binary = ProcessCommand::new("tmux")
             .arg("-V")
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false);
-        if !tmux_available {
-            eprintln!("Skipping test_clean_command_session_not_found: tmux not available");
+        let tmux_server_ok = tmux_binary
+            && ProcessCommand::new("tmux")
+                .arg("start-server")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+        if !tmux_server_ok {
+            eprintln!("Skipping test_clean_command_session_not_found: tmux not usable");
             return;
         }
 

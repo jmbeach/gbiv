@@ -36,7 +36,10 @@ pub fn tmux_available() -> Result<(), TmuxError> {
                 Ok(())
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                Err(TmuxError::Other(build_other_message(&stderr, output.status)))
+                Err(TmuxError::Other(build_other_message(
+                    &stderr,
+                    output.status,
+                )))
             }
         }
         Err(e) if e.kind() == ErrorKind::NotFound => Err(TmuxError::NotInstalled),
@@ -58,7 +61,10 @@ pub fn has_session(name: &str) -> Result<bool, TmuxError> {
                 if stderr.to_lowercase().contains("can't find session") {
                     Ok(false)
                 } else {
-                    Err(TmuxError::Other(build_other_message(&stderr, output.status)))
+                    Err(TmuxError::Other(build_other_message(
+                        &stderr,
+                        output.status,
+                    )))
                 }
             }
         }
@@ -88,7 +94,10 @@ pub fn list_windows(session: &str) -> Result<Vec<WindowInfo>, TmuxError> {
                 if stderr.to_lowercase().contains("can't find session") {
                     Err(TmuxError::SessionNotFound(session.to_string()))
                 } else {
-                    Err(TmuxError::Other(build_other_message(&stderr, output.status)))
+                    Err(TmuxError::Other(build_other_message(
+                        &stderr,
+                        output.status,
+                    )))
                 }
             }
         }
@@ -154,9 +163,18 @@ mod tests {
         assert_eq!(
             got,
             vec![
-                WindowInfo { id: "@1".into(), name: "main".into() },
-                WindowInfo { id: "@2".into(), name: "red".into() },
-                WindowInfo { id: "@3".into(), name: "indigo".into() },
+                WindowInfo {
+                    id: "@1".into(),
+                    name: "main".into()
+                },
+                WindowInfo {
+                    id: "@2".into(),
+                    name: "red".into()
+                },
+                WindowInfo {
+                    id: "@3".into(),
+                    name: "indigo".into()
+                },
             ]
         );
     }
@@ -173,7 +191,13 @@ mod tests {
     fn parse_list_windows_tolerates_missing_trailing_newline() {
         let stdout = "@7\torange";
         let got = parse_list_windows_output(stdout).expect("trailing newline optional");
-        assert_eq!(got, vec![WindowInfo { id: "@7".into(), name: "orange".into() }]);
+        assert_eq!(
+            got,
+            vec![WindowInfo {
+                id: "@7".into(),
+                name: "orange".into()
+            }]
+        );
     }
 
     /// @spec TMX-CORE-032

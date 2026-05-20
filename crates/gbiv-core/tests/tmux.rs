@@ -1,17 +1,29 @@
 //! Integration tests for `gbiv_core::tmux` public surface.
 //!
 //! Pure tests run unconditionally; tests that need a real tmux installation
-//! skip with a printed note when `tmux -V` is not available, so the suite
-//! stays green on dev machines and CI runners that lack tmux.
+//! skip with a printed note when `tmux` is not usable (not on PATH, or unable
+//! to start its server — e.g., headless CI runners where the socket dir is
+//! unavailable). This keeps the suite green on dev machines and CI alike.
 
 use gbiv_core::tmux::{
     has_session, list_windows, session_name_for_root, tmux_available, TmuxError, WindowInfo,
 };
 use std::process::Command;
 
-fn tmux_on_path() -> bool {
-    Command::new("tmux")
+fn tmux_usable() -> bool {
+    let v = Command::new("tmux")
         .arg("-V")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !v {
+        return false;
+    }
+    // `start-server` is idempotent and surfaces socket/permission problems
+    // (e.g. "error connecting to /tmp/tmux-1001/default") that would later
+    // cause has-session / new-session to fail with `Other`.
+    Command::new("tmux")
+        .arg("start-server")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
@@ -43,7 +55,10 @@ fn public_surface_compiles() {
     let _: fn(&str) -> String = session_name_for_root;
 
     // WindowInfo exposes id and name as pub fields.
-    let w = WindowInfo { id: "@1".into(), name: "main".into() };
+    let w = WindowInfo {
+        id: "@1".into(),
+        name: "main".into(),
+    };
     assert_eq!(w.id, "@1");
     assert_eq!(w.name, "main");
 
@@ -77,10 +92,7 @@ fn tmux_error_display_messages_match_lld() {
         format!("{}", TmuxError::SendKeysIncomplete("%3".into())),
         "send-keys completed for text but Enter failed for pane %3"
     );
-    assert_eq!(
-        format!("{}", TmuxError::Other("boom".into())),
-        "tmux: boom"
-    );
+    assert_eq!(format!("{}", TmuxError::Other("boom".into())), "tmux: boom");
 }
 
 /// @spec TMX-CORE-040, TMX-CORE-041, TMX-CORE-042
@@ -95,8 +107,8 @@ fn session_name_for_root_is_pure_identity() {
 /// @spec TMX-CORE-010, TMX-CORE-016
 #[test]
 fn tmux_available_returns_ok_when_tmux_installed() {
-    if !tmux_on_path() {
-        eprintln!("skipping: tmux not on PATH");
+    if !tmux_usable() {
+        eprintln!("skipping: tmux not usable in this environment");
         return;
     }
     tmux_available().expect("tmux_available should return Ok when tmux is installed");
@@ -109,7 +121,15 @@ fn tmux_available_returns_ok_when_tmux_installed() {
 /// machines where tmux is *not* installed.
 #[test]
 fn tmux_available_returns_not_installed_when_missing() {
-    if tmux_on_path() {
+    // Only exercises the NotInstalled path on machines without tmux on PATH.
+    // `tmux_usable` would also return false on headless CI; check the binary
+    // specifically here.
+    let on_path = Command::new("tmux")
+        .arg("-V")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if on_path {
         eprintln!("skipping: tmux is on PATH; cannot exercise NotInstalled path here");
         return;
     }
@@ -122,16 +142,15 @@ fn tmux_available_returns_not_installed_when_missing() {
 /// @spec TMX-CORE-020, TMX-CORE-021
 #[test]
 fn has_session_distinguishes_present_and_missing() {
-    if !tmux_on_path() {
-        eprintln!("skipping: tmux not on PATH");
+    if !tmux_usable() {
+        eprintln!("skipping: tmux not usable in this environment");
         return;
     }
 
     let name = unique_session_name("has");
     // Missing → Ok(false)
-    assert_eq!(
-        has_session(&name).expect("has_session should succeed"),
-        false,
+    assert!(
+        !has_session(&name).expect("has_session should succeed"),
         "expected Ok(false) for a session that does not exist"
     );
 
@@ -147,9 +166,8 @@ fn has_session_distinguishes_present_and_missing() {
 
     let present = has_session(&name);
     kill_session(&name);
-    assert_eq!(
+    assert!(
         present.expect("has_session should succeed for existing session"),
-        true,
         "expected Ok(true) for the session we just created"
     );
 }
@@ -157,8 +175,8 @@ fn has_session_distinguishes_present_and_missing() {
 /// @spec TMX-CORE-030, TMX-CORE-031, TMX-CORE-033
 #[test]
 fn list_windows_against_real_session() {
-    if !tmux_on_path() {
-        eprintln!("skipping: tmux not on PATH");
+    if !tmux_usable() {
+        eprintln!("skipping: tmux not usable in this environment");
         return;
     }
 
