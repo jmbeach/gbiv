@@ -2,7 +2,7 @@
 
 Shared tmux lookup primitives in `gbiv-core` consumed by the `gbiv` binary today and by `roy` once its tmux driver lands.
 
-**Status**: OK (sampled 2026-05-19) — All 26 TMX-CORE-* specs implemented; gbiv's tmux subcommands migrated to the primitives.
+**Status**: OK (sampled 2026-05-19) — All 31 TMX-CORE-* specs implemented; gbiv's tmux subcommands migrated to the primitives.
 
 ## References
 
@@ -19,12 +19,14 @@ Shared tmux lookup primitives in `gbiv-core` consumed by the `gbiv` binary today
 | Category | Spec IDs | Implemented | Deferred | Gaps |
 |---|---|---|---|---|
 | Public surface | TMX-CORE-001..003 | 3 | 0 | 0 |
-| tmux_available | TMX-CORE-010..016 | 6 | 0 | 0 |
+| tmux_available | TMX-CORE-010..016 | 5 | 0 | 0 |
 | has_session | TMX-CORE-020..024 | 5 | 0 | 0 |
 | list_windows | TMX-CORE-030..036 | 7 | 0 | 0 |
 | session_name_for_root | TMX-CORE-040..042 | 3 | 0 | 0 |
-| Subprocess conventions | TMX-CORE-060..061 | 2 | 0 | 0 |
-| **Total** | | **26** | **0** | **0** |
+| Subprocess conventions | TMX-CORE-050..053 | 4 | 0 | 0 |
+| Other message format | TMX-CORE-060..061 | 2 | 0 | 0 |
+| Error surface invariants | TMX-CORE-070..071 | 2 | 0 | 0 |
+| **Total** | | **31** | **0** | **0** |
 
 ## Key Findings
 
