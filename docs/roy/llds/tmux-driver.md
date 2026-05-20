@@ -150,43 +150,33 @@ If the first call succeeds and the second fails, the pane has received the text 
 
 ## Error Surface
 
-```rust
-#[derive(Debug, thiserror::Error)]
-enum TmuxError {
-    #[error("tmux binary not on PATH")]
-    NotInstalled,
-    #[error("tmux session not found: {0}")]
-    SessionNotFound(String),
-    #[error("tmux pane not found: {0}")]
-    PaneNotFound(String),
-    #[error("send-keys completed for text but Enter failed for pane {0}")]
-    SendKeysIncomplete(String),
-    #[error("tmux: {0}")]
-    Other(String),
-}
-```
+The driver returns `Result<T, gbiv_core::tmux::TmuxError>` from every operation. The enum, its variants, and their `Display` impls are owned by **`docs/gbiv-core/llds/tmux-primitives.md`**. Roy does not wrap or layer; it returns the shared type directly so that error-mapping in the HTTP layer can match the same variants the gbiv binary matches.
 
-The driver returns `Result<T, TmuxError>` from every operation. `thiserror` generates the `Display` and `std::error::Error` impls; the HTTP layer matches on variants to pick a status code. `NotInstalled` is detected once at daemon startup (via `tmux -V`) and converted into a fatal startup error. The driver does not re-check on every call.
+Variants and which ones roy populates:
+
+| Variant | Populated by roy? | Trigger in roy |
+|---|---|---|
+| `NotInstalled` | yes | `ENOENT` at exec when calling `gbiv_core::tmux::tmux_available()` at daemon startup. |
+| `SessionNotFound(name)` | yes | Locator's session-targeting calls (`list_windows`, future `list_panes`-via-session) when tmux returns `can't find session`. |
+| `PaneNotFound(id)` | yes | `capture_pane` / `send_keys` when tmux returns `can't find pane`. |
+| `SendKeysIncomplete(pane)` | yes | The two-step send-keys split: first call (literal text) succeeded, second call (Enter) failed. |
+| `Other(msg)` | yes | Any non-zero exit with unrecognized stderr; message format is `stderr.trim()` else `exit status: {code}` per the shared LLD. |
+
+`NotInstalled` is checked once at daemon startup via `gbiv_core::tmux::tmux_available()` and converted into a fatal startup error. The driver does not re-check on every call.
 
 The driver never uses `anyhow` — staying typed is the whole point of this layer.
 
 ## Shared Primitives in `gbiv-core`
 
-A handful of tmux operations are needed by both `gbiv` (sync/clean/new-session) and `roy` (locator startup). Those — and only those — live in `gbiv-core::tmux`:
+The lookup operations both binaries need — `tmux_available()`, `has_session()`, `list_windows()`, `session_name_for_root()` — live in `gbiv-core::tmux`. Their signatures, error mapping, UTF-8 policy, `Other` message format, and stderr-on-success policy are owned by **`docs/gbiv-core/llds/tmux-primitives.md`**. Do not duplicate the contract here.
 
-| Primitive | Signature | Used by |
-|---|---|---|
-| `tmux_available()` | `Result<(), TmuxError>` (maps to `NotInstalled`) | both |
-| `has_session(name)` | `Result<bool, TmuxError>` | both |
-| `list_windows(session)` | `Result<Vec<Window>, TmuxError>` | both |
-| `session_name_for_root(root)` | `String` (folder-name derivation) | both |
+`TmuxError` is also defined in `gbiv-core`; the pane variants (`PaneNotFound`, `SendKeysIncomplete`) are populated only by this driver but live on the shared enum so roy and gbiv return into the same `Result<T, TmuxError>` without conversion. See the shared LLD's § "Error Surface" for the variant table.
 
-`TmuxError` is defined in `gbiv-core` so both binaries map the same variants. roy's tmux driver re-exports it (or layers its own variants on top — `PaneNotFound`, `SendKeysIncomplete`, etc., are roy-only).
+Split of responsibility:
 
-Everything else stays per-binary:
-
-- **gbiv-only**: `new_session`, `new_window`, `kill_window`, `move_window` — window mutation, no value to roy.
-- **roy-only**: `list_panes`, `capture_pane`, `send_keys` — pane-level read/write, no value to gbiv.
+- **Shared in `gbiv-core`**: `tmux_available`, `has_session`, `list_windows`, `session_name_for_root`.
+- **gbiv-only**: `new_session`, `new_window`, `kill_window`, `move_window` — window mutation.
+- **roy-only**: `list_panes`, `capture_pane`, `send_keys` — pane-level read/write.
 
 ## Subprocess Conventions
 

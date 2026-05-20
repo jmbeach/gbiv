@@ -138,7 +138,11 @@ All tmux interaction is via `std::process::Command` — no tmux library or API.
 
 ### Shared with roy via `gbiv-core::tmux`
 
-The lookup primitives — `tmux_available()` (`tmux -V`), `has_session()`, `list_windows()`, and the folder-derived session name — live in `gbiv-core::tmux` and are called from both binaries, so they can't disagree about "is tmux installed" or "what session are we in." Window-mutation ops (`new-session`, `new-window`, `kill-window`, `move-window`) stay in gbiv; capture/send ops stay in roy. See `docs/roy/llds/tmux-driver.md` § "Shared Primitives in `gbiv-core`" for the full split.
+The lookup primitives — `tmux_available()`, `has_session()`, `list_windows()`, and `session_name_for_root()` — live in `gbiv-core::tmux`. Both binaries call into the same compiled artifact, so they cannot disagree about "is tmux installed", "what session are we in", or "what windows does it have."
+
+The contract (signatures, error mapping, UTF-8 handling, `Other` message format, stderr-on-success policy) is owned by **`docs/gbiv-core/llds/tmux-primitives.md`**. Do not duplicate it here; consult that LLD when adding a tmux call to gbiv.
+
+Window-mutation ops (`new-session`, `new-window`, `kill-window`, `move-window`) stay in gbiv. Pane-level ops (`list-panes`, `capture-pane`, `send-keys`) stay in roy.
 
 ## Observed Design Decisions
 

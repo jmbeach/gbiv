@@ -4,13 +4,17 @@ Specs for tmux session creation, window synchronization, and cleanup.
 
 **Component LLD**: `docs/gbiv/llds/tmux-mirror.md`
 
+Lookup primitives — "is tmux installed", "does this session exist", "what windows does it have", "what is the session name for this root" — are owned by `gbiv-core::tmux` and specified in `docs/gbiv-core/specs/tmux-primitives.md` (TMX-CORE-*). Specs below reference those primitives by name rather than restating exec commands. Window mutation (`new-session`, `new-window`, `move-window`, `kill-window`) remains gbiv-specific and is specified here in raw tmux terms.
+
+When a gbiv subcommand surfaces a `gbiv_core::tmux::TmuxError`, it is propagated to the user via its `Display` impl (e.g., `NotInstalled` reaches the user as `"tmux binary not on PATH"`). The gbiv layer does not translate, rewrap, or special-case variant messages. Specs below describe *which variants reach the user under which condition*, not the user-facing string.
+
 ## New Session
 
-- [x] TMX-SESSION-001: When `gbiv tmux new-session` is invoked and tmux is not installed, the system shall return an error containing "tmux not found".
+- [ ] TMX-SESSION-001: When `gbiv tmux new-session` is invoked and `gbiv_core::tmux::tmux_available()` returns `Err`, the system shall propagate that `TmuxError` to the user via its `Display` impl.
 - [x] TMX-SESSION-002: When `gbiv tmux new-session` is invoked outside a gbiv project, the system shall return an error mentioning `gbiv init`.
-- [x] TMX-SESSION-003: When `gbiv tmux new-session` is invoked and a tmux session with the resolved name already exists, the system shall return an error naming the session and suggesting `tmux attach` or `--session-name`.
+- [x] TMX-SESSION-003: When `gbiv tmux new-session` is invoked and `gbiv_core::tmux::has_session(name)` returns `Ok(true)` for the resolved session name, the system shall return an error naming the session and suggesting `tmux attach` or `--session-name`.
 - [x] TMX-SESSION-004: When `--session-name <NAME>` is provided, the system shall use NAME as the tmux session name.
-- [x] TMX-SESSION-005: When `--session-name` is omitted, the system shall use the gbiv folder name as the tmux session name.
+- [x] TMX-SESSION-005: When `--session-name` is omitted, the system shall derive the session name via `gbiv_core::tmux::session_name_for_root(&root.folder_name)`.
 - [x] TMX-SESSION-006: When enumerating worktree paths, the system shall consider "main" first, followed by the seven ROYGBIV colors in canonical order (red, orange, yellow, green, blue, indigo, violet).
 - [x] TMX-SESSION-007: When a worktree path does not exist on disk, the system shall print a warning to stderr naming the color and path, and exclude it from the session.
 - [x] TMX-SESSION-008: When no worktree paths exist, the system shall return an error stating it cannot create a tmux session.
@@ -22,12 +26,12 @@ Specs for tmux session creation, window synchronization, and cleanup.
 
 ## Sync
 
-- [x] TMX-SYNC-001: When `gbiv tmux sync` is invoked and tmux is not installed, the system shall return an error containing "tmux not found".
+- [ ] TMX-SYNC-001: When `gbiv tmux sync` is invoked and `gbiv_core::tmux::tmux_available()` returns `Err`, the system shall propagate that `TmuxError` to the user via its `Display` impl.
 - [x] TMX-SYNC-002: When `gbiv tmux sync` is invoked outside a gbiv project, the system shall return an error mentioning `gbiv init`.
-- [x] TMX-SYNC-003: When `gbiv tmux sync` is invoked and no tmux session with the resolved name exists, the system shall return an error suggesting `gbiv tmux new-session`.
+- [x] TMX-SYNC-003: When `gbiv tmux sync` is invoked and `gbiv_core::tmux::has_session(name)` returns `Ok(false)` for the resolved session name, the system shall return an error suggesting `gbiv tmux new-session`.
 - [x] TMX-SYNC-004: When `--session-name <NAME>` is provided, the system shall use NAME as the session name.
-- [x] TMX-SYNC-005: When `--session-name` is omitted, the system shall use the gbiv folder name as the session name.
-- [x] TMX-SYNC-006: When listing existing windows, the system shall query tmux with `list-windows -F #{window_name}`.
+- [x] TMX-SYNC-005: When `--session-name` is omitted, the system shall derive the session name via `gbiv_core::tmux::session_name_for_root(&root.folder_name)`.
+- [x] TMX-SYNC-006: When enumerating existing windows in the resolved session, the system shall call `gbiv_core::tmux::list_windows(&session)` and consume the `WindowInfo.name` field of each entry.
 - [x] TMX-SYNC-007: When parsing GBIV.md, the system shall extract the set of active colors by collecting tags that are valid ROYGBIV color names, deduplicating them.
 - [x] TMX-SYNC-008: When a ROYGBIV color is active in GBIV.md but has no corresponding tmux window, the system shall identify it as a missing window.
 - [x] TMX-SYNC-009: When a missing window's worktree directory exists on disk, the system shall create a tmux window named after the color with its working directory set to the worktree path.
@@ -40,10 +44,10 @@ Specs for tmux session creation, window synchronization, and cleanup.
 
 ## Clean
 
-- [x] TMX-CLEAN-001: When `gbiv tmux clean` is invoked and tmux is not installed, the system shall return an error containing "tmux not found".
+- [ ] TMX-CLEAN-001: When `gbiv tmux clean` is invoked and `gbiv_core::tmux::tmux_available()` returns `Err`, the system shall propagate that `TmuxError` to the user via its `Display` impl.
 - [x] TMX-CLEAN-002: When `gbiv tmux clean` is invoked outside a gbiv project, the system shall return an error mentioning `gbiv init`.
-- [x] TMX-CLEAN-003: When `gbiv tmux clean` is invoked and no tmux session with the folder name exists, the system shall return an error suggesting `gbiv tmux new-session`.
-- [x] TMX-CLEAN-004: The `clean` subcommand shall not accept a `--session-name` flag; it shall always derive the session name from the gbiv folder name.
+- [x] TMX-CLEAN-003: When `gbiv tmux clean` is invoked and `gbiv_core::tmux::has_session(name)` returns `Ok(false)` for the folder-derived session name, the system shall return an error suggesting `gbiv tmux new-session`.
+- [x] TMX-CLEAN-004: The `clean` subcommand shall not accept a `--session-name` flag; it shall always derive the session name via `gbiv_core::tmux::session_name_for_root(&root.folder_name)`.
 - [x] TMX-CLEAN-005: When a window name is a valid ROYGBIV color AND is not present as any tag in GBIV.md, the system shall classify that window as orphaned.
 - [x] TMX-CLEAN-006: When a window is named "main", the system shall never classify it as orphaned regardless of GBIV.md contents.
 - [x] TMX-CLEAN-007: When a window name is not a valid ROYGBIV color (e.g., "bash", "htop"), the system shall never classify it as orphaned.

@@ -10,3 +10,4 @@ version: 1
 - [gbv-d6t] [blocked-by:gbv-3wb] [parent:gbv-q3t] roy client CLI (status, get, send)
 - [gbv-k0z] [blocked-by:gbv-d6t] [parent:gbv-q3t] roy install-skill subcommand + bundled SKILL.md
 - [gbv-k4p] Touch up the readme (un AI-ify)
+- [gbv-f3p] Backfill LLDs + EARS specs for the brownfield gbiv-core modules: colors, error, gitignore, root. Each module currently has no LLD; the gbiv-core HLD lists them as "(not yet specified — brownfield)". Walk them through the standard LID phases as separate segments. Resolves the four UNMAPPED entries that this scope leaves in docs/arrows/index.yaml.

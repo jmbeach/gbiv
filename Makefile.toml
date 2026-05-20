@@ -1,6 +1,7 @@
 [tasks.watch]
+workspace = false
 script = ["RUST_LOG=debug cargo watch -w crates -- sh -c 'cargo clippy --workspace 2>&1 | tee watch.log; cargo build --workspace 2>&1 | tee -a watch.log; echo \"Finished build at $(date +%Y-%m-%d_%H-%M-%S)\" >> watch.log'"]
 
 [tasks.watch-tests]
+workspace = false
 script = ["cargo watch -w crates -- sh -c 'cargo nextest run --workspace 2>&1 | tee watch-tests.log && echo \"Test run finished at $(date +%Y-%m-%dT%H:%M:%S)\" >> watch-tests.log'"]
-

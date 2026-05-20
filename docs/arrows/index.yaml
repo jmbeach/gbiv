@@ -1,8 +1,10 @@
 schema_version: 1
-last_updated: 2026-05-15
+last_updated: 2026-05-19
 
 # Taxonomy groups segments by product. Purely organizational.
 taxonomy:
+  gbiv-core:
+    - tmux-primitives
   gbiv:
     - cli-and-palette
     - worktree-lifecycle
@@ -17,6 +19,17 @@ taxonomy:
     - roy-skill
 
 arrows:
+  tmux-primitives:
+    status: OK
+    sampled: 2026-05-19
+    audited: 2026-05-19
+    audited_sha: null
+    blocks: [tmux-mirror, tmux-driver]
+    blockedBy: []
+    detail: tmux-primitives.md
+    next: null
+    drift: null
+
   cli-and-palette:
     status: OK
     sampled: 2026-04-23
@@ -64,10 +77,10 @@ arrows:
   tmux-mirror:
     status: OK
     sampled: 2026-04-23
-    audited: 2026-05-15
-    audited_sha: 1638fe0
+    audited: 2026-05-19
+    audited_sha: null
     blocks: [worktree-lifecycle]
-    blockedBy: [cli-and-palette, worktree-lifecycle, feature-ledger]
+    blockedBy: [cli-and-palette, worktree-lifecycle, feature-ledger, tmux-primitives]
     detail: tmux-mirror.md
     next: null
     drift: null
@@ -79,7 +92,7 @@ arrows:
     audited: null
     audited_sha: null
     blocks: [pane-locator, http-server]
-    blockedBy: []
+    blockedBy: [tmux-primitives]
     detail: tmux-driver.md
     next: "Author EARS specs in docs/roy/specs/tmux-driver.md"
     drift: null
