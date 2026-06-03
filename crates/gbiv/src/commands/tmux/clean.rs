@@ -132,12 +132,19 @@ mod tests {
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false);
-        let tmux_server_ok = tmux_binary
-            && ProcessCommand::new("tmux")
-                .arg("start-server")
+        // `start-server` alone is insufficient: with exit-empty=on, the daemon exits
+        // immediately when there are no sessions, so subsequent tmux calls fail with
+        // "no server running". Create a keepalive session to hold the server open.
+        let tmux_server_ok = if tmux_binary {
+            let keepalive = format!("gbiv-clean-keepalive-{}", std::process::id());
+            ProcessCommand::new("tmux")
+                .args(["new-session", "-d", "-s", &keepalive])
                 .output()
                 .map(|o| o.status.success())
-                .unwrap_or(false);
+                .unwrap_or(false)
+        } else {
+            false
+        };
         if !tmux_server_ok {
             eprintln!("Skipping test_clean_command_session_not_found: tmux not usable");
             return;

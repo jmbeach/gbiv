@@ -81,7 +81,9 @@ pub fn list_windows(session: &str) -> Result<Vec<WindowInfo>, TmuxError> {
             "-t",
             session,
             "-F",
-            "#{window_id}\t#{window_name}",
+            // Use ||| as separator: tmux 3.4 replaces literal tab characters with
+            // underscores in format string output when invoked from non-Python processes.
+            "#{window_id}|||#{window_name}",
         ])
         .output()
     {
@@ -111,7 +113,7 @@ pub fn session_name_for_root(folder_name: &str) -> String {
     folder_name.to_string()
 }
 
-/// Pure parser for `tmux list-windows -F '#{window_id}\t#{window_name}'` stdout.
+/// Pure parser for `tmux list-windows -F '#{window_id}|||#{window_name}'` stdout.
 /// Exposed for unit testing without a tmux subprocess.
 ///
 /// @spec TMX-CORE-031, TMX-CORE-032, TMX-CORE-036
@@ -121,7 +123,7 @@ pub(crate) fn parse_list_windows_output(stdout: &str) -> Result<Vec<WindowInfo>,
         if line.is_empty() {
             continue;
         }
-        let parts: Vec<&str> = line.split('\t').collect();
+        let parts: Vec<&str> = line.split("|||").collect();
         if parts.len() != 2 {
             return Err(TmuxError::Other(format!(
                 "malformed list-windows line: {line}"
@@ -158,7 +160,7 @@ mod tests {
     /// @spec TMX-CORE-031
     #[test]
     fn parse_list_windows_parses_well_formed_lines_in_order() {
-        let stdout = "@1\tmain\n@2\tred\n@3\tindigo\n";
+        let stdout = "@1|||main\n@2|||red\n@3|||indigo\n";
         let got = parse_list_windows_output(stdout).expect("parse should succeed");
         assert_eq!(
             got,
@@ -189,7 +191,7 @@ mod tests {
     /// @spec TMX-CORE-031
     #[test]
     fn parse_list_windows_tolerates_missing_trailing_newline() {
-        let stdout = "@7\torange";
+        let stdout = "@7|||orange";
         let got = parse_list_windows_output(stdout).expect("trailing newline optional");
         assert_eq!(
             got,
@@ -203,11 +205,11 @@ mod tests {
     /// @spec TMX-CORE-032
     #[test]
     fn parse_list_windows_rejects_malformed_line_all_or_nothing() {
-        let stdout = "@1\tmain\n@2_no_tab_here\n@3\tred\n";
+        let stdout = "@1|||main\n@2_no_sep_here\n@3|||red\n";
         let err = parse_list_windows_output(stdout).expect_err("malformed line aborts the call");
         match err {
             TmuxError::Other(msg) => assert!(
-                msg.contains("@2_no_tab_here"),
+                msg.contains("@2_no_sep_here"),
                 "Other message must include the offending raw line; got: {msg}"
             ),
             other => panic!("expected TmuxError::Other, got {other:?}"),
@@ -216,8 +218,8 @@ mod tests {
 
     /// @spec TMX-CORE-032
     #[test]
-    fn parse_list_windows_rejects_line_with_extra_tab() {
-        let stdout = "@1\tname\twith\ttab\n";
+    fn parse_list_windows_rejects_line_with_extra_separator() {
+        let stdout = "@1|||name|||extra\n";
         let err = parse_list_windows_output(stdout).expect_err("extra fields abort the call");
         assert!(matches!(err, TmuxError::Other(_)));
     }

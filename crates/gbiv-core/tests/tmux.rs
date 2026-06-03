@@ -9,24 +9,32 @@ use gbiv_core::tmux::{
     has_session, list_windows, session_name_for_root, tmux_available, TmuxError, WindowInfo,
 };
 use std::process::Command;
+use std::sync::OnceLock;
+
+static TMUX_USABLE: OnceLock<bool> = OnceLock::new();
 
 fn tmux_usable() -> bool {
-    let v = Command::new("tmux")
-        .arg("-V")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-    if !v {
-        return false;
-    }
-    // `start-server` is idempotent and surfaces socket/permission problems
-    // (e.g. "error connecting to /tmp/tmux-1001/default") that would later
-    // cause has-session / new-session to fail with `Other`.
-    Command::new("tmux")
-        .arg("start-server")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    *TMUX_USABLE.get_or_init(|| {
+        let on_path = Command::new("tmux")
+            .arg("-V")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if !on_path {
+            return false;
+        }
+        // `start-server` alone is insufficient: with exit-empty=on (the tmux default),
+        // the daemon exits immediately when there are no sessions, so subsequent commands
+        // fail with "no server running". Instead, create a keepalive session — this both
+        // starts the server and holds it open for the duration of the test run.
+        // The session is intentionally not killed here; it keeps the server alive.
+        let keepalive = format!("gbiv-keepalive-{}", std::process::id());
+        Command::new("tmux")
+            .args(["new-session", "-d", "-s", &keepalive])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    })
 }
 
 fn unique_session_name(suffix: &str) -> String {
