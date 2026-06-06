@@ -16,36 +16,29 @@
 
 ## Why gbiv?
 
-Working with git worktrees is powerful, but managing them can get messy. **gbiv** standardizes your worktrees into 7 ever-present folders named after the colors of the rainbow (ROYGBIV):
+**gbiv** gives you seven named worktrees — one per ROYGBIV color — so you always have a clean slot ready:
 
 ```
 myproject/
-├── 🏠 main/
-│   └── myproject/     # Your main branch lives here
-├── 🔴 red/
-│   └── myproject/     # Worktree 1
-├── 🟠 orange/
-│   └── myproject/     # Worktree 2
-├── 🟡 yellow/
-│   └── myproject/     # Worktree 3
-├── 🟢 green/
-│   └── myproject/     # Worktree 4
-├── 🔵 blue/
-│   └── myproject/     # Worktree 5
-├── 🟣 indigo/
-│   └── myproject/     # Worktree 6
-└── 💜 violet/
-    └── myproject/     # Worktree 7
+├── main/
+│   └── myproject/     # main branch
+├── red/
+│   └── myproject/     # worktree
+├── orange/
+│   └── myproject/     # worktree
+├── yellow/
+│   └── myproject/     # worktree
+├── green/
+│   └── myproject/     # worktree
+├── blue/
+│   └── myproject/     # worktree
+├── indigo/
+│   └── myproject/     # worktree
+└── violet/
+    └── myproject/     # worktree
 ```
 
-### Benefits
-
-| Benefit | Description |
-|---------|-------------|
-| 🚫 **No stale folders** | You won't end up with 100 folders for abandoned features |
-| 🔧 **Persistent environments** | No reinstalling dependencies or copying configs for each new task |
-| 🧠 **Lower cognitive load** | You're never working on more than 7 tasks in parallel |
-| 🤖 **AI-agent friendly** | Let Claude or other AI agents work on multiple features (or parts of a feature) simultaneously, but in a way you can keep track of |
+Seven fixed slots means no folder sprawl, no reinstalling dependencies when you context-switch, and a hard cap on how much parallel work you take on. When something ships, `gbiv reset` reclaims the slot.
 
 ## Installation
 
@@ -77,24 +70,19 @@ cd ~/projects
 gbiv init myproject
 ```
 
-This transforms:
-```
-projects/
-└── myproject/          # Your existing repo
-```
+Turns `projects/myproject/` into:
 
-Into:
 ```
 projects/
 └── myproject/
-    ├── main/myproject/     # Original repo (main branch)
-    ├── red/myproject/      # New worktree (red branch)
-    ├── orange/myproject/   # New worktree (orange branch)
-    ├── yellow/myproject/   # New worktree (yellow branch)
-    ├── green/myproject/    # New worktree (green branch)
-    ├── blue/myproject/     # New worktree (blue branch)
-    ├── indigo/myproject/   # New worktree (indigo branch)
-    └── violet/myproject/   # New worktree (violet branch)
+    ├── main/myproject/     # original repo (main branch)
+    ├── red/myproject/      # new worktree (red branch)
+    ├── orange/myproject/   # new worktree (orange branch)
+    ├── yellow/myproject/   # new worktree (yellow branch)
+    ├── green/myproject/    # new worktree (green branch)
+    ├── blue/myproject/     # new worktree (blue branch)
+    ├── indigo/myproject/   # new worktree (indigo branch)
+    └── violet/myproject/   # new worktree (violet branch)
 ```
 
 ### Check worktree status
@@ -105,7 +93,6 @@ Run from **any worktree** within a gbiv-structured repository:
 gbiv status
 ```
 
-Output:
 ```
 red      red                      clean
 orange   feature/login            dirty  merged  3 days  ↑2 ↓0
@@ -116,15 +103,7 @@ indigo   missing
 violet   violet                   clean
 ```
 
-For each worktree, shows:
-- **Color name** (in color!)
-- **Branch name**
-- **Clean/dirty status** (unstaged, staged, or untracked changes)
-
-If the branch differs from the worktree color, also shows:
-- **Merged status** - whether merged into remote main/master/develop
-- **Commit age** - how long since the last commit
-- **Ahead/behind** - commits ahead/behind upstream (or "no upstream")
+Each row shows the color (in its ANSI color), branch name, and clean/dirty state. When a worktree is on a named branch (meaning actual work is in progress), you also see whether it's merged upstream, how old the last commit is, and the ahead/behind count.
 
 ### Start a tmux session
 
