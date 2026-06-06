@@ -9,4 +9,4 @@ version: 1
 - [gbv-3wb] [blocked-by:gbv-h5m] [parent:gbv-q3t] roy HTTP server + port file + prompt-response guard + roy start
 - [gbv-d6t] [blocked-by:gbv-3wb] [parent:gbv-q3t] roy client CLI (status, get, send)
 - [gbv-k0z] [blocked-by:gbv-d6t] [parent:gbv-q3t] roy install-skill subcommand + bundled SKILL.md
-- [gbv-k4p] Touch up the readme (un AI-ify)
+- [gbv-k4p] [in-progress] [by:claude-routine] Touch up the readme (un AI-ify)
