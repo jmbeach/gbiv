@@ -1,20 +1,21 @@
 schema_version: 1
-last_updated: 2026-05-15
+last_updated: 2026-06-03
 
-# Taxonomy groups segments by product. Purely organizational.
+# Taxonomy groups segments by domain within the single gbiv product.
+# Purely organizational.
 taxonomy:
-  gbiv:
+  worktree:
     - cli-and-palette
     - worktree-lifecycle
     - feature-ledger
     - observation
     - tmux-mirror
-  roy:
+  orchestration:
     - tmux-driver
     - pane-locator
     - http-server
-    - roy-cli
-    - roy-skill
+    - orchestrate-cli
+    - orchestrate-skill
 
 arrows:
   cli-and-palette:
@@ -72,7 +73,7 @@ arrows:
     next: null
     drift: null
 
-  # roy product — designed (HLD + LLDs) but not yet implemented; no code or EARS specs exist
+  # orchestration domain — designed (HLD + LLDs) but not yet implemented; no code or EARS specs exist
   tmux-driver:
     status: UNMAPPED
     sampled: 2026-05-15
@@ -81,7 +82,7 @@ arrows:
     blocks: [pane-locator, http-server]
     blockedBy: []
     detail: tmux-driver.md
-    next: "Author EARS specs in docs/roy/specs/tmux-driver.md"
+    next: "Author EARS specs in docs/specs/tmux-driver.md"
     drift: null
 
   pane-locator:
@@ -92,7 +93,7 @@ arrows:
     blocks: [http-server]
     blockedBy: [tmux-driver]
     detail: pane-locator.md
-    next: "Author EARS specs in docs/roy/specs/pane-locator.md"
+    next: "Author EARS specs in docs/specs/pane-locator.md"
     drift: null
 
   http-server:
@@ -100,32 +101,32 @@ arrows:
     sampled: 2026-05-15
     audited: null
     audited_sha: null
-    blocks: [roy-cli]
+    blocks: [orchestrate-cli]
     blockedBy: [tmux-driver, pane-locator]
     detail: http-server.md
-    next: "Author EARS specs in docs/roy/specs/http-server.md"
+    next: "Author EARS specs in docs/specs/http-server.md"
     drift: null
 
-  roy-cli:
+  orchestrate-cli:
     status: UNMAPPED
     sampled: 2026-05-15
     audited: null
     audited_sha: null
     blocks: []
     blockedBy: [http-server]
-    detail: roy-cli.md
-    next: "Author EARS specs in docs/roy/specs/roy-cli.md"
+    detail: orchestrate-cli.md
+    next: "Author EARS specs in docs/specs/orchestrate-cli.md"
     drift: null
 
-  roy-skill:
+  orchestrate-skill:
     status: UNMAPPED
     sampled: 2026-05-15
     audited: null
     audited_sha: null
     blocks: []
     blockedBy: []
-    detail: roy-skill.md
-    next: "Author EARS specs in docs/roy/specs/roy-skill.md"
+    detail: orchestrate-skill.md
+    next: "Author EARS specs in docs/specs/orchestrate-skill.md"
     drift: null
 
 # Items found during mapping that don't yet belong to a segment.

@@ -1,6 +1,6 @@
 # Arrow: HTTP Server
 
-The only inbound surface of the roy daemon: binds to 127.0.0.1, translates requests into Pane Locator + tmux Driver calls.
+The only inbound surface of the gbiv orchestration daemon: binds to 127.0.0.1, translates requests into Pane Locator + tmux Driver calls.
 
 **Status**: UNMAPPED (sampled 2026-05-15) — HLD + LLD authored; EARS specs not yet written; no code.
 
@@ -8,9 +8,9 @@ The only inbound surface of the roy daemon: binds to 127.0.0.1, translates reque
 
 | Artifact | Location |
 |---|---|
-| HLD sections | `docs/roy/high-level-design.md` |
-| LLD | `docs/roy/llds/http-server.md` |
-| EARS specs | (none yet — pending `docs/roy/specs/http-server.md`) |
+| HLD sections | `docs/high-level-design.md` |
+| LLD | `docs/llds/http-server.md` |
+| EARS specs | (none yet — pending `docs/specs/http-server.md`) |
 | Source | (none yet) |
 | Tests | (none yet) |
 
@@ -33,5 +33,5 @@ POST /session/:color/send       body: {"text": "..."}
 
 ## Work Required
 
-- Author EARS specs in `docs/roy/specs/http-server.md`
+- Author EARS specs in `docs/specs/http-server.md`
 - Implement against pane-locator + tmux-driver

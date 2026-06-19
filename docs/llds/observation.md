@@ -173,6 +173,6 @@ When no target is specified:
 
 ## References
 
-- `crates/gbiv/src/commands/status.rs` — status command
-- `crates/gbiv/src/commands/exec.rs` — exec command
-- `crates/gbiv/src/main.rs` (lines ~150-162) — exec target parsing
+- `src/commands/status.rs` — status command
+- `src/commands/exec.rs` — exec command
+- `src/main.rs` (lines ~150-162) — exec target parsing
