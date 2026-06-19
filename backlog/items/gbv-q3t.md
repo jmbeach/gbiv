@@ -2,5 +2,12 @@
 id: gbv-q3t
 ---
 
-For initial phase, will just work with claude code, but hope to expand to other harnesses like codex.
-Main goal is you have a commander claude code instance in roy that gets notified about changes to the other gbiv worktree sessions. It can command them (through tmux) and read their session data. That's pretty much it. It's just a commander claude code of the other claude codes.
+Orchestration as a domain inside the single gbiv binary (NOT a separate binary, NOT a rename to roy — everything stays gbiv).
+
+- `gbiv start` — foreground daemon (the commander).
+- `gbiv fleet status|get|send` — clients that query and command the other gbiv worktree sessions.
+- Bundled `gbiv-orchestrate` skill drives a commander Claude Code instance.
+
+The commander gets notified about changes to the other gbiv worktree sessions, can command them (through tmux), and read their session data. For the initial phase it works with Claude Code, but aims to expand to other harnesses like Codex.
+
+See docs/high-level-design.md § Orchestration.
