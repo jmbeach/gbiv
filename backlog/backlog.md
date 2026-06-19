@@ -10,4 +10,3 @@ version: 1
 - [gbv-3wb] [blocked-by:gbv-h5m] [parent:gbv-q3t] HTTP server + port file (.gbiv/port) + prompt-response guard + gbiv start
 - [gbv-d6t] [blocked-by:gbv-3wb] [parent:gbv-q3t] gbiv fleet client CLI (status, get, send)
 - [gbv-k0z] [blocked-by:gbv-d6t] [parent:gbv-q3t] gbiv install-skill + bundled gbiv-orchestrate SKILL.md
-- [gbv-b6q] [parent:gbv-q3t] Rename vendored skill .claude/skills/roy/ → .claude/skills/gbiv-orchestrate/
