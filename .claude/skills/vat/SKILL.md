@@ -1,13 +1,13 @@
 ---
 name: vat
-description: Manage a VAT backlog — assign IDs to new bullets (sync), claim tasks (start), block/unblock, mark done, and read/write project & user config. Use whenever the user says "vat sync", "claim foo-7k2", "mark X done", "ID that bullet", "extract notes", or otherwise asks for any operation on `backlog/backlog.md`, `backlog/items/`, `backlog/vat.toml`, `backlog/.used-ids`, or `~/.config/vat/config.toml`. Stopgap implementation while the Rust binary is built — drop this skill into any project to use VAT before the binary lands.
+description: Manage a VAT backlog — assign IDs to new bullets (sync), claim tasks (start), block/unblock, mark done, and read/write project & user config. Use whenever the user says "vat sync", "claim foo-7k2", "mark X done", "ID that bullet", "extract notes", or otherwise asks for any operation on `backlog/backlog.md`, `backlog/items/`, `backlog/vat.toml`, `backlog/.used-ids`, or `~/.config/vat/config.toml`. First-class zero-install implementation — drop this skill into any project to operate a VAT backlog with no binary; when the backlog is its own git repo it claims tasks atomically against the shared remote.
 argument-hint: <subcommand> [args...]
 allowed-tools: Read, Write, Edit, Bash
 ---
 
 # VAT skill
 
-VAT (Versioned Addressable Tasks) is a tiny per-project backlog tool. State is plain markdown in the repo; this skill is a stopgap implementation that performs the same operations the eventual Rust binary will.
+VAT (Versioned Addressable Tasks) is a tiny per-project backlog tool. State is plain markdown in the repo. This skill is a first-class implementation — it performs the same operations as the Rust binary, and unlike the binary it needs no install, so a remote agent can operate a backlog with only file edits and `git`. When the backlog is its own git repository, the skill claims tasks atomically against the shared remote (see [§ Nested-repo backlogs](#nested-repo-backlogs-atomic-claim-loop)).
 
 ## Invocation
 
@@ -158,6 +158,92 @@ Before reading `backlog/backlog.md`:
 All writes are whole-file rewrites. Normalize CRLF → `\n` on read. Output always ends with a single trailing `\n`.
 
 All-or-nothing: if any error occurs during parsing/ID-generation/validation, no files are mutated.
+
+## Nested-repo backlogs (atomic claim loop)
+
+VAT's state is plain markdown, so normally you just edit files and leave git to the human (exactly what the binary does). But a `backlog/` is sometimes its **own git repository** — a submodule, or a standalone clone an agent pulled — and then an autonomous agent has no human to commit, push, and resolve a rejected push. So when you detect a nested-repo backlog, **you** drive git: claim tasks against the shared backlog remote with a first-push-wins loop.
+
+**Detection.** Before running any *mutating* command (`sync`, `start`, `block`, `unblock`, `done`, `config set project.id`), test for `backlog/.git`:
+
+- **Absent** → ordinary backlog. Edit files in place and run no git (everything in § Procedures, unchanged).
+- **Present** (a directory, or a *file* in the submodule/worktree case) → nested-repo backlog. Run the command through the machinery below. **All `git` runs from inside `backlog/`** (`git -C backlog ...`).
+
+Non-mutating commands (`config get`, and `init`, which runs before `backlog/` exists) never run git, regardless. The **claim-loop commands** are `sync`, `start`, `block`, `unblock`, `done`; `config set project.id` is handled separately (single push — end of this section).
+
+### The atomicity guard (evaluate once, at entry)
+
+The loop's `git reset --hard` is destructive, so it may only run when nothing inherited would be lost. From inside `backlog/`:
+
+```
+git status --porcelain                  # any output → tree is dirty
+git fetch                               # updates the remote-tracking branch @{u}
+git merge-base --is-ancestor HEAD @{u}  # exit 0 → HEAD is an ancestor of upstream
+```
+
+- **Clean AND synced** (no porcelain output AND `merge-base` exit 0) → run the loop. **Reuse this `fetch`** as the loop's first refresh — don't fetch twice.
+- **Dirty OR ahead** (porcelain output, or `merge-base` exit 1 = local commits the remote lacks) → **local-edit-only fallback**: make the change on disk exactly as for an ordinary backlog, do **no** commit/reset/push, and say so — e.g. `started foo-7k2 (not pushed; backlog/ has uncommitted changes)` or `... (not pushed; backlog/ has unpushed local commits)`. Never touch inherited in-flight work; the user syncs that batch themselves.
+- **`@{u}` does not resolve** (no upstream configured, or detached HEAD) → **fail fast** with the raw git error; mutate nothing. A nested-repo backlog with no wired remote is a misconfiguration to surface, not to treat as ordinary.
+- **`git fetch` fails** (unreachable remote, auth) → **fail fast** with the raw git error; mutate nothing.
+
+Why clean-**and**-synced, not just clean: a clean tree can still sit on an unpushed local commit that `reset --hard` would destroy. You only ever commit *inside* the loop and immediately push it (or reset it away on contention), so any commit already present at entry is foreign work and must be preserved.
+
+### The loop (claim-loop commands)
+
+Constants: `MAX = 5` attempts; backoff `sleep = 0.5 * 2^(attempt-1)` seconds plus random jitter in `[0, 0.5]s` — i.e. the waits before attempts 2..5 are ≈ 0.5s, 1s, 2s, 4s (`attempt` is incremented before the sleep, so the first retry uses `attempt = 1`). With the guard satisfied, from inside `backlog/`:
+
+```
+attempt = 0
+loop:
+  1. refresh:  git fetch (the entry fetch counts as the first), then git reset --hard @{u}
+  2. re-read:  re-parse the now-fresh backlog files (§ Common machinery)
+  3. terminal precondition (per command — see table):
+        success → report success, stop (no mutation, no push)
+        loss    → report the loss, stop
+        none    → continue
+  4. decide + mutate:  run the command's § Procedure against the fresh state
+                       (its normal local validation still applies — e.g. unknown id aborts)
+  5. no-op check:  if the tree is now byte-identical to fresh state → report `unchanged`, stop
+  6. commit:   git add -A && git commit -m "<fixed message>"
+  7. push:     git push
+        ok                           → report success, stop          (first push wins)
+        rejected / non-fast-forward  → contention: git reset --hard @{u}; attempt += 1;
+                                        if attempt >= MAX → report lost race (exit 1), stop;
+                                        else sleep backoff, loop
+        any other failure            → fail fast: raw git error (exit 1), stop
+```
+
+**First push wins.** On a `rejected` / `non-fast-forward` push the loser does **not** merge or rebase — it resets to the winner and re-runs the whole decision (steps 1–7) on fresh state. So there's never a textual merge conflict, not even a false one between two unrelated tasks edited on nearby lines.
+
+**Fail fast, don't mislead.** Only `rejected` / `non-fast-forward` is contention. Network / auth / quota / unreachable failures surface the raw git error immediately (exit 1) and do **not** consume a retry — a "lost race" report must mean a real lost race.
+
+**Terminal preconditions** (checked on fresh state, step 3):
+
+| Command | On fresh state | Result |
+|---|---|---|
+| `start <id>` | already claimed by anyone (`[by:...]` or `[in-progress]`) | loss → `lost claim: <id> already claimed by <name>` |
+| `done <id>` | absent **and** `<id>` in `.used-ids` | success → already done |
+| `done <id>` | absent **and** `<id>` **not** in `.used-ids` | error → `unknown id: <id>` |
+| `unblock <id>` | no `[blocked-by:...]` | success (no-op) |
+| `block <id> <b>` | already `[blocked-by:<b>]` (same blocker) | success (no-op) |
+| `sync` | — | none — always proceed |
+
+There is no "already mine, success" case for `start`: a rejected claim is reset away before re-read, so any claim seen on fresh state is someone else's (or your own from a *prior* completed `start`, which is still a refusal). Terminal preconditions end the loop early; they don't replace normal validation — a fresh-state `unknown id` / `unknown blocker` still aborts (exit 1, no retry).
+
+**Fixed commit messages** (auditable remote history):
+
+| Command | Commit message |
+|---|---|
+| `sync` | `vat sync` |
+| `start <id>` | `vat start <id>` |
+| `block <id> <b>` | `vat block <id> <b>` |
+| `unblock <id>` | `vat unblock <id>` |
+| `done <id>` | `vat done <id>` |
+
+`sync` re-run after contention recomputes ids against the refreshed `backlog.md` + `.used-ids`; ids from a discarded attempt impose no constraint (they were never pushed).
+
+### `config set project.id` (single push, no loop)
+
+Concurrent re-prefixing isn't a real scenario, and re-deciding a re-prefix against a winner's fresh state would be destructive — so this command does **not** loop. With the guard satisfied: edit `vat.toml` → `git commit -m "vat config set project.id <v>"` → `git push`, **once**. No refresh, no reset, no re-decide. A rejected or failed push fails fast with the raw git error (exit 1); the user pulls and re-runs. If `project.id` already equals `<v>`, succeed without writing, committing, or pushing. (Dirty-or-ahead still falls back to local-edit-only, like any mutating command.)
 
 ## Procedures
 
@@ -316,6 +402,8 @@ Exactly these — never anything else:
 
 ## Exit-code semantics (for parity with the binary)
 
-- `0` — success (including no-op cases).
-- `1` — user-facing error (unknown id, missing config, validation failure).
+- `0` — success (including no-op / `unchanged` cases, and a clean local-edit-only fallback).
+- `1` — user-facing error (unknown id, missing config, validation failure) **and** every git failure in a nested-repo backlog: lost race after `MAX` attempts, a non-contention push/fetch failure (network, auth, quota, unreachable remote), or no configured upstream / detached HEAD. Carry the raw git message.
 - `2` — internal error (file IO, parse failure that shouldn't happen).
+
+Note: in a nested-repo backlog a *rejected / non-fast-forward* push is **not** an error — it's contention, handled by the loop's reset-and-retry, and only becomes a `1` (lost race) once `MAX` attempts are exhausted.
