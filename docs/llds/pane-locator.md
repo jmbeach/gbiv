@@ -12,7 +12,7 @@ For a given color (e.g., `red`), the Pane Locator answers two questions:
 
 Both answers feed every HTTP endpoint. `/sessions` runs the locator across all seven colors; `/session/:color` and `/session/:color/send` run it once. The locator's output is a `Resolution` value that tells the caller exactly what to do — including how to fail.
 
-The locator is the only place in roy that reasons about Claude Code's process identity. Higher layers see only `Resolution`.
+The locator is the only place in gbiv that reasons about Claude Code's process identity. Higher layers see only `Resolution`.
 
 ## Why a Custom Locator
 
@@ -148,5 +148,5 @@ Within a single resolution, pane info from `list_panes` is read once. The walk u
 
 ## References
 
-- HLD: `docs/roy/high-level-design.md` § Components > Pane Locator
-- Companion: `docs/roy/llds/tmux-driver.md` (`list_windows`, `list_panes`)
+- HLD: `docs/high-level-design.md` § Components > Pane Locator
+- Companion: `docs/llds/tmux-driver.md` (`list_windows`, `list_panes`)

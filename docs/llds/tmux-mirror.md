@@ -136,9 +136,9 @@ Closes windows for colors that have no corresponding GBIV.md entry.
 
 All tmux interaction is via `std::process::Command` — no tmux library or API.
 
-### Shared with roy via `gbiv-core::tmux`
+### Shared with the orchestration daemon via `core::tmux`
 
-The lookup primitives — `tmux_available()` (`tmux -V`), `has_session()`, `list_windows()`, and the folder-derived session name — live in `gbiv-core::tmux` and are called from both binaries, so they can't disagree about "is tmux installed" or "what session are we in." Window-mutation ops (`new-session`, `new-window`, `kill-window`, `move-window`) stay in gbiv; capture/send ops stay in roy. See `docs/roy/llds/tmux-driver.md` § "Shared Primitives in `gbiv-core`" for the full split.
+The lookup primitives — `tmux_available()` (`tmux -V`), `has_session()`, `list_windows()`, and the folder-derived session name — live in `core::tmux` and are called from both the worktree commands and the orchestration daemon, so they can't disagree about "is tmux installed" or "what session are we in." Window-mutation ops (`new-session`, `new-window`, `kill-window`, `move-window`) stay in gbiv; capture/send ops stay in the orchestration daemon. See `docs/llds/tmux-driver.md` § "Shared Primitives in the `core` module" for the full split.
 
 ## Observed Design Decisions
 
@@ -171,7 +171,7 @@ The lookup primitives — `tmux_available()` (`tmux -V`), `has_session()`, `list
 
 ## References
 
-- `crates/gbiv/src/commands/tmux/mod.rs` — subcommand group declaration
-- `crates/gbiv/src/commands/tmux/new_session.rs` — session creation
-- `crates/gbiv/src/commands/tmux/sync.rs` — window sync + reorder
-- `crates/gbiv/src/commands/tmux/clean.rs` — orphaned window cleanup
+- `src/commands/tmux/mod.rs` — subcommand group declaration
+- `src/commands/tmux/new_session.rs` — session creation
+- `src/commands/tmux/sync.rs` — window sync + reorder
+- `src/commands/tmux/clean.rs` — orphaned window cleanup

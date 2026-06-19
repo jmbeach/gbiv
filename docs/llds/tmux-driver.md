@@ -5,9 +5,9 @@
 
 ## Context
 
-The tmux Driver is the only component in roy that touches the tmux CLI. Everything above it — Pane Locator, HTTP Server — calls into the driver instead of running `tmux` themselves. This keeps subprocess invocation, argument escaping, and exit-code handling in one place and makes the rest of roy easy to test against a fake driver.
+The tmux Driver is the only component in gbiv that touches the tmux CLI. Everything above it — Pane Locator, HTTP Server — calls into the driver instead of running `tmux` themselves. This keeps subprocess invocation, argument escaping, and exit-code handling in one place and makes the rest of gbiv easy to test against a fake driver.
 
-The driver covers four operations roy needs:
+The driver covers four operations gbiv needs:
 
 1. **list_windows** — enumerate tmux windows in a session (used to find the gbiv color windows)
 2. **list_panes** — enumerate panes in a window with the metadata needed for claude detection (`pane_id`, `pane_pid`, `pane_current_command`, `pane_current_path`)
@@ -105,7 +105,7 @@ Returns the captured text along with truncation/range metadata. If the pane no l
 
 #### Output Cap
 
-The driver enforces a hard byte cap on captured output before returning. Rationale: the typical caller is an LLM (Claude Code via the skill) and an unbounded pane capture can blow a context budget — a noisy build or test runner can produce hundreds of KB in a single capture. Anthropic's own guidance for tool authors caps Claude Code MCP tool responses at 25,000 tokens by default; roy follows the same shape with byte-based limits since the driver does not tokenize.
+The driver enforces a hard byte cap on captured output before returning. Rationale: the typical caller is an LLM (Claude Code via the skill) and an unbounded pane capture can blow a context budget — a noisy build or test runner can produce hundreds of KB in a single capture. Anthropic's own guidance for tool authors caps Claude Code MCP tool responses at 25,000 tokens by default; gbiv follows the same shape with byte-based limits since the driver does not tokenize.
 
 - **Default cap**: 64 KiB (~16k tokens at typical English/code ratios — leaves headroom under the 25k-token reference point).
 - **Hard maximum**: 256 KiB. The HTTP layer's `lines` parameter can request more rows but the driver will still trim to ≤256 KiB. Beyond this, the caller is misusing the API and should paginate via repeated calls with smaller `lines`.
@@ -125,7 +125,7 @@ Callers that want to read past the byte cap use `CaptureRange::Window` to step b
 2. The dropped head occupies tmux rows `(start_of_request, range_returned.0)`. Call again with `Window { start, end: range_returned.0 - 1 }` choosing a `start` that is roughly cap-sized (e.g., previous `range_returned.0 - 200` rows). Repeat until either the chunk fits without truncation or the caller has gone as far back as they want.
 3. To explicitly start from the top of history, use `Window { start: i32::MIN, end: ... }`.
 
-The driver does not retain any cursor state between calls — pagination is purely client-driven via row offsets. Pane scrollback can change between calls (new output pushes old rows further into the past); the row-offset semantics stay consistent (offsets are relative to the bottom of the visible pane *at call time*) but the absolute content at a given offset may shift. For typical roy use (an agent that paused and is no longer producing output), this is a non-issue.
+The driver does not retain any cursor state between calls — pagination is purely client-driven via row offsets. Pane scrollback can change between calls (new output pushes old rows further into the past); the row-offset semantics stay consistent (offsets are relative to the bottom of the visible pane *at call time*) but the absolute content at a given offset may shift. For typical gbiv use (an agent that paused and is no longer producing output), this is a non-issue.
 
 The cap is applied in the driver, not in the HTTP layer, so any future caller of the driver gets the same protection without re-implementing it.
 
@@ -170,9 +170,12 @@ The driver returns `Result<T, TmuxError>` from every operation. `thiserror` gene
 
 The driver never uses `anyhow` — staying typed is the whole point of this layer.
 
-## Shared Primitives in `gbiv-core`
+## Shared Primitives in the `core` module
 
-A handful of tmux operations are needed by both `gbiv` (sync/clean/new-session) and `roy` (locator startup). Those — and only those — live in `gbiv-core::tmux`:
+gbiv is one crate. A handful of tmux operations are needed by both caller groups —
+the worktree commands (sync/clean/new-session) and the orchestration daemon
+(locator startup). Those — and only those — live in the internal `core::tmux`
+module:
 
 | Primitive | Signature | Used by |
 |---|---|---|
@@ -181,12 +184,14 @@ A handful of tmux operations are needed by both `gbiv` (sync/clean/new-session) 
 | `list_windows(session)` | `Result<Vec<Window>, TmuxError>` | both |
 | `session_name_for_root(root)` | `String` (folder-name derivation) | both |
 
-`TmuxError` is defined in `gbiv-core` so both binaries map the same variants. roy's tmux driver re-exports it (or layers its own variants on top — `PaneNotFound`, `SendKeysIncomplete`, etc., are roy-only).
+`TmuxError` is defined in `core` so every caller maps the same variants. The tmux
+driver re-exports it (or layers its own variants on top — `PaneNotFound`,
+`SendKeysIncomplete`, etc., are orchestration-only).
 
-Everything else stays per-binary:
+Everything else stays in its own module:
 
-- **gbiv-only**: `new_session`, `new_window`, `kill_window`, `move_window` — window mutation, no value to roy.
-- **roy-only**: `list_panes`, `capture_pane`, `send_keys` — pane-level read/write, no value to gbiv.
+- **Worktree-only**: `new_session`, `new_window`, `kill_window`, `move_window` — window mutation, used only by the tmux-mirror commands.
+- **Orchestration-only**: `list_panes`, `capture_pane`, `send_keys` — pane-level read/write, used only by the daemon.
 
 ## Subprocess Conventions
 
@@ -215,7 +220,7 @@ Everything else stays per-binary:
 | Wrap handling | `-J` (join) | Leave wrapped | Commander reads logical lines, not screen lines |
 | ANSI handling | Strip (default) | `-e` to preserve | Commander parses plain text; ANSI is noise |
 | Retry policy | None | Retry on transient tmux errors | tmux operations are local; transient failures are vanishingly rare and the HTTP layer can retry if needed |
-| Driver owns session naming | No | Yes, via `gbiv-core` reuse | Session selection is daemon-startup concern, not per-call concern; keeps the driver stateless |
+| Driver owns session naming | No | Yes, via the `core` module reuse | Session selection is daemon-startup concern, not per-call concern; keeps the driver stateless |
 | Capture output cap | 64 KiB default, 256 KiB hard max, applied in the driver | No cap (rely on caller's `lines`); cap in HTTP layer; cap by line count only | LLM consumers have finite context. Bytes is the right unit because line lengths vary wildly. Driver-level enforcement protects every future caller |
 | Trim direction when capping | Keep tail (most recent) | Keep head; keep middle | Pane scrollback is read for "what just happened"; the bottom is the signal |
 | Truncation signaling | Inline marker at top of `text` + structured `truncated`/`*_bytes` fields | Header-only metadata; throw an error and force smaller request | Inline marker means an LLM that only reads `text` still notices; structured fields let the CLI/skill reason precisely |
@@ -243,12 +248,12 @@ Everything else stays per-binary:
 ## Technical Debt & Future Work
 
 1. **No window-relative pane targeting in send/capture**: by design, but if a future caller has only a window target it must call `list_panes` first.
-2. **`Other` error variant is a catch-all**: as roy matures, more tmux failure modes will earn their own variants.
+2. **`Other` error variant is a catch-all**: as gbiv matures, more tmux failure modes will earn their own variants.
 3. **Cap is byte-based, not token-based**: a future revision could use a tokenizer (or a quick char-based estimate) to cap closer to the model's real budget. Bytes are a safe, dependency-free proxy for v1.
 4. **Pagination is row-offset, not cursor**: callers do their own row arithmetic. An opaque `?before=<cursor>` scheme could replace this without breaking the simple `Tail { lines }` shorthand.
-5. **Row offsets shift while a pane is still producing output**: stable across paused panes (the typical roy use case), unstable across active ones. A snapshot ID could anchor pagination if this becomes a real problem.
+5. **Row offsets shift while a pane is still producing output**: stable across paused panes (the typical gbiv use case), unstable across active ones. A snapshot ID could anchor pagination if this becomes a real problem.
 
 ## References
 
-- HLD: `docs/roy/high-level-design.md` § Components > tmux Driver
-- gbiv tmux usage (similar patterns): `docs/gbiv/llds/tmux-mirror.md`
+- HLD: `docs/high-level-design.md` § Components > tmux Driver
+- gbiv tmux usage (similar patterns): `docs/llds/tmux-mirror.md`

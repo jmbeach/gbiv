@@ -158,6 +158,6 @@ GBIV.md
 
 ## References
 
-- `crates/gbiv/src/gbiv_md.rs` — parser and mutation functions
-- `crates/gbiv/src/commands/mark.rs` — mark command
-- `crates/gbiv/src/commands/status.rs` (lines ~185-220) — ledger display section
+- `src/gbiv_md.rs` — parser and mutation functions
+- `src/commands/mark.rs` — mark command
+- `src/commands/status.rs` (lines ~185-220) — ledger display section
