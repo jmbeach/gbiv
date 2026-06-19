@@ -5,3 +5,6 @@ watch-tests.log
 .claude-cache/
 GBIV.md
 .roy/
+
+# Backlog is tracked in its own satellite repo: github.com/jmbeach/gbiv-backlog
+backlog/
