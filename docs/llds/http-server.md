@@ -5,7 +5,7 @@
 
 ## Context
 
-The HTTP Server is the only inbound surface of the roy daemon. It binds to `127.0.0.1` on an ephemeral port, accepts requests from local Claude Code sessions (or any other localhost caller), and translates each request into a small dance of Pane Locator + tmux Driver calls.
+The HTTP Server is the only inbound surface of the gbiv daemon. It binds to `127.0.0.1` on an ephemeral port, accepts requests from local Claude Code sessions (or any other localhost caller), and translates each request into a small dance of Pane Locator + tmux Driver calls.
 
 The server is stateless beyond the bound socket. There is no session, no cache, no in-memory buffer. Every request re-resolves panes and re-captures output.
 
@@ -118,8 +118,8 @@ Response body (error):
   "error": "looks_like_prompt_response",
   "reason": "yes/no word",
   "color": "red",
-  "explanation": "Roy refused this send because the trimmed text matches the shape of a response to a Claude Code permission prompt or AskUserQuestion choice (rule: yes/no word). Roy never answers prompts on the user's behalf in v1 — a misread of pane state could approve actions the user has not seen. Do NOT retry by paraphrasing, padding with filler words, or otherwise reshaping the same intent to slip past the guard; the guard is shape-based but the rule's purpose is intent-based, and bypassing it violates the user's trust. Correct action: tell the user that red appears to be waiting on a prompt and ask them to answer it themselves in red's tmux window. If the user genuinely wants to send substantive natural-language guidance (not a prompt answer), send that instead.",
-  "docs": "docs/roy/high-level-design.md#reject-prompt-shaped-input-on-send"
+  "explanation": "gbiv refused this send because the trimmed text matches the shape of a response to a Claude Code permission prompt or AskUserQuestion choice (rule: yes/no word). gbiv never answers prompts on the user's behalf in v1 — a misread of pane state could approve actions the user has not seen. Do NOT retry by paraphrasing, padding with filler words, or otherwise reshaping the same intent to slip past the guard; the guard is shape-based but the rule's purpose is intent-based, and bypassing it violates the user's trust. Correct action: tell the user that red appears to be waiting on a prompt and ask them to answer it themselves in red's tmux window. If the user genuinely wants to send substantive natural-language guidance (not a prompt answer), send that instead.",
+  "docs": "docs/high-level-design.md#reject-prompt-shaped-input-on-send"
 }
 ```
 
@@ -150,15 +150,15 @@ Multi-word natural-language text (e.g., `"yes please run that"`) is **not** reje
 
 ### Startup
 
-1. Discover the gbiv root by walking up from CWD (`gbiv-core::find_gbiv_root`).
-2. Resolve `main/<repo>/` (`gbiv-core::find_repo_in_worktree`) and the tmux session name (folder-derived unless `--session-name` provided; both come from `gbiv-core` so the daemon and the gbiv binary cannot disagree).
-3. Verify `tmux -V` succeeds (`gbiv-core::tmux::tmux_available`) → fatal exit if not.
+1. Discover the gbiv root by walking up from CWD (`core::find_gbiv_root`).
+2. Resolve `main/<repo>/` (`core::find_repo_in_worktree`) and the tmux session name (folder-derived unless `--session-name` provided; both come from the `core` module so the daemon and the worktree commands cannot disagree).
+3. Verify `tmux -V` succeeds (`core::tmux::tmux_available`) → fatal exit if not.
 4. Bind a TCP listener on `127.0.0.1:0` (kernel-assigned port).
-5. Create `<gbiv-root>/main/<repo>/.roy/` if missing.
-6. Write the bound port to `<gbiv-root>/main/<repo>/.roy/port` as plain ASCII (e.g., `54321\n`).
-7. Ensure `.roy/` is in `.git/info/exclude` (`gbiv-core::ensure_gitignore_entry`) so the user doesn't have to edit anything to keep the port file out of git.
-8. Validate `:color` URL params against `gbiv-core::colors::is_valid_color` at request time (rejected at the routing layer before the locator is called).
-9. Print `roy listening on http://127.0.0.1:<port>` to stdout.
+5. Create `<gbiv-root>/main/<repo>/.gbiv/` if missing.
+6. Write the bound port to `<gbiv-root>/main/<repo>/.gbiv/port` as plain ASCII (e.g., `54321\n`).
+7. Ensure `.gbiv/` is in `.git/info/exclude` (`core::ensure_gitignore_entry`) so the user doesn't have to edit anything to keep the port file out of git.
+8. Validate `:color` URL params against `core::colors::is_valid_color` at request time (rejected at the routing layer before the locator is called).
+9. Print `gbiv listening on http://127.0.0.1:<port>` to stdout.
 10. Block in the accept loop.
 
 ### Shutdown
@@ -169,7 +169,7 @@ Multi-word natural-language text (e.g., `"yes please run that"`) is **not** reje
 ### Concurrency
 
 - One worker thread per request. tiny_http (or equivalent sync HTTP lib) gives a thread per accepted connection.
-- Pane Locator and tmux Driver are independently safe to call concurrently — they hold no shared state and tmux subprocesses don't conflict at the granularity roy uses.
+- Pane Locator and tmux Driver are independently safe to call concurrently — they hold no shared state and tmux subprocesses don't conflict at the granularity gbiv uses.
 - Request handling is bounded by tmux subprocess speed (~tens of ms per call). v1 sets a max of 16 worker threads to cap runaway parallelism if a misbehaving client floods.
 
 ## Binding & Security
@@ -198,13 +198,13 @@ Request handlers are written as `fn handle_xxx(...) -> anyhow::Result<HttpRespon
 
 v1 uses `tiny_http` (sync, no runtime, ~3K LOC). Rationale:
 
-- roy has 3 endpoints. Async is not earning its keep at this scale.
+- gbiv has 3 endpoints. Async is not earning its keep at this scale.
 - gbiv currently has zero async dependencies. Adding `tokio` would dwarf the rest of the project's dep graph.
 - `tiny_http` is well-maintained and stable.
 
 JSON serialization uses `serde` + `serde_json`. These are the de-facto standard and pull in cleanly.
 
-If roy later needs SSE streaming (`/events`), revisit: `hyper` + `tokio` becomes a credible move.
+If gbiv later needs SSE streaming (`/events`), revisit: `hyper` + `tokio` becomes a credible move.
 
 ## Decisions & Alternatives
 
@@ -228,12 +228,12 @@ If roy later needs SSE streaming (`/events`), revisit: `hyper` + `tokio` becomes
 | Body of POST `/send` is not valid JSON | `400` |
 | `text` field present but empty string | `400` (HLD: caller responsible for not sending empty) |
 | Two simultaneous sends to the same color | Both go through; tmux serializes keystrokes per pane |
-| Daemon already running (port file exists, port in use) | New `roy start` fails to bind, exits with a clear message; existing daemon untouched |
-| Port file exists but daemon is dead | `roy start` succeeds (kernel rejects re-bind only if port still in use); writes a fresh port file |
+| Daemon already running (port file exists, port in use) | New `gbiv start` fails to bind, exits with a clear message; existing daemon untouched |
+| Port file exists but daemon is dead | `gbiv start` succeeds (kernel rejects re-bind only if port still in use); writes a fresh port file |
 
 ## Technical Debt & Future Work
 
-1. **Logging sinks are stderr-only** in v1 — file/syslog/JSON are deferred. The framework (`tracing`) and the per-request `info` line are in place from day one; see roy-cli LLD § "Logging" for the shared design.
+1. **Logging sinks are stderr-only** in v1 — file/syslog/JSON are deferred. The framework (`tracing`) and the per-request `info` line are in place from day one; see orchestrate-cli LLD § "Logging" for the shared design.
 2. **No rate limiting**. Localhost trust boundary makes this low priority.
 3. **Manual JSON shapes**. A future refactor could derive request/response types from a shared schema with the CLI.
 4. **No graceful drain on shutdown** — in-flight requests are killed when the process exits. Acceptable for v1's "Ctrl+C and you're done" model.
@@ -241,6 +241,6 @@ If roy later needs SSE streaming (`/events`), revisit: `hyper` + `tokio` becomes
 
 ## References
 
-- HLD: `docs/roy/high-level-design.md` § Components > HTTP Server, § HTTP API
-- Companion: `docs/roy/llds/pane-locator.md`, `docs/roy/llds/tmux-driver.md`
-- Companion: `docs/roy/llds/roy-cli.md` (HTTP client side)
+- HLD: `docs/high-level-design.md` § Components > HTTP Server, § HTTP API
+- Companion: `docs/llds/pane-locator.md`, `docs/llds/tmux-driver.md`
+- Companion: `docs/llds/orchestrate-cli.md` (HTTP client side)

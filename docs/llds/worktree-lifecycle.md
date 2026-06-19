@@ -37,16 +37,16 @@ Each color directory contains a subdirectory with the same name as the original 
 
 ### Root Discovery
 
-`gbiv_core::root::find_gbiv_root()` walks up from any CWD to find the gbiv root by checking for:
+`core::root::find_gbiv_root()` walks up from any CWD to find the gbiv root by checking for:
 1. A `main/` subdirectory exists
 2. At least one ROYGBIV color subdirectory exists
 3. A git repo exists somewhere under `main/`
 
-Returns `GbivRoot { root: PathBuf, folder_name: String }` where `folder_name` is the repo directory name inside `main/`. Lives in `gbiv-core` because `roy` calls it from `roy start` and from every CLI subcommand to locate `main/<repo>/.roy/port`.
+Returns `GbivRoot { root: PathBuf, folder_name: String }` where `folder_name` is the repo directory name inside `main/`. Lives in the `core` module because the orchestration daemon calls it from `gbiv start` and from every CLI subcommand to locate `main/<repo>/.gbiv/port`.
 
 ### Color Inference
 
-`gbiv_core::colors::infer_color_from_path()` extracts which color worktree the CWD is inside by matching the first path component after the gbiv root against the COLORS constant. Returns `Option<&'static str>`. Lives in `gbiv-core` because it depends only on `COLORS` and a `Path`, and belongs with the other root-relative helpers — although `roy` does not currently call it (`roy` always runs from `main/`).
+`core::colors::infer_color_from_path()` extracts which color worktree the CWD is inside by matching the first path component after the gbiv root against the COLORS constant. Returns `Option<&'static str>`. Lives in the `core` module because it depends only on `COLORS` and a `Path`, and belongs with the other root-relative helpers — although the orchestration daemon does not currently call it (the orchestration daemon always runs from `main/`).
 
 ## Init (Project Bootstrap)
 
@@ -131,10 +131,10 @@ Errors from individual steps are collected but don't short-circuit — all three
 
 This component's git helpers split between two homes:
 
-- **`gbiv-core`** owns the primitives that both `gbiv` and `roy` depend on: root discovery, the `.git/info/exclude` registration helper, the `is_git_repo` predicate, and color inference. See `gbiv-core` annotations below.
-- **`crates/gbiv/src/git_utils.rs`** (gbiv-only) owns the dozens of `git`-shell-out wrappers used by gbiv commands (`checkout`, `rebase`, `stash`, `fetch`, `pull`, status queries, …). `roy` does not touch git, so none of these cross the boundary.
+- **The `core` module** owns the primitives that both the worktree commands and the orchestration daemon depend on: root discovery, the `.git/info/exclude` registration helper, the `is_git_repo` predicate, and color inference. See the `core` annotations below.
+- **`src/git_utils.rs`** (worktree-only) owns the dozens of `git`-shell-out wrappers used by gbiv commands (`checkout`, `rebase`, `stash`, `fetch`, `pull`, status queries, …). the orchestration daemon does not touch git, so none of these cross the boundary.
 
-### State Queries (gbiv-only)
+### State Queries (worktree-only)
 - `get_quick_status()` — parses `git status --porcelain=v2 --branch` into `QuickStatus { branch, is_dirty, ahead_behind }`
 - `get_ahead_behind_vs()` — commit count comparison via `git rev-list --left-right --count`
 - `is_merged_into()` — ancestry check via `git merge-base --is-ancestor`
@@ -142,7 +142,7 @@ This component's git helpers split between two homes:
 - `get_remote_main_branch()` — probes for `origin/main`, `origin/master`, `origin/develop`
 - `get_existing_branches()` — lists all local branches
 
-### Mutating Operations (gbiv-only)
+### Mutating Operations (worktree-only)
 - `checkout_branch()` — `git checkout`
 - `reset_hard()` — `git reset --hard <ref>`
 - `stash_push()` — `git stash push -m <msg>`
@@ -151,15 +151,15 @@ This component's git helpers split between two homes:
 - `pull()` — `git pull`
 
 ### Worktree Navigation
-- `find_gbiv_root()` — walk-up root discovery (described above) — **lives in `gbiv-core::root`**; `roy` calls it from `roy start` and from every CLI subcommand to locate `main/<repo>/.roy/port`
-- `find_repo_in_worktree()` — find the `.git`-containing subdirectory inside a color dir — **lives in `gbiv-core::root`**; `roy` uses it to resolve `main/<repo>/` from the gbiv root
-- `is_git_repo()` — `git rev-parse --git-dir` predicate — **lives in `gbiv-core::root`**; internal to `find_gbiv_root` (moves with its caller)
-- `infer_color_from_path()` — CWD → color name (described above) — **lives in `gbiv-core::colors`**; `roy` does not currently call it (`roy` always runs from `main/`) but it belongs with the other root-relative helpers
-- `resolve_git_dir()` — handle normal `.git` dir vs worktree gitlink file — gbiv-only
-- `get_git_dir()` — `git rev-parse --git-common-dir` — gbiv-only
+- `find_gbiv_root()` — walk-up root discovery (described above) — **lives in `core::root`**; the orchestration daemon calls it from `gbiv start` and from every CLI subcommand to locate `main/<repo>/.gbiv/port`
+- `find_repo_in_worktree()` — find the `.git`-containing subdirectory inside a color dir — **lives in `core::root`**; the orchestration daemon uses it to resolve `main/<repo>/` from the gbiv root
+- `is_git_repo()` — `git rev-parse --git-dir` predicate — **lives in `core::root`**; internal to `find_gbiv_root` (moves with its caller)
+- `infer_color_from_path()` — CWD → color name (described above) — **lives in `core::colors`**; the orchestration daemon does not currently call it (the orchestration daemon always runs from `main/`) but it belongs with the other root-relative helpers
+- `resolve_git_dir()` — handle normal `.git` dir vs worktree gitlink file — worktree-only
+- `get_git_dir()` — `git rev-parse --git-common-dir` — worktree-only
 
 ### Housekeeping
-- `ensure_gitignore_entry()` — appends an entry to `<git_dir>/info/exclude` if not already present (idempotent), creating `info/` if missing — **lives in `gbiv-core::gitignore`**; `roy` uses it on `roy start` to register `.roy/` without making the user edit anything
+- `ensure_gitignore_entry()` — appends an entry to `<git_dir>/info/exclude` if not already present (idempotent), creating `info/` if missing — **lives in `core::gitignore`**; the orchestration daemon uses it on `gbiv start` to register `.gbiv/` without making the user edit anything
 
 ### Error Type
 
@@ -185,7 +185,7 @@ enum GitError {
 
 Callers `?` these into `anyhow::Error` at the command-handler boundary. New variants are added when a command needs to branch on a specific failure (e.g., reset wants to distinguish `WorktreeExists` from a generic git failure); until then `Other` is the catch-all.
 
-`GitError` carries a `#[from] CoreError` arm so that call sites bubbling up an `ensure_gitignore_entry` error (or any future `gbiv-core` fallible primitive) compose through `?` without an explicit conversion. `CoreError` is deliberately minimal — Io-only today — and lives in `gbiv-core::error`. gbiv-specific failure variants (`WorktreeAlreadyExists`, `RebaseConflict`, `GitFailed`, …) stay with `GitError` in the gbiv binary; they have no place in a library shared with roy.
+`GitError` carries a `#[from] CoreError` arm so that call sites bubbling up an `ensure_gitignore_entry` error (or any future `core` module fallible primitive) compose through `?` without an explicit conversion. `CoreError` is deliberately minimal — Io-only today — and lives in `core::error`. Worktree-specific failure variants (`WorktreeAlreadyExists`, `RebaseConflict`, `GitFailed`, …) stay with `GitError` in the worktree command modules; they have no place in the shared `core` module the orchestration daemon also depends on.
 
 ## Observed Design Decisions
 
@@ -220,11 +220,11 @@ Callers `?` these into `anyhow::Error` at the command-handler boundary. New vari
 
 ## References
 
-- `crates/gbiv/src/git_utils.rs` — gbiv-only git command wrappers and state queries
-- `crates/gbiv-core/src/root.rs` — `find_gbiv_root`, `find_repo_in_worktree`, `is_git_repo` (shared with roy)
-- `crates/gbiv-core/src/colors.rs` — `infer_color_from_path` (shared with roy)
-- `crates/gbiv-core/src/gitignore.rs` — `ensure_gitignore_entry` (shared with roy)
-- `crates/gbiv/src/commands/init.rs` — project bootstrap
-- `crates/gbiv/src/commands/rebase_all.rs` — upstream sync
-- `crates/gbiv/src/commands/reset.rs` — worktree reclamation
-- `crates/gbiv/src/commands/tidy.rs` — maintenance composite
+- `src/git_utils.rs` — worktree-only git command wrappers and state queries
+- `src/core/root.rs` — `find_gbiv_root`, `find_repo_in_worktree`, `is_git_repo` (shared with the orchestration daemon)
+- `src/core/colors.rs` — `infer_color_from_path` (shared with the orchestration daemon)
+- `src/core/gitignore.rs` — `ensure_gitignore_entry` (shared with the orchestration daemon)
+- `src/commands/init.rs` — project bootstrap
+- `src/commands/rebase_all.rs` — upstream sync
+- `src/commands/reset.rs` — worktree reclamation
+- `src/commands/tidy.rs` — maintenance composite

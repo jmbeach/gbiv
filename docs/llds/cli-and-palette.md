@@ -59,9 +59,9 @@ Several subcommands accept an optional `<color>` argument. Validation happens at
 
 ## Palette
 
-The palette splits along a binary boundary: the canonical color list is shared with `roy` via `gbiv-core`; ANSI escape codes and terminal formatting stay gbiv-only.
+The palette splits along a binary boundary: the canonical color list is shared with the orchestration daemon via the `core` module; ANSI escape codes and terminal formatting stay worktree-only.
 
-### ROYGBIV Constant — lives in `gbiv-core::colors`
+### ROYGBIV Constant — lives in `core::colors`
 
 ```rust
 pub const COLORS: [&str; 7] = [
@@ -76,11 +76,11 @@ This array is the single source of truth for:
 - Iteration order (status, exec-all, rebase-all use ROYGBIV order)
 - Tmux window names and sort order
 
-`COLORS` and `is_valid_color` live in `gbiv-core` so `roy` can validate `:color` URL params and iterate `/sessions` in the same canonical order without re-declaring the list. Both binaries must agree about which seven names are colors, so there can only be one home for this.
+`COLORS` and `is_valid_color` live in the `core` module so the orchestration daemon can validate `:color` URL params and iterate `/sessions` in the same canonical order without re-declaring the list. Both binaries must agree about which seven names are colors, so there can only be one home for this.
 
-### ANSI Codes — gbiv-only (`crates/gbiv/src/colors.rs`)
+### ANSI Codes — worktree-only (`src/colors.rs`)
 
-The ANSI escape codes and formatting constants below stay in the gbiv binary. `roy` emits JSON and has no use for terminal escapes.
+The ANSI escape codes and formatting constants below stay in the gbiv binary. the orchestration daemon emits JSON and has no use for terminal escapes.
 
 ### ANSI Codes
 
@@ -152,6 +152,6 @@ The palette encodes a consistent visual language across all commands:
 
 ## References
 
-- `crates/gbiv/src/main.rs` — CLI definition and dispatch
-- `crates/gbiv/src/colors.rs` — ANSI codes and formatting constants (gbiv-only)
-- `crates/gbiv-core/src/colors.rs` — `COLORS` slice, `is_valid_color`, `infer_color_from_path` (shared with roy)
+- `src/main.rs` — CLI definition and dispatch
+- `src/colors.rs` — ANSI codes and formatting constants (worktree-only)
+- `src/core/colors.rs` — `COLORS` slice, `is_valid_color`, `infer_color_from_path` (shared with the orchestration daemon)

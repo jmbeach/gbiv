@@ -1,6 +1,6 @@
 # Arrow: tmux Driver
 
-The only roy component that touches the tmux CLI: list_windows, list_panes, capture_pane, send_keys.
+The only gbiv component that touches the tmux CLI: list_windows, list_panes, capture_pane, send_keys.
 
 **Status**: UNMAPPED (sampled 2026-05-15) — HLD + LLD authored; EARS specs not yet written; no code.
 
@@ -8,10 +8,10 @@ The only roy component that touches the tmux CLI: list_windows, list_panes, capt
 
 | Artifact | Location |
 |---|---|
-| HLD sections | `docs/roy/high-level-design.md` |
-| LLD | `docs/roy/llds/tmux-driver.md` |
-| EARS specs | (none yet — pending `docs/roy/specs/tmux-driver.md`) |
-| Source | (none yet — pending `crates/roy/` or equivalent) |
+| HLD sections | `docs/high-level-design.md` |
+| LLD | `docs/llds/tmux-driver.md` |
+| EARS specs | (none yet — pending `docs/specs/tmux-driver.md`) |
+| Source | (none yet — pending `src/ (single gbiv crate)` or equivalent) |
 | Tests | (none yet) |
 
 ## Spec Coverage
@@ -22,7 +22,7 @@ The only roy component that touches the tmux CLI: list_windows, list_panes, capt
 
 ## Architecture
 
-**Purpose:** Centralize tmux subprocess invocation, argument escaping, and exit-code handling so the rest of roy can be tested against a fake driver.
+**Purpose:** Centralize tmux subprocess invocation, argument escaping, and exit-code handling so the rest of gbiv can be tested against a fake driver.
 
 **Key Operations:**
 1. `list_windows` — enumerate windows in a session
@@ -32,6 +32,6 @@ The only roy component that touches the tmux CLI: list_windows, list_panes, capt
 
 ## Work Required
 
-- Author EARS specs in `docs/roy/specs/tmux-driver.md`
+- Author EARS specs in `docs/specs/tmux-driver.md`
 - Generate implementation plan
 - Implement driver + tests
