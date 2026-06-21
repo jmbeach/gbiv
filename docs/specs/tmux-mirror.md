@@ -27,7 +27,7 @@ Specs for tmux session creation, window synchronization, and cleanup.
 - [x] TMX-SYNC-003: When `gbiv tmux sync` is invoked and no tmux session with the resolved name exists, the system shall return an error suggesting `gbiv tmux new-session`.
 - [x] TMX-SYNC-004: When `--session-name <NAME>` is provided, the system shall use NAME as the session name.
 - [x] TMX-SYNC-005: When `--session-name` is omitted, the system shall use the gbiv folder name as the session name.
-- [x] TMX-SYNC-006: When listing existing windows, the system shall query tmux with `list-windows -F #{window_name}`.
+- [x] TMX-SYNC-006: When listing existing windows, the system shall use `gbiv_core::tmux::list_windows` and extract window names from the returned `WindowInfo` entries.
 - [x] TMX-SYNC-007: When parsing GBIV.md, the system shall extract the set of active colors by collecting tags that are valid ROYGBIV color names, deduplicating them.
 - [x] TMX-SYNC-008: When a ROYGBIV color is active in GBIV.md but has no corresponding tmux window, the system shall identify it as a missing window.
 - [x] TMX-SYNC-009: When a missing window's worktree directory exists on disk, the system shall create a tmux window named after the color with its working directory set to the worktree path.
