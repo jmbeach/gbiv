@@ -6,7 +6,9 @@ use std::process::Command as ProcessCommand;
 use crate::gbiv_md::{parse_gbiv_md, GbivFeature};
 use gbiv_core::colors::{is_valid_color, COLORS};
 use gbiv_core::root::find_gbiv_root;
-use gbiv_core::tmux::{has_session, list_windows, session_name_for_root, tmux_available, TmuxError};
+use gbiv_core::tmux::{
+    has_session, list_windows, session_name_for_root, tmux_available, TmuxError,
+};
 
 pub fn sync_subcommand() -> Command {
     Command::new("sync")
