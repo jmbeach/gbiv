@@ -27,7 +27,11 @@ pub struct WindowInfo {
 pub fn tmux_available() -> Result<(), TmuxError> {
     match ProcessCommand::new("tmux").arg("-V").output() {
         Ok(out) if out.status.success() => Ok(()),
-        Ok(_) => Err(TmuxError::NotInstalled),
+        // Non-zero exit means tmux is present but broken, not simply absent.
+        Ok(out) => Err(TmuxError::Other(format!(
+            "tmux -V exited with status {:?}",
+            out.status.code()
+        ))),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(TmuxError::NotInstalled),
         Err(e) => Err(TmuxError::Other(e.to_string())),
     }
@@ -43,6 +47,25 @@ pub fn has_session(session: &str) -> Result<bool, TmuxError> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(TmuxError::NotInstalled),
         Err(e) => Err(TmuxError::Other(e.to_string())),
     }
+}
+
+fn parse_windows_output(stdout: &[u8]) -> Result<Vec<WindowInfo>, TmuxError> {
+    String::from_utf8_lossy(stdout)
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|line| {
+            let mut parts = line.splitn(2, '\t');
+            let id = parts.next().unwrap_or("").to_string();
+            let name = parts.next().unwrap_or("").to_string();
+            if id.is_empty() || name.is_empty() {
+                return Err(TmuxError::Other(format!(
+                    "malformed window line: {:?}",
+                    line
+                )));
+            }
+            Ok(WindowInfo { id, name })
+        })
+        .collect()
 }
 
 // @spec TMX-DRV-008, TMX-DRV-009, TMX-DRV-010, TMX-DRV-011
@@ -65,29 +88,13 @@ pub fn list_windows(session: &str) -> Result<Vec<WindowInfo>, TmuxError> {
         })?;
 
     if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        if stderr.contains("can't find session") || stderr.contains("no server running") {
-            return Err(TmuxError::SessionNotFound(session.to_string()));
-        }
-        return Err(TmuxError::Other(stderr.trim().to_string()));
+        // Use exit status rather than locale/version-dependent stderr strings.
+        // Callers that need `has_session` already checked it; a non-zero exit
+        // here is the session-not-found (or disappeared) case.
+        return Err(TmuxError::SessionNotFound(session.to_string()));
     }
 
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .filter(|l| !l.is_empty())
-        .map(|line| {
-            let mut parts = line.splitn(2, '\t');
-            let id = parts.next().unwrap_or("").to_string();
-            let name = parts.next().unwrap_or("").to_string();
-            if id.is_empty() || name.is_empty() {
-                return Err(TmuxError::Other(format!(
-                    "malformed window line: {:?}",
-                    line
-                )));
-            }
-            Ok(WindowInfo { id, name })
-        })
-        .collect()
+    parse_windows_output(&out.stdout)
 }
 
 // @spec TMX-DRV-012
@@ -157,18 +164,30 @@ mod tests {
 
     // @spec TMX-DRV-011
     #[test]
-    fn test_list_windows_parse_malformed_line() {
-        // Simulate what the parse step does on a line with no tab.
-        // We test the helper logic by calling the parsing closure directly
-        // through a minimal integration with mocked output.
-        // The malformed-line branch: id or name is empty.
-        let line = "noid-or-name-missing";
-        let mut parts = line.splitn(2, '\t');
-        let id = parts.next().unwrap_or("").to_string();
-        let name = parts.next().unwrap_or("").to_string();
-        // No tab present → name is "" → malformed
-        assert!(name.is_empty(), "expected empty name for tab-less line");
-        assert!(!id.is_empty());
-        // The module returns TmuxError::Other in this case (tested via test_list_windows_not_installed above)
+    fn test_parse_windows_output_malformed_line() {
+        let result = parse_windows_output(b"@1\twindow-one\nnoid-or-name-missing\n");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            TmuxError::Other(msg) => assert!(msg.contains("malformed window line")),
+            e => panic!("expected TmuxError::Other, got {:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_parse_windows_output_valid() {
+        let result = parse_windows_output(b"@1\twindow-one\n@2\twindow-two\n");
+        assert_eq!(
+            result,
+            Ok(vec![
+                WindowInfo {
+                    id: "@1".to_string(),
+                    name: "window-one".to_string()
+                },
+                WindowInfo {
+                    id: "@2".to_string(),
+                    name: "window-two".to_string()
+                },
+            ])
+        );
     }
 }

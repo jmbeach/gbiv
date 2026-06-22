@@ -6,7 +6,7 @@ use std::process::Command as ProcessCommand;
 use crate::gbiv_md::{parse_gbiv_md, GbivFeature};
 use gbiv_core::colors::{is_valid_color, COLORS};
 use gbiv_core::root::find_gbiv_root;
-use gbiv_core::tmux::{has_session, list_windows, session_name_for_root, tmux_available};
+use gbiv_core::tmux::{has_session, list_windows, session_name_for_root, tmux_available, TmuxError};
 
 pub fn sync_subcommand() -> Command {
     Command::new("sync")
@@ -76,7 +76,10 @@ pub fn sort_windows_roygbiv(window_names: &[String]) -> Vec<String> {
 // @spec TMX-SYNC-001, TMX-SYNC-002, TMX-SYNC-003, TMX-SYNC-004, TMX-SYNC-005, TMX-SYNC-006, TMX-SYNC-007, TMX-SYNC-008, TMX-SYNC-009, TMX-SYNC-010, TMX-SYNC-011, TMX-SYNC-012, TMX-SYNC-013, TMX-SYNC-014, TMX-SYNC-015
 pub fn sync_command(session_name: Option<&str>) -> anyhow::Result<()> {
     // Guard 1: tmux must be available
-    tmux_available().map_err(|_| anyhow::anyhow!("tmux not found. Please install tmux."))?;
+    tmux_available().map_err(|e| match e {
+        TmuxError::NotInstalled => anyhow::anyhow!("tmux not found. Please install tmux."),
+        other => anyhow::anyhow!("{}", other),
+    })?;
 
     // Guard 2: must be inside a gbiv project
     let cwd = env::current_dir()?;

@@ -6,7 +6,7 @@ use std::process::Command as ProcessCommand;
 use crate::gbiv_md::parse_gbiv_md;
 use gbiv_core::colors::is_valid_color;
 use gbiv_core::root::find_gbiv_root;
-use gbiv_core::tmux::{has_session, list_windows, tmux_available};
+use gbiv_core::tmux::{has_session, list_windows, tmux_available, TmuxError};
 
 pub fn clean_subcommand() -> Command {
     Command::new("clean").about("Close ROYGBIV tmux windows with no tagged feature in GBIV.md")
@@ -21,7 +21,10 @@ pub fn is_orphaned_window(name: &str, active_colors: &HashSet<String>) -> bool {
 // @spec TMX-CLEAN-001, TMX-CLEAN-002, TMX-CLEAN-003, TMX-CLEAN-004, TMX-CLEAN-005, TMX-CLEAN-006, TMX-CLEAN-007, TMX-CLEAN-008, TMX-CLEAN-009, TMX-CLEAN-010, TMX-CLEAN-011, TMX-CLEAN-012
 pub fn clean_command() -> anyhow::Result<()> {
     // Guard 1: tmux must be available
-    tmux_available().map_err(|_| anyhow::anyhow!("tmux not found. Please install tmux."))?;
+    tmux_available().map_err(|e| match e {
+        TmuxError::NotInstalled => anyhow::anyhow!("tmux not found. Please install tmux."),
+        other => anyhow::anyhow!("{}", other),
+    })?;
 
     // Guard 2: must be inside a gbiv project
     let cwd = env::current_dir()?;

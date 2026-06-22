@@ -4,7 +4,7 @@ use std::process::Command as ProcessCommand;
 
 use gbiv_core::colors::COLORS;
 use gbiv_core::root::find_gbiv_root;
-use gbiv_core::tmux::{has_session, session_name_for_root, tmux_available};
+use gbiv_core::tmux::{has_session, session_name_for_root, tmux_available, TmuxError};
 
 pub fn new_session_subcommand() -> Command {
     Command::new("new-session")
@@ -20,7 +20,10 @@ pub fn new_session_subcommand() -> Command {
 // @spec TMX-SESSION-001, TMX-SESSION-002, TMX-SESSION-003, TMX-SESSION-004, TMX-SESSION-005, TMX-SESSION-006, TMX-SESSION-007, TMX-SESSION-008, TMX-SESSION-009, TMX-SESSION-010, TMX-SESSION-011, TMX-SESSION-012, TMX-SESSION-013
 pub fn new_session_command(session_name: Option<&str>) -> anyhow::Result<()> {
     // Guard 1: tmux must be available
-    tmux_available().map_err(|_| anyhow::anyhow!("tmux not found. Please install tmux."))?;
+    tmux_available().map_err(|e| match e {
+        TmuxError::NotInstalled => anyhow::anyhow!("tmux not found. Please install tmux."),
+        other => anyhow::anyhow!("{}", other),
+    })?;
 
     // Guard 2: must be inside a gbiv project
     let cwd = env::current_dir()?;
