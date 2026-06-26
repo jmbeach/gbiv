@@ -6,6 +6,7 @@ use std::process::Command as ProcessCommand;
 use crate::gbiv_md::parse_gbiv_md;
 use gbiv_core::colors::is_valid_color;
 use gbiv_core::root::find_gbiv_root;
+use gbiv_core::tmux::{has_session, list_windows, tmux_available, TmuxError};
 
 pub fn clean_subcommand() -> Command {
     Command::new("clean").about("Close ROYGBIV tmux windows with no tagged feature in GBIV.md")
@@ -20,15 +21,10 @@ pub fn is_orphaned_window(name: &str, active_colors: &HashSet<String>) -> bool {
 // @spec TMX-CLEAN-001, TMX-CLEAN-002, TMX-CLEAN-003, TMX-CLEAN-004, TMX-CLEAN-005, TMX-CLEAN-006, TMX-CLEAN-007, TMX-CLEAN-008, TMX-CLEAN-009, TMX-CLEAN-010, TMX-CLEAN-011, TMX-CLEAN-012
 pub fn clean_command() -> anyhow::Result<()> {
     // Guard 1: tmux must be available
-    let tmux_available = ProcessCommand::new("tmux")
-        .arg("-V")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    if !tmux_available {
-        return Err(anyhow::anyhow!("tmux not found. Please install tmux."));
-    }
+    tmux_available().map_err(|e| match e {
+        TmuxError::NotInstalled => anyhow::anyhow!("tmux not found. Please install tmux."),
+        other => anyhow::anyhow!("{}", other),
+    })?;
 
     // Guard 2: must be inside a gbiv project
     let cwd = env::current_dir()?;
@@ -39,13 +35,7 @@ pub fn clean_command() -> anyhow::Result<()> {
     let session_name = &gbiv_root.folder_name;
 
     // Guard 3: session must already exist
-    let session_exists = ProcessCommand::new("tmux")
-        .args(["has-session", "-t", session_name])
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    if !session_exists {
+    if !has_session(session_name).map_err(|e| anyhow::anyhow!("{}", e))? {
         return Err(anyhow::anyhow!(
             "No tmux session '{}' found. Run `gbiv tmux new-session` to create one.",
             session_name
@@ -53,21 +43,16 @@ pub fn clean_command() -> anyhow::Result<()> {
     }
 
     // List tmux windows
-    let output = ProcessCommand::new("tmux")
-        .args(["list-windows", "-t", session_name, "-F", "#{window_name}"])
-        .output()?;
-
-    if !output.status.success() {
-        return Err(anyhow::anyhow!(
-            "Failed to list windows for session '{}': {}",
-            session_name,
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
-
-    let windows: Vec<String> = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(|s| s.to_string())
+    let windows: Vec<String> = list_windows(session_name)
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to list windows for session '{}': {}",
+                session_name,
+                e
+            )
+        })?
+        .into_iter()
+        .map(|w| w.name)
         .collect();
 
     // Parse GBIV.md and build active colors set

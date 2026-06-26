@@ -1,5 +1,5 @@
 schema_version: 1
-last_updated: 2026-06-03
+last_updated: 2026-06-21
 
 # Taxonomy groups segments by domain within the single gbiv product.
 # Purely organizational.
@@ -73,16 +73,16 @@ arrows:
     next: null
     drift: null
 
-  # orchestration domain — designed (HLD + LLDs) but not yet implemented; no code or EARS specs exist
+  # orchestration domain — HLD + LLDs designed; core::tmux shared primitives implemented (gbv-x2v)
   tmux-driver:
-    status: UNMAPPED
-    sampled: 2026-05-15
+    status: PARTIAL
+    sampled: 2026-06-21
     audited: null
     audited_sha: null
     blocks: [pane-locator, http-server]
     blockedBy: []
     detail: tmux-driver.md
-    next: "Author EARS specs in docs/specs/tmux-driver.md"
+    next: "Implement list_panes, capture_pane, send_keys (orchestration-only operations) in the fleet orchestration module"
     drift: null
 
   pane-locator:
