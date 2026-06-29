@@ -257,7 +257,10 @@ mod tests {
     fn render_error_omits_prefix_for_exec() {
         let err = anyhow::anyhow!("command output").context("outer");
         let out = render_handler_error(&err, true, false);
-        assert!(!out.starts_with("Error: "), "exec error must not be prefixed: {out:?}");
+        assert!(
+            !out.starts_with("Error: "),
+            "exec error must not be prefixed: {out:?}"
+        );
         assert_eq!(out, "outer");
     }
 
@@ -267,8 +270,14 @@ mod tests {
         let err = anyhow::anyhow!("root cause").context("outer");
         let terse = render_handler_error(&err, false, false);
         let verbose = render_handler_error(&err, false, true);
-        assert!(!terse.contains("root cause"), "terse must hide the chain: {terse:?}");
-        assert!(verbose.contains("root cause"), "verbose must show the chain: {verbose:?}");
+        assert!(
+            !terse.contains("root cause"),
+            "terse must hide the chain: {terse:?}"
+        );
+        assert!(
+            verbose.contains("root cause"),
+            "verbose must show the chain: {verbose:?}"
+        );
     }
 
     // @spec CLI-EXEC-PARSE-001 through CLI-EXEC-PARSE-007

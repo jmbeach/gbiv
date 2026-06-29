@@ -216,7 +216,9 @@ where
         if stderr.contains("can't find") || stderr.contains("no such") {
             return Err(TmuxError::PaneNotFound(pane_id.to_string()));
         }
-        return Err(TmuxError::Other(format!("capture-pane failed for {pane_id}: {stderr}")));
+        return Err(TmuxError::Other(format!(
+            "capture-pane failed for {pane_id}: {stderr}"
+        )));
     }
     let raw = String::from_utf8_lossy(&out.stdout);
     let capped = apply_cap(&raw, max_bytes);
@@ -293,7 +295,9 @@ pub fn send_keys(pane_id: &str, text: &str) -> Result<(), TmuxError> {
             if stderr.contains("can't find") || stderr.contains("no such") {
                 Err(TmuxError::PaneNotFound(pane_id.to_string()))
             } else {
-                Err(TmuxError::Other(format!("send-keys failed for {pane_id}: {stderr}")))
+                Err(TmuxError::Other(format!(
+                    "send-keys failed for {pane_id}: {stderr}"
+                )))
             }
         }
     })
@@ -335,7 +339,10 @@ mod tests {
         match err {
             TmuxError::Other(msg) => {
                 assert!(msg.contains("malformed pane line"), "got: {msg:?}");
-                assert!(msg.contains("node"), "should include the offending line: {msg:?}");
+                assert!(
+                    msg.contains("node"),
+                    "should include the offending line: {msg:?}"
+                );
             }
             e => panic!("expected Other, got {e:?}"),
         }
@@ -357,23 +364,50 @@ mod tests {
     #[test]
     fn capture_args_tail() {
         let args = capture_args("%3", CaptureRange::Tail { lines: 50 }).unwrap();
-        assert_eq!(args, vec!["capture-pane", "-t", "%3", "-p", "-S", "-50", "-J"]);
+        assert_eq!(
+            args,
+            vec!["capture-pane", "-t", "%3", "-p", "-S", "-50", "-J"]
+        );
     }
 
     // @spec TMX-DRV-016
     #[test]
     fn capture_args_window() {
-        let args = capture_args("%3", CaptureRange::Window { start: -100, end: -1 }).unwrap();
+        let args = capture_args(
+            "%3",
+            CaptureRange::Window {
+                start: -100,
+                end: -1,
+            },
+        )
+        .unwrap();
         assert_eq!(
             args,
-            vec!["capture-pane", "-t", "%3", "-p", "-S", "-100", "-E", "-1", "-J"]
+            vec![
+                "capture-pane",
+                "-t",
+                "%3",
+                "-p",
+                "-S",
+                "-100",
+                "-E",
+                "-1",
+                "-J"
+            ]
         );
     }
 
     // @spec TMX-DRV-016
     #[test]
     fn capture_args_window_top_of_history() {
-        let args = capture_args("%3", CaptureRange::Window { start: i32::MIN, end: 0 }).unwrap();
+        let args = capture_args(
+            "%3",
+            CaptureRange::Window {
+                start: i32::MIN,
+                end: 0,
+            },
+        )
+        .unwrap();
         // start == i32::MIN maps to the literal "-".
         let s_idx = args.iter().position(|a| a == "-S").unwrap();
         assert_eq!(args[s_idx + 1], "-");
@@ -406,7 +440,11 @@ mod tests {
         let cap = 8; // forces truncation; cut would split 'é' without boundary care
         let r = apply_cap(&raw, cap);
         assert!(r.truncated);
-        assert!(r.text.starts_with("[…truncated "), "marker missing: {:?}", r.text);
+        assert!(
+            r.text.starts_with("[…truncated "),
+            "marker missing: {:?}",
+            r.text
+        );
         assert_eq!(r.original_bytes, raw.len());
         assert_eq!(r.returned_bytes, r.text.len());
         // Tail is preserved and the result is valid UTF-8 (String guarantees it).
@@ -433,7 +471,10 @@ mod tests {
             send_text_args("%5", "hi there"),
             vec!["send-keys", "-t", "%5", "-l", "--", "hi there"]
         );
-        assert_eq!(send_enter_args("%5"), vec!["send-keys", "-t", "%5", "Enter"]);
+        assert_eq!(
+            send_enter_args("%5"),
+            vec!["send-keys", "-t", "%5", "Enter"]
+        );
     }
 
     // @spec TMX-DRV-022
@@ -509,9 +550,13 @@ mod tests {
                 stderr: b"can't find pane".to_vec(),
             })
         };
-        let err =
-            capture_pane_with("%99", CaptureRange::Tail { lines: 10 }, DEFAULT_CAP_BYTES, run)
-                .unwrap_err();
+        let err = capture_pane_with(
+            "%99",
+            CaptureRange::Tail { lines: 10 },
+            DEFAULT_CAP_BYTES,
+            run,
+        )
+        .unwrap_err();
         assert_eq!(err, TmuxError::PaneNotFound("%99".into()));
     }
 
@@ -541,9 +586,13 @@ mod tests {
                 stderr: vec![],
             })
         };
-        let cap =
-            capture_pane_with("%3", CaptureRange::Tail { lines: 35 }, DEFAULT_CAP_BYTES, run)
-                .unwrap();
+        let cap = capture_pane_with(
+            "%3",
+            CaptureRange::Tail { lines: 35 },
+            DEFAULT_CAP_BYTES,
+            run,
+        )
+        .unwrap();
         assert!(!cap.truncated);
         assert_eq!(cap.text, "recent output\n");
         assert_eq!(cap.range_requested, CaptureRange::Tail { lines: 35 });
@@ -587,9 +636,13 @@ mod tests {
                 stderr: b"server not running".to_vec(),
             })
         };
-        let err =
-            capture_pane_with("%3", CaptureRange::Tail { lines: 10 }, DEFAULT_CAP_BYTES, run)
-                .unwrap_err();
+        let err = capture_pane_with(
+            "%3",
+            CaptureRange::Tail { lines: 10 },
+            DEFAULT_CAP_BYTES,
+            run,
+        )
+        .unwrap_err();
         match err {
             TmuxError::Other(msg) => assert!(msg.contains("server not running")),
             e => panic!("expected Other, got {e:?}"),

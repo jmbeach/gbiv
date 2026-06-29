@@ -135,7 +135,10 @@ mod tests {
         let out = buf.contents();
         // Fell back to the INFO default: info passes, debug is filtered out.
         assert!(out.contains("inf-line"), "info should pass; got: {out:?}");
-        assert!(!out.contains("dbg-line"), "debug should be filtered; got: {out:?}");
+        assert!(
+            !out.contains("dbg-line"),
+            "debug should be filtered; got: {out:?}"
+        );
     }
 
     // @spec LOG-008
@@ -172,7 +175,10 @@ mod tests {
                 && date[0..4].chars().all(|c| c.is_ascii_digit()),
             "expected ISO-8601 date prefix; got: {first:?}"
         );
-        assert!(first.contains('T'), "expected 'T' separator; got: {first:?}");
+        assert!(
+            first.contains('T'),
+            "expected 'T' separator; got: {first:?}"
+        );
         assert!(
             first.contains('Z') || first.contains("+00:00"),
             "expected UTC marker; got: {first:?}"
