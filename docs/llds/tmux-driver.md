@@ -18,12 +18,12 @@ It does not own session naming, pane selection, or process-tree walking — thos
 
 ## Pane Targeting
 
-Every operation takes a `PaneTarget`. The driver supports two forms:
+Targets are passed as plain `&str` in two forms:
 
-- **By pane ID** — `%<n>` (e.g., `%12`). Stable for the pane's lifetime, immune to window/pane reindexing. Used everywhere after the Pane Locator resolves a window to a specific pane.
-- **By window** — `<session>:<window>` (e.g., `myproject:red`). Used only by `list_panes` when the caller hasn't resolved a pane ID yet.
+- **By pane ID** — `%<n>` (e.g., `%12`). Stable for the pane's lifetime, immune to window/pane reindexing. `capture_pane` and `send_keys` take a pane ID.
+- **By window** — `<session>:<window>` (e.g., `myproject:red`). `list_panes` takes a window target when the caller has not yet resolved a pane ID.
 
-Window-only targets are not accepted by `capture_pane` or `send_keys`; those callers must pass a pane ID. This eliminates "which pane in this window?" ambiguity at the type level.
+The pane-vs-window distinction is enforced by *which operation the caller invokes* — `capture_pane`/`send_keys` operate on a resolved pane ID, `list_panes` on a window — not by a wrapper type. This matches the plain-`&str` style of the shared `core::tmux` primitives (`list_windows(&str)`).
 
 ## Operations
 
@@ -56,7 +56,7 @@ Returns a `Vec<{id, pid, current_command, current_path}>`. The Pane Locator uses
 ### capture_pane
 
 ```
-capture_pane(pane_id: &str, range: CaptureRange) → Result<Capture>
+capture_pane(pane_id: &str, range: CaptureRange, max_bytes: usize) → Result<Capture>
 
 enum CaptureRange {
     /// Tail of the buffer — most common. Equivalent to `-S -<lines>` with
@@ -78,9 +78,10 @@ struct Capture {
     original_bytes: usize,    // byte length of the raw tmux output for the requested range
     returned_bytes: usize,    // byte length of `text` after any truncation
     range_requested: CaptureRange,
-    range_returned: (i32, i32), // tmux row offsets actually represented in `text`
-                                 // (after the byte cap, the head of the requested range
-                                 //  may have been dropped — `range_returned.0` reflects that)
+    range_returned: (i32, i32), // the requested row window: Tail { lines } → (-lines, 0),
+                                 // Window { start, end } → (start, end). A byte-cap head-drop
+                                 // is reported via truncated/*_bytes, not by shifting this
+                                 // (see § Technical Debt #6).
 }
 ```
 
@@ -105,10 +106,10 @@ Returns the captured text along with truncation/range metadata. If the pane no l
 
 #### Output Cap
 
-The driver enforces a hard byte cap on captured output before returning. Rationale: the typical caller is an LLM (Claude Code via the skill) and an unbounded pane capture can blow a context budget — a noisy build or test runner can produce hundreds of KB in a single capture. Anthropic's own guidance for tool authors caps Claude Code MCP tool responses at 25,000 tokens by default; gbiv follows the same shape with byte-based limits since the driver does not tokenize.
+The caller passes `max_bytes`, the byte cap applied to captured output before returning. Rationale: the typical caller is an LLM (Claude Code via the skill) and an unbounded pane capture can blow a context budget — a noisy build or test runner can produce hundreds of KB in a single capture. Anthropic's own guidance for tool authors caps Claude Code MCP tool responses at 25,000 tokens by default; gbiv follows the same shape with byte-based limits since the driver does not tokenize.
 
-- **Default cap**: 64 KiB (~16k tokens at typical English/code ratios — leaves headroom under the 25k-token reference point).
-- **Hard maximum**: 256 KiB. The HTTP layer's `lines` parameter can request more rows but the driver will still trim to ≤256 KiB. Beyond this, the caller is misusing the API and should paginate via repeated calls with smaller `lines`.
+- **Default cap** — `DEFAULT_CAP_BYTES = 64 KiB` (~16k tokens at typical English/code ratios — leaves headroom under the 25k-token reference point). The value callers pass for `max_bytes` unless they have a reason to request more.
+- **Hard maximum** — `HARD_MAX_BYTES = 256 KiB`. The driver clamps `max_bytes` to this ceiling, so a caller requesting more rows (or a larger `max_bytes`) still gets ≤256 KiB. Beyond this, the caller is misusing the API and should paginate via repeated calls with smaller ranges.
 - **Trim direction**: keep the **tail** (the most recent output). Discard the head — pane scrollback is read for "what just happened," and the bottom of the buffer is what matters. The first byte kept always starts at a UTF-8 boundary; the driver scans forward from the cut point until it finds one to avoid emitting invalid UTF-8.
 - **Marker**: when `truncated == true`, the returned `text` is prefixed with a single line:
   ```
@@ -121,8 +122,8 @@ The driver enforces a hard byte cap on captured output before returning. Rationa
 
 Callers that want to read past the byte cap use `CaptureRange::Window` to step backward through history:
 
-1. Call with `Tail { lines }` (or any `Window`). If `truncated == true`, note `range_returned`.
-2. The dropped head occupies tmux rows `(start_of_request, range_returned.0)`. Call again with `Window { start, end: range_returned.0 - 1 }` choosing a `start` that is roughly cap-sized (e.g., previous `range_returned.0 - 200` rows). Repeat until either the chunk fits without truncation or the caller has gone as far back as they want.
+1. Call with `Tail { lines }` (or any `Window`). If `truncated == true`, step the window further back using its own bounds.
+2. Re-call with a `Window` whose `end` is the previous request's `start - 1` and whose `start` reaches a cap-sized span earlier (e.g. `start - 200` rows). Repeat until either the chunk fits without truncation or the caller has gone as far back as they want. (A precise row anchor for the byte-cap-dropped head is deferred — see § Technical Debt #6 — so callers page by row window, not by the dropped-byte boundary.)
 3. To explicitly start from the top of history, use `Window { start: i32::MIN, end: ... }`.
 
 The driver does not retain any cursor state between calls — pagination is purely client-driven via row offsets. Pane scrollback can change between calls (new output pushes old rows further into the past); the row-offset semantics stay consistent (offsets are relative to the bottom of the visible pane *at call time*) but the absolute content at a given offset may shift. For typical gbiv use (an agent that paused and is no longer producing output), this is a non-issue.
@@ -238,8 +239,8 @@ Everything else stays in its own module:
 | Very large `text` (>argv limit) | Exec fails with `E2BIG`; surfaced as `TmuxError::Other`. Higher layers may chunk if this matters; v1 does not |
 | Session renamed between calls | `SessionNotFound`; daemon restart needed |
 | `Tail { lines: 0 }` | tmux returns empty; passed through. `truncated == false`, `original_bytes == returned_bytes == 0` |
-| Capture exceeds 64 KiB cap | `text` carries the marker line followed by the most recent ≤64 KiB; `truncated == true`; `original_bytes` reflects what tmux produced; `returned_bytes` reflects what was actually returned; `range_returned.0` shifts toward `range_returned.1` to reflect the dropped head |
-| Capture exceeds 256 KiB hard max even with caller's larger range | Hard max wins; behavior identical to the 64 KiB case but with the larger cap |
+| Capture exceeds `max_bytes` cap | `text` carries the marker line followed by the most recent ≤`max_bytes`; `truncated == true`; `original_bytes` reflects what tmux produced; `returned_bytes` reflects what was actually returned; `range_returned.0` shifts toward `range_returned.1` to reflect the dropped head |
+| Caller passes `max_bytes` > `HARD_MAX_BYTES` (256 KiB) | Driver clamps the effective cap to 256 KiB; behavior identical to the `max_bytes` case but with the clamped cap |
 | UTF-8 character is split at the cut point | Driver advances the cut forward to the next valid UTF-8 boundary so the returned `text` is always valid UTF-8 |
 | `Window { start, end }` with `start > end` | Driver rejects with `TmuxError::Other("invalid range")` before invoking tmux |
 | `Window` requesting rows beyond the start of history | tmux clamps to available history; `range_returned.0` reflects the actual top of what was captured |
@@ -252,6 +253,7 @@ Everything else stays in its own module:
 3. **Cap is byte-based, not token-based**: a future revision could use a tokenizer (or a quick char-based estimate) to cap closer to the model's real budget. Bytes are a safe, dependency-free proxy for v1.
 4. **Pagination is row-offset, not cursor**: callers do their own row arithmetic. An opaque `?before=<cursor>` scheme could replace this without breaking the simple `Tail { lines }` shorthand.
 5. **Row offsets shift while a pane is still producing output**: stable across paused panes (the typical gbiv use case), unstable across active ones. A snapshot ID could anchor pagination if this becomes a real problem.
+6. **`range_returned` does not reflect the byte-cap head-drop**: it carries the requested row window (`Tail { lines }` → `(-lines, 0)`, `Window { start, end }` → `(start, end)`). When the byte cap drops the head of a capture, that loss is reported via `truncated`/`original_bytes`/`returned_bytes`, not by shifting `range_returned.0` — bytes cannot be mapped back to exact tmux rows from the capture alone. Pagination that needs a precise row anchor for the dropped head is deferred until the HTTP layer needs it.
 
 ## References
 

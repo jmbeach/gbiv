@@ -1,3 +1,9 @@
+[config]
+# This is a Cargo workspace, but every task below already passes `--workspace`
+# and runs once at the root. Without this, cargo-make fans each task out to every
+# member crate (which have no Makefile.toml) and fails with "Task not found".
+default_to_workspace = false
+
 [tasks.watch]
 script = ["RUST_LOG=debug cargo watch -w crates -- sh -c 'cargo clippy --workspace 2>&1 | tee watch.log; cargo build --workspace 2>&1 | tee -a watch.log; echo \"Finished build at $(date +%Y-%m-%d_%H-%M-%S)\" >> watch.log'"]
 

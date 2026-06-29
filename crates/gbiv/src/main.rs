@@ -13,6 +13,7 @@ mod colors;
 mod commands;
 mod gbiv_md;
 mod git_utils;
+mod orchestration;
 
 // @spec CLI-DISPATCH-001, CLI-DISPATCH-002, CLI-DISPATCH-004, CLI-DISPATCH-005, CLI-DISPATCH-006
 pub(crate) fn cli() -> Command {
@@ -169,9 +170,21 @@ fn run() -> Result<()> {
                 ));
             }
             let target_ref = target.as_deref();
-            let output = exec_command(target_ref, &command, None)?;
-            if !output.is_empty() {
-                print!("{}", output);
+            // @spec CLI-DISPATCH-009: exec surfaces the command's own output, so its
+            // errors print without the "Error: " prefix the generic handler adds.
+            match exec_command(target_ref, &command, None) {
+                Ok(output) => {
+                    if !output.is_empty() {
+                        print!("{}", output);
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "{}",
+                        render_handler_error(&e, true, gbiv_core::observability::debug_enabled())
+                    );
+                    std::process::exit(1);
+                }
             }
         }
         Some(("tidy", _)) => {
@@ -197,16 +210,32 @@ fn run() -> Result<()> {
     Ok(())
 }
 
+/// Render a handler error for stderr. `exec` errors carry the failed command's own
+/// combined output, so they get no `"Error: "` prefix; every other handler error
+/// is prefixed. The full `anyhow` cause chain is shown when debug logging is
+/// enabled, otherwise only the top-level message.
+// @spec CLI-DISPATCH-003, CLI-DISPATCH-009, CLI-DISPATCH-011
+fn render_handler_error(err: &anyhow::Error, is_exec: bool, debug: bool) -> String {
+    let body = if debug {
+        format!("{:#}", err)
+    } else {
+        format!("{}", err)
+    };
+    if is_exec {
+        body
+    } else {
+        format!("Error: {}", body)
+    }
+}
+
 fn main() {
+    // @spec LOG-001
+    gbiv_core::observability::init(tracing::level_filters::LevelFilter::INFO);
     if let Err(e) = run() {
-        let debug = std::env::var("RUST_LOG")
-            .map(|v| v == "debug")
-            .unwrap_or(false);
-        if debug {
-            eprintln!("Error: {:#}", e);
-        } else {
-            eprintln!("Error: {}", e);
-        }
+        eprintln!(
+            "{}",
+            render_handler_error(&e, false, gbiv_core::observability::debug_enabled())
+        );
         std::process::exit(1);
     }
 }
@@ -214,6 +243,33 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // @spec CLI-DISPATCH-003
+    #[test]
+    fn render_error_prefixes_non_exec() {
+        let err = anyhow::anyhow!("root cause").context("outer");
+        let out = render_handler_error(&err, false, false);
+        assert_eq!(out, "Error: outer");
+    }
+
+    // @spec CLI-DISPATCH-009
+    #[test]
+    fn render_error_omits_prefix_for_exec() {
+        let err = anyhow::anyhow!("command output").context("outer");
+        let out = render_handler_error(&err, true, false);
+        assert!(!out.starts_with("Error: "), "exec error must not be prefixed: {out:?}");
+        assert_eq!(out, "outer");
+    }
+
+    // @spec CLI-DISPATCH-011
+    #[test]
+    fn render_error_shows_cause_chain_only_when_debug() {
+        let err = anyhow::anyhow!("root cause").context("outer");
+        let terse = render_handler_error(&err, false, false);
+        let verbose = render_handler_error(&err, false, true);
+        assert!(!terse.contains("root cause"), "terse must hide the chain: {terse:?}");
+        assert!(verbose.contains("root cause"), "verbose must show the chain: {verbose:?}");
+    }
 
     // @spec CLI-EXEC-PARSE-001 through CLI-EXEC-PARSE-007
     /// Helper to parse exec args the same way main() does.

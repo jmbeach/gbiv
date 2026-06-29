@@ -1,5 +1,5 @@
 schema_version: 1
-last_updated: 2026-06-21
+last_updated: 2026-06-28
 
 # Taxonomy groups segments by domain within the single gbiv product.
 # Purely organizational.
@@ -11,6 +11,7 @@ taxonomy:
     - observation
     - tmux-mirror
   orchestration:
+    - observability
     - tmux-driver
     - pane-locator
     - http-server
@@ -74,15 +75,27 @@ arrows:
     drift: null
 
   # orchestration domain — HLD + LLDs designed; core::tmux shared primitives implemented (gbv-x2v)
+  # observability + tmux-driver orchestration ops implemented (gbv-9p1)
+  observability:
+    status: OK
+    sampled: 2026-06-28
+    audited: null
+    audited_sha: null
+    blocks: []
+    blockedBy: []
+    detail: observability.md
+    next: null
+    drift: null
+
   tmux-driver:
-    status: PARTIAL
-    sampled: 2026-06-21
+    status: OK
+    sampled: 2026-06-28
     audited: null
     audited_sha: null
     blocks: [pane-locator, http-server]
     blockedBy: []
     detail: tmux-driver.md
-    next: "Implement list_panes, capture_pane, send_keys (orchestration-only operations) in the fleet orchestration module"
+    next: null
     drift: null
 
   pane-locator:
