@@ -165,7 +165,7 @@ struct CapResult {
 fn truncation_marker(dropped: usize, total: usize, kept: usize) -> String {
     format!(
         "[…truncated {} of {} bytes from the head; showing the most recent {}. \
-         To page earlier history, re-call with start_line/end_line bounding the dropped range.]\n",
+         To page earlier history, re-call with CaptureRange::Window {{ start, end }} bounding the dropped range.]\n",
         dropped, total, kept
     )
 }
@@ -212,15 +212,23 @@ where
     let args = capture_args(pane_id, range)?;
     let out = run(&args)?;
     if !out.success {
-        return Err(TmuxError::PaneNotFound(pane_id.to_string()));
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        if stderr.contains("can't find") || stderr.contains("no such") {
+            return Err(TmuxError::PaneNotFound(pane_id.to_string()));
+        }
+        return Err(TmuxError::Other(format!("capture-pane failed for {pane_id}: {stderr}")));
     }
     let raw = String::from_utf8_lossy(&out.stdout);
     let capped = apply_cap(&raw, max_bytes);
     // range_returned reflects the requested row window; the byte-cap-dropped head
     // is reported via original_bytes/returned_bytes/truncated (see tmux-driver LLD
     // § Technical Debt — precise row-shift for pagination is deferred).
+    // @spec TMX-DRV-015 — clamp to i32::MIN rather than overflow/panic for huge tails.
     let range_returned = match range {
-        CaptureRange::Tail { lines } => (-(lines as i32), 0),
+        CaptureRange::Tail { lines } => {
+            let start = i32::try_from(lines).map(|n| -n).unwrap_or(i32::MIN);
+            (start, 0)
+        }
         CaptureRange::Window { start, end } => (start, end),
     };
     Ok(Capture {
@@ -281,7 +289,12 @@ pub fn send_keys(pane_id: &str, text: &str) -> Result<(), TmuxError> {
         if out.success {
             Ok(())
         } else {
-            Err(TmuxError::PaneNotFound(pane_id.to_string()))
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            if stderr.contains("can't find") || stderr.contains("no such") {
+                Err(TmuxError::PaneNotFound(pane_id.to_string()))
+            } else {
+                Err(TmuxError::Other(format!("send-keys failed for {pane_id}: {stderr}")))
+            }
         }
     })
 }
@@ -535,5 +548,51 @@ mod tests {
         assert_eq!(cap.text, "recent output\n");
         assert_eq!(cap.range_requested, CaptureRange::Tail { lines: 35 });
         assert_eq!(cap.range_returned, (-35, 0));
+    }
+
+    // @spec TMX-DRV-018, TMX-DRV-019
+    #[test]
+    fn capture_pane_with_truncates_large_output() {
+        let big = "x".repeat(DEFAULT_CAP_BYTES + 1024);
+        let run = {
+            let big = big.clone();
+            move |_args: &[String]| {
+                Ok(CmdOut {
+                    success: true,
+                    stdout: big.as_bytes().to_vec(),
+                    stderr: vec![],
+                })
+            }
+        };
+        let cap = capture_pane_with(
+            "%3",
+            CaptureRange::Tail { lines: 200 },
+            DEFAULT_CAP_BYTES,
+            run,
+        )
+        .unwrap();
+        assert!(cap.truncated);
+        assert_eq!(cap.original_bytes, big.len());
+        assert!(cap.returned_bytes < cap.original_bytes);
+        assert!(cap.text.starts_with("[…truncated "));
+    }
+
+    // @spec TMX-DRV-020
+    #[test]
+    fn capture_pane_with_non_pane_error_returns_other() {
+        let run = |_args: &[String]| {
+            Ok(CmdOut {
+                success: false,
+                stdout: vec![],
+                stderr: b"server not running".to_vec(),
+            })
+        };
+        let err =
+            capture_pane_with("%3", CaptureRange::Tail { lines: 10 }, DEFAULT_CAP_BYTES, run)
+                .unwrap_err();
+        match err {
+            TmuxError::Other(msg) => assert!(msg.contains("server not running")),
+            e => panic!("expected Other, got {e:?}"),
+        }
     }
 }

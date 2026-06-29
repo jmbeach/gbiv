@@ -4,6 +4,8 @@
 //! See `docs/high-level-design.md` § orchestration domain. The shared tmux
 //! primitives live in `gbiv_core::tmux`; the orchestration-only pane operations
 //! live in `tmux_driver` here.
-#![allow(dead_code)] // skeleton: consumed by the fleet daemon/CLI components.
+// TODO: remove once the fleet daemon/CLI first consumer lands — the lint should
+// catch any public API that drifts back to unused.
+#![allow(dead_code)]
 
 pub mod tmux_driver;
