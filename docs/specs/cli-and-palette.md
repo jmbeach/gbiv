@@ -16,6 +16,7 @@ Specs for command dispatch, argument parsing, and terminal color formatting.
 - [x] CLI-DISPATCH-008: When the `exec` handler receives Ok with empty output, the system shall produce no stdout.
 - [x] CLI-DISPATCH-009: When the `exec` handler receives Err, the system shall print the error to stderr without the "Error: " prefix and exit with code 1.
 - [x] CLI-DISPATCH-010: When the `mark` handler receives Ok, the system shall print the success message to stdout via println.
+- [x] CLI-DISPATCH-011: When the top-level error handler prints a handler's Err to stderr, it shall print the full `anyhow` cause chain (the `{:#}` format) when `core::observability::debug_enabled()` is true, and only the top-level message otherwise.
 
 ## Exec Argument Parsing
 

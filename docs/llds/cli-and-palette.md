@@ -34,7 +34,7 @@ All parsing uses `clap` (v4.5.54) with the builder API (not derive). The `cli()`
 
 ### Dispatch Flow
 
-`main()` calls `cli().get_matches()`, then pattern-matches on the subcommand name to call the appropriate handler. Each handler returns `anyhow::Result<()>` (migrating from the historical `Result<_, String>` — see HLD § "Error Propagation"). On `Err`, `main` prints the chain to stderr (top-level message by default; full chain when `RUST_LOG=debug`) and exits with code 1.
+`main()` calls `cli().get_matches()`, then pattern-matches on the subcommand name to call the appropriate handler. Each handler returns `anyhow::Result<()>` (migrating from the historical `Result<_, String>` — see HLD § "Error Propagation"). On `Err`, `main` prints the chain to stderr (top-level message by default; full `anyhow` cause chain when debug-level logging is enabled, as reported by `core::observability::debug_enabled()` — so any `RUST_LOG` form that enables debug for gbiv, e.g. `debug` or `gbiv=debug`, gets the full chain) and exits with code 1.
 
 ### Exec Argument Parsing
 

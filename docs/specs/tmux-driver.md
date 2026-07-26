@@ -1,7 +1,8 @@
 # tmux Driver
 
 Specs for the shared `core::tmux` primitives (implemented in `gbiv-core`) and the
-orchestration-only tmux driver operations (deferred to the fleet orchestration phase).
+orchestration-only tmux driver operations (implemented in the `gbiv` binary's
+`orchestration::tmux_driver` module).
 
 **Component LLD**: `docs/llds/tmux-driver.md`
 
@@ -22,13 +23,15 @@ orchestration-only tmux driver operations (deferred to the fleet orchestration p
 
 ## Orchestration-only Operations
 
-- [D] TMX-DRV-013: `list_panes(window_target)` shall run `tmux list-panes -t <window_target> -F '#{pane_id}\t#{pane_pid}\t#{pane_current_command}\t#{pane_current_path}'` and return `Vec<PaneInfo>`.
-- [D] TMX-DRV-014: When `list_panes` is called for a window target that does not exist, it shall return `Err(TmuxError::PaneNotFound(target.to_string()))`.
-- [D] TMX-DRV-015: `capture_pane(pane_id, CaptureRange::Tail { lines })` shall run `tmux capture-pane -t <pane_id> -p -S -<lines> -J` and return a `Capture` with `text`, `truncated`, `original_bytes`, `returned_bytes`, `range_requested`, and `range_returned` fields.
-- [D] TMX-DRV-016: `capture_pane(pane_id, CaptureRange::Window { start, end })` shall run `tmux capture-pane -t <pane_id> -p -S <start> -E <end> -J`; when `start == i32::MIN`, the `-S` argument shall be the literal `-`.
-- [D] TMX-DRV-017: When `CaptureRange::Window { start, end }` has `start > end`, `capture_pane` shall return `Err(TmuxError::Other("invalid range".to_string()))` without invoking tmux.
-- [D] TMX-DRV-018: When captured output exceeds 64 KiB, `capture_pane` shall truncate to the most recent bytes at a UTF-8 boundary, set `truncated = true`, and prepend the truncation marker line.
-- [D] TMX-DRV-019: When captured output exceeds 256 KiB, `capture_pane` shall apply the hard cap regardless of the requested range or caller-supplied `lines`.
-- [D] TMX-DRV-020: When `capture_pane` is called for a pane that no longer exists, it shall return `Err(TmuxError::PaneNotFound(pane_id.to_string()))`.
-- [D] TMX-DRV-021: `send_keys(pane_id, text)` shall issue two calls: `tmux send-keys -t <pane_id> -l -- <text>`, then `tmux send-keys -t <pane_id> Enter`.
-- [D] TMX-DRV-022: When the text send call succeeds but the Enter call fails, `send_keys` shall return `Err(TmuxError::SendKeysIncomplete(pane_id.to_string()))`.
+- [x] TMX-DRV-023: `PaneInfo` shall be a struct with public fields `id: String` (tmux pane ID, e.g. `%12`), `pid: u32` (pane process PID), `current_command: String`, and `current_path: String`.
+- [x] TMX-DRV-013: `list_panes(window_target)` shall run `tmux list-panes -t <window_target> -F '#{pane_id}\t#{pane_pid}\t#{pane_current_command}\t#{pane_current_path}'` and return `Vec<PaneInfo>`.
+- [x] TMX-DRV-014: When `list_panes` is called for a window target that does not exist, it shall return `Err(TmuxError::PaneNotFound(target.to_string()))`.
+- [x] TMX-DRV-024: When a line in `list_panes` output has fewer than four tab-separated fields or a non-numeric pid, the system shall return `Err(TmuxError::Other(...))` including the malformed line.
+- [x] TMX-DRV-015: `capture_pane(pane_id, CaptureRange::Tail { lines }, max_bytes)` shall run `tmux capture-pane -t <pane_id> -p -S -<lines> -J` and return a `Capture` with `text`, `truncated`, `original_bytes`, `returned_bytes`, `range_requested`, and `range_returned` fields.
+- [x] TMX-DRV-016: `capture_pane(pane_id, CaptureRange::Window { start, end }, max_bytes)` shall run `tmux capture-pane -t <pane_id> -p -S <start> -E <end> -J`; when `start == i32::MIN`, the `-S` argument shall be the literal `-`.
+- [x] TMX-DRV-017: When `CaptureRange::Window { start, end }` has `start > end`, `capture_pane` shall return `Err(TmuxError::Other("invalid range".to_string()))` without invoking tmux.
+- [x] TMX-DRV-018: When captured output exceeds the requested `max_bytes` cap (default `DEFAULT_CAP_BYTES` = 64 KiB), `capture_pane` shall truncate to the most recent bytes at a UTF-8 boundary, set `truncated = true`, and prepend the truncation marker line.
+- [x] TMX-DRV-019: When the requested `max_bytes` exceeds `HARD_MAX_BYTES` (256 KiB), `capture_pane` shall clamp the effective cap to 256 KiB regardless of the requested range or caller-supplied `lines`.
+- [x] TMX-DRV-020: When `capture_pane` is called for a pane that no longer exists, it shall return `Err(TmuxError::PaneNotFound(pane_id.to_string()))`.
+- [x] TMX-DRV-021: `send_keys(pane_id, text)` shall issue two calls: `tmux send-keys -t <pane_id> -l -- <text>`, then `tmux send-keys -t <pane_id> Enter`.
+- [x] TMX-DRV-022: When the text send call succeeds but the Enter call fails, `send_keys` shall return `Err(TmuxError::SendKeysIncomplete(pane_id.to_string()))`.
