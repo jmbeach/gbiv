@@ -8,4 +8,5 @@
 // catch any public API that drifts back to unused.
 #![allow(dead_code)]
 
+pub mod pane_locator;
 pub mod tmux_driver;

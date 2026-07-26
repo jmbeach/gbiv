@@ -1,5 +1,5 @@
 schema_version: 1
-last_updated: 2026-06-28
+last_updated: 2026-07-26
 
 # Taxonomy groups segments by domain within the single gbiv product.
 # Purely organizational.
@@ -76,6 +76,7 @@ arrows:
 
   # orchestration domain — HLD + LLDs designed; core::tmux shared primitives implemented (gbv-x2v)
   # observability + tmux-driver orchestration ops implemented (gbv-9p1)
+  # pane-locator implemented (gbv-h5m)
   observability:
     status: OK
     sampled: 2026-06-28
@@ -99,14 +100,14 @@ arrows:
     drift: null
 
   pane-locator:
-    status: UNMAPPED
-    sampled: 2026-05-15
+    status: OK
+    sampled: 2026-07-26
     audited: null
     audited_sha: null
     blocks: [http-server]
     blockedBy: [tmux-driver]
     detail: pane-locator.md
-    next: "Author EARS specs in docs/specs/pane-locator.md"
+    next: null
     drift: null
 
   http-server:

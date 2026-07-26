@@ -85,7 +85,7 @@ The walk does **not short-circuit on first match**: it visits every descendant u
 
 The walk is OS-specific because there is no portable cross-platform process API in std. v1 supports macOS and Linux:
 
-- **macOS**: `ps -A -o pid=,ppid=,comm=` once at the start of the walk; build a child map; DFS from `root_pid`. For each descendant, resolve the executable via `ps -p <pid> -o comm=` (which on macOS returns the full path of the executable, not the renamed title).
+- **macOS**: `ps -A -o pid=,ppid=` once at the start of the walk to build a child map; DFS from `root_pid`. For each descendant, resolve the executable via `ps -p <pid> -o comm=` (which on macOS returns the full path of the executable, not the renamed title). The bulk listing omits `comm` because macOS truncates it there; the per-pid query returns the full path.
 - **Linux**: read `/proc/<pid>/exe` (a symlink to the executable path) for each descendant. Children are listed via `/proc/<pid>/task/<tid>/children` or, more portably, by scanning `/proc/*/stat` for matching `ppid`.
 
 The walk is bounded: depth ≤ 8, total descendants visited ≤ 64. A pane shell rarely has more than a handful of descendants; these caps prevent runaway in pathological cases.
