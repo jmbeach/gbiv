@@ -197,7 +197,8 @@ fn run() -> Result<()> {
             let target_ref = target.as_deref();
             // @spec CLI-DISPATCH-009: exec surfaces the command's own output, so its
             // errors print without the "Error: " prefix the generic handler adds.
-            match exec_command(target_ref, &command, None) {
+            // The palette resolved above is threaded in so the config loads once.
+            match exec_command(target_ref, &command, None, &palette) {
                 Ok(output) => {
                     if !output.is_empty() {
                         print!("{}", output);
@@ -320,7 +321,7 @@ mod tests {
     // @spec CLI-EXEC-PARSE-002
     #[test]
     fn exec_parses_extra_palette_target() {
-        let palette = Palette::from_names(vec!["my-extra".to_string()]);
+        let palette = Palette::from_extras(vec!["my-extra".to_string()]);
         let (target, cmd) = split_exec_args(
             vec!["my-extra".to_string(), "--".to_string(), "ls".to_string()],
             &palette,

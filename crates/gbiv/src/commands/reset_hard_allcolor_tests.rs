@@ -1,4 +1,5 @@
 use crate::commands::reset::reset_all_to_vec;
+use gbiv_core::palette::Palette;
 use std::process::Command as Cmd;
 use tempfile::TempDir;
 
@@ -57,7 +58,7 @@ fn hard_reset_all_bypasses_done_filter() {
     let gbiv_md_path = main_repo.join("GBIV.md");
     std::fs::write(&gbiv_md_path, "- [red] [in-progress] Fix critical bug\n").unwrap();
 
-    let messages = reset_all_to_vec(root.path(), true);
+    let messages = reset_all_to_vec(root.path(), &Palette::default(), true);
 
     let status_output = Cmd::new("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
@@ -113,7 +114,7 @@ fn hard_reset_all_includes_worktrees_without_gbiv_md_entry() {
     let gbiv_md_path = main_repo.join("GBIV.md");
     std::fs::write(&gbiv_md_path, "- [orange] [done] Some orange task\n").unwrap();
 
-    let messages = reset_all_to_vec(root.path(), true);
+    let messages = reset_all_to_vec(root.path(), &Palette::default(), true);
 
     let status_output = Cmd::new("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])

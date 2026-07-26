@@ -7,12 +7,19 @@ use gbiv_core::colors::infer_color_from_path;
 use gbiv_core::palette::Palette;
 use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
-// @spec OBS-EXEC-005 through OBS-EXEC-009
-pub fn exec_single(root: &Path, color: &str, command: &[String]) -> anyhow::Result<String> {
+// @spec OBS-EXEC-005 through OBS-EXEC-009, CLI-COLOR-027
+pub fn exec_single(
+    root: &Path,
+    palette: &Palette,
+    color: &str,
+    command: &[String],
+) -> anyhow::Result<String> {
     // Validate color against the active palette (base colors + configured extras)
-    let palette = Palette::load(root)?;
     if !palette.contains(color) {
-        return Err(anyhow::anyhow!("'{}' is not a valid color", color));
+        return Err(anyhow::anyhow!(
+            "'{}' is not an active-palette worktree",
+            color
+        ));
     }
 
     let worktree_dir = root.join(color);
@@ -44,10 +51,10 @@ pub fn exec_single(root: &Path, color: &str, command: &[String]) -> anyhow::Resu
 // inner Result<String, String> is a per-color report shape, not a propagated error
 pub fn exec_all(
     root: &Path,
+    palette: &Palette,
     command: &[String],
 ) -> anyhow::Result<Vec<(String, Result<String, String>)>> {
     // Find which active-palette worktrees have repos
-    let palette = Palette::load(root)?;
     let mut existing: Vec<(String, std::path::PathBuf)> = Vec::new();
     for color in palette.names() {
         let worktree_dir = root.join(color);
@@ -99,10 +106,13 @@ pub fn exec_all(
 }
 
 // @spec OBS-EXEC-001 through OBS-EXEC-020
+/// `palette` is the already-resolved active palette (loaded once by the caller,
+/// which is where a bad config hard-fails), so no command path re-reads the config.
 pub fn exec_command(
     target: Option<&str>,
     command: &[String],
     cwd: Option<&Path>,
+    palette: &Palette,
 ) -> anyhow::Result<String> {
     let cwd_path = match cwd {
         Some(p) => p.to_path_buf(),
@@ -114,17 +124,16 @@ pub fn exec_command(
             // Infer color from CWD
             let gbiv_root = find_gbiv_root(&cwd_path)
                 .ok_or_else(|| anyhow::anyhow!("Could not infer color: not in a gbiv worktree"))?;
-            let palette = Palette::load(&gbiv_root.root)?;
             let color =
-                infer_color_from_path(&cwd_path, &gbiv_root.root, &palette).ok_or_else(|| {
+                infer_color_from_path(&cwd_path, &gbiv_root.root, palette).ok_or_else(|| {
                     anyhow::anyhow!("Could not infer color from current worktree directory")
                 })?;
-            exec_single(&gbiv_root.root, &color, command)
+            exec_single(&gbiv_root.root, palette, &color, command)
         }
         Some("all") => {
             let gbiv_root = find_gbiv_root(&cwd_path)
                 .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
-            let results = exec_all(&gbiv_root.root, command)?;
+            let results = exec_all(&gbiv_root.root, palette, command)?;
             let mut output = String::new();
             let mut any_failed = false;
             for (color, result) in &results {
@@ -148,7 +157,7 @@ pub fn exec_command(
         Some(color) => {
             let gbiv_root = find_gbiv_root(&cwd_path)
                 .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
-            exec_single(&gbiv_root.root, color, command)
+            exec_single(&gbiv_root.root, palette, color, command)
         }
     }
 }
@@ -219,7 +228,7 @@ mod tests {
         let (root, _main_repo) = setup_gbiv_root(Some("green"));
 
         let command = vec!["touch".to_string(), "exec_was_here.txt".to_string()];
-        let result = exec_single(root.path(), "green", &command);
+        let result = exec_single(root.path(), &Palette::default(), "green", &command);
 
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
 
@@ -246,7 +255,7 @@ mod tests {
         let (root, _main_repo) = setup_gbiv_root(None);
 
         let command = vec!["ls".to_string()];
-        let result = exec_single(root.path(), "indigo", &command);
+        let result = exec_single(root.path(), &Palette::default(), "indigo", &command);
 
         assert!(
             result.is_err(),
@@ -267,7 +276,7 @@ mod tests {
         let (root, _main_repo) = setup_gbiv_root(None);
 
         let command = vec!["ls".to_string()];
-        let result = exec_single(root.path(), "purple", &command);
+        let result = exec_single(root.path(), &Palette::default(), "purple", &command);
 
         assert!(
             result.is_err(),
@@ -312,7 +321,7 @@ mod tests {
 
         // Pass the blue worktree repo as CWD — exec_command should infer "blue"
         let command = vec!["touch".to_string(), "inferred_exec.txt".to_string()];
-        let result = exec_command(None, &command, Some(&blue_repo));
+        let result = exec_command(None, &command, Some(&blue_repo), &Palette::default());
 
         assert!(
             result.is_ok(),
@@ -334,7 +343,7 @@ mod tests {
         setup_color_repo(root.path(), "blue");
 
         let command: Vec<String> = vec!["echo".to_string(), "hello".to_string()];
-        let result = exec_all(root.path(), &command);
+        let result = exec_all(root.path(), &Palette::default(), &command);
 
         assert!(
             result.is_ok(),
@@ -375,7 +384,7 @@ mod tests {
         setup_color_repo(root.path(), "blue");
 
         let command: Vec<String> = vec!["echo".to_string(), "hello".to_string()];
-        let result = exec_all(root.path(), &command);
+        let result = exec_all(root.path(), &Palette::default(), &command);
 
         assert!(
             result.is_ok(),
@@ -401,7 +410,7 @@ mod tests {
         setup_color_repo(root.path(), "blue");
 
         let command: Vec<String> = vec!["false".to_string()];
-        let result = exec_all(root.path(), &command);
+        let result = exec_all(root.path(), &Palette::default(), &command);
 
         match result {
             Err(_) => {
@@ -425,7 +434,7 @@ mod tests {
         let main_dir = root.path().join("main");
 
         let command: Vec<String> = vec!["echo".to_string(), "hello".to_string()];
-        let result = exec_command(None, &command, Some(&main_dir));
+        let result = exec_command(None, &command, Some(&main_dir), &Palette::default());
 
         assert!(
             result.is_err(),

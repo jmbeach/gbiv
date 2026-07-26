@@ -36,7 +36,13 @@ struct RawConfig {
     palette: PaletteSection,
 }
 
+// @spec CLI-COLOR-028
+// `deny_unknown_fields` rejects a mistyped key inside `[palette]` (e.g. `extras`
+// or `exclude`) so a typo fails loudly instead of silently yielding a base-only
+// palette. It applies only within `[palette]`; unknown *top-level* tables remain
+// ignored (CLI-COLOR-020) so the shared config file can host other sections.
 #[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PaletteSection {
     #[serde(default)]
     extra: Vec<String>,
@@ -164,6 +170,35 @@ mod tests {
             load_extra_names(root.path()),
             Err(ConfigError::Parse { .. })
         ));
+    }
+
+    // @spec CLI-COLOR-028
+    #[test]
+    fn unknown_key_in_palette_table_is_parse_error() {
+        let root = TempDir::new().unwrap();
+        // A misspelled key ("extras" instead of "extra") must not silently yield
+        // a base-only palette — it is a parse error naming the file.
+        write_config(root.path(), "[palette]\nextras = [\"amber\"]\n");
+        assert!(matches!(
+            load_extra_names(root.path()),
+            Err(ConfigError::Parse { .. })
+        ));
+    }
+
+    // @spec CLI-COLOR-020
+    #[test]
+    fn unknown_top_level_table_is_still_ignored() {
+        // Unknown *top-level* tables remain permissive so the config file can host
+        // other sections; only keys inside [palette] are strict.
+        let root = TempDir::new().unwrap();
+        write_config(
+            root.path(),
+            "[other]\nkey = 1\n[palette]\nextra = [\"amber\"]\n",
+        );
+        assert_eq!(
+            load_extra_names(root.path()).unwrap(),
+            vec!["amber".to_string()]
+        );
     }
 
     // @spec CLI-COLOR-022

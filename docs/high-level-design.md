@@ -55,7 +55,7 @@ of agents observable on demand.
   foreground and stopped with Ctrl+C.
 - **An extensible palette, ROYGBIV by default.** The seven color names are the
   built-in default. A power user who needs more than seven concurrent worktrees
-  can declare extra named slots in an optional, gitignored `.gbiv/config.toml`
+  can declare extra named slots in an optional `.gbiv/config.toml`
   at the project root, then run `gbiv repair` to materialize them. Absent that file,
   behavior is exactly the seven-color layout. The base ROYGBIV names are fixed —
   the config only *appends* extra names; it never renames or removes a color.

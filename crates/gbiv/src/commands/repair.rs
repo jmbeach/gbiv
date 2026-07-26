@@ -2,7 +2,7 @@ use std::path::Path;
 use std::process::Command;
 
 use gbiv_core::palette::Palette;
-use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
+use gbiv_core::root::{classify_worktree, find_gbiv_root, GbivRoot, WorktreePresence};
 
 use crate::git_utils::{get_existing_branches, get_main_branch};
 
@@ -14,18 +14,60 @@ enum RepairOutcome {
     Failed(String),
 }
 
+/// The result of a repair pass: the per-name report lines plus counts. Kept
+/// separate from printing so the counts and exit decision are unit-testable.
+#[derive(Default)]
+struct RepairReport {
+    lines: Vec<String>,
+    created: u32,
+    broken: u32,
+    failed: u32,
+}
+
 // @spec WTL-REPAIR-001 through WTL-REPAIR-012
 pub fn repair_command() -> anyhow::Result<()> {
     let cwd = std::env::current_dir()?;
     repair_from(&cwd)
 }
 
-// @spec WTL-REPAIR-001, WTL-REPAIR-002, WTL-REPAIR-003, WTL-REPAIR-004, WTL-REPAIR-005, WTL-REPAIR-006, WTL-REPAIR-007, WTL-REPAIR-008, WTL-REPAIR-009, WTL-REPAIR-010, WTL-REPAIR-011, WTL-REPAIR-012
+// @spec WTL-REPAIR-001, WTL-REPAIR-009, WTL-REPAIR-010
 fn repair_from(cwd: &Path) -> anyhow::Result<()> {
-    // WTL-REPAIR-001: locate the gbiv root and the main repo.
+    // WTL-REPAIR-001: locate the gbiv root.
     let gbiv_root = find_gbiv_root(cwd)
         .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
-    let main_repo = find_repo_in_worktree(&gbiv_root.root.join("main"))
+
+    let report = repair_report(&gbiv_root)?;
+
+    // WTL-REPAIR-009: per-name reporting followed by a summary count.
+    for line in &report.lines {
+        println!("{}", line);
+    }
+    println!();
+    println!(
+        "{} created, {} broken, {} failed",
+        report.created, report.broken, report.failed
+    );
+
+    // WTL-REPAIR-010: a broken or failed worktree means repair could not make the
+    // palette whole, so exit non-zero rather than reporting misleading success.
+    if report.failed > 0 || report.broken > 0 {
+        Err(anyhow::anyhow!(
+            "repair incomplete: {} broken, {} failed",
+            report.broken,
+            report.failed
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+// @spec WTL-REPAIR-002 through WTL-REPAIR-012
+/// Reconcile the on-disk worktrees to the active palette, returning the report
+/// (per-name lines + counts) without printing. Resolve-time problems (no main
+/// repo, bad config, no main branch) are hard errors that create nothing.
+fn repair_report(gbiv_root: &GbivRoot) -> anyhow::Result<RepairReport> {
+    // WTL-REPAIR-001: locate the main repo inside the `main/` worktree.
+    let main_repo = classify_present(gbiv_root, "main")
         .ok_or_else(|| anyhow::anyhow!("Could not find git repo in main worktree"))?;
 
     // WTL-REPAIR-002: load the active palette; a bad config aborts before any creation.
@@ -38,89 +80,82 @@ fn repair_from(cwd: &Path) -> anyhow::Result<()> {
     let existing_branches = get_existing_branches(&main_repo);
     let folder = &gbiv_root.folder_name;
 
-    let mut created = 0u32;
-    let mut failed = 0u32;
+    let mut report = RepairReport::default();
 
     // WTL-REPAIR-008: process names sequentially in canonical palette order.
     for name in palette.names() {
-        let worktree_dir = gbiv_root.root.join(name);
-        let has_repo = find_repo_in_worktree(&worktree_dir).is_some();
-        // A non-empty directory with no git repo is "broken"; an empty or absent
-        // directory (e.g. a leftover parent after `git worktree remove`) is
-        // treated as missing and (re)created.
-        let dir_nonempty = worktree_dir
-            .read_dir()
-            .map(|mut entries| entries.next().is_some())
-            .unwrap_or(false);
-        let outcome = if has_repo {
-            // WTL-REPAIR-004: already present.
-            RepairOutcome::Present
-        } else if dir_nonempty {
-            // WTL-REPAIR-007: directory exists but has no git repo.
-            RepairOutcome::Broken
-        } else {
-            let worktree_path = format!("../../{}/{}", name, folder);
-            let branch_exists = existing_branches.iter().any(|b| b == name);
-            let output = if branch_exists {
-                // WTL-REPAIR-006: attach the pre-existing branch (no -b).
-                Command::new("git")
-                    .args(["worktree", "add", &worktree_path, name])
-                    .current_dir(&main_repo)
-                    .output()
-            } else {
-                // WTL-REPAIR-005: create a fresh branch from local main.
-                Command::new("git")
-                    .args(["worktree", "add", "-b", name, &worktree_path, &main_branch])
-                    .current_dir(&main_repo)
-                    .output()
-            };
-            match output {
-                Ok(o) if o.status.success() => {
-                    if branch_exists {
-                        RepairOutcome::Attached
-                    } else {
-                        RepairOutcome::Created
+        // WTL-REPAIR-004/007: classify the slot with the shared definition used by
+        // `status`, so the two never disagree about present/missing/broken.
+        let outcome = match classify_worktree(&gbiv_root.root, name) {
+            WorktreePresence::Present(_) => RepairOutcome::Present,
+            WorktreePresence::Broken => RepairOutcome::Broken,
+            WorktreePresence::Missing => {
+                let worktree_path = format!("../../{}/{}", name, folder);
+                let branch_exists = existing_branches.iter().any(|b| b == name);
+                let output = if branch_exists {
+                    // WTL-REPAIR-006: attach the pre-existing branch (no -b).
+                    Command::new("git")
+                        .args(["worktree", "add", &worktree_path, name])
+                        .current_dir(&main_repo)
+                        .output()
+                } else {
+                    // WTL-REPAIR-005: create a fresh branch from local main.
+                    Command::new("git")
+                        .args(["worktree", "add", "-b", name, &worktree_path, &main_branch])
+                        .current_dir(&main_repo)
+                        .output()
+                };
+                match output {
+                    Ok(o) if o.status.success() => {
+                        if branch_exists {
+                            RepairOutcome::Attached
+                        } else {
+                            RepairOutcome::Created
+                        }
                     }
+                    Ok(o) => {
+                        RepairOutcome::Failed(String::from_utf8_lossy(&o.stderr).trim().to_string())
+                    }
+                    Err(e) => RepairOutcome::Failed(e.to_string()),
                 }
-                Ok(o) => {
-                    RepairOutcome::Failed(String::from_utf8_lossy(&o.stderr).trim().to_string())
-                }
-                Err(e) => RepairOutcome::Failed(e.to_string()),
             }
         };
 
         // WTL-REPAIR-009: per-name reporting.
         match &outcome {
-            RepairOutcome::Present => println!("{:<14} present", name),
+            RepairOutcome::Present => report.lines.push(format!("{:<14} present", name)),
             RepairOutcome::Created => {
-                created += 1;
-                println!("{:<14} created", name);
+                report.created += 1;
+                report.lines.push(format!("{:<14} created", name));
             }
             RepairOutcome::Attached => {
-                created += 1;
-                println!("{:<14} created (attached existing branch)", name);
+                report.created += 1;
+                report
+                    .lines
+                    .push(format!("{:<14} created (attached existing branch)", name));
             }
             RepairOutcome::Broken => {
-                println!(
+                report.broken += 1;
+                report.lines.push(format!(
                     "{:<14} broken (directory exists but has no git repo — needs attention)",
                     name
-                );
+                ));
             }
             RepairOutcome::Failed(e) => {
-                failed += 1;
-                println!("{:<14} failed: {}", name, e);
+                report.failed += 1;
+                report.lines.push(format!("{:<14} failed: {}", name, e));
             }
         }
     }
 
-    println!();
-    println!("{} created, {} failed", created, failed);
+    Ok(report)
+}
 
-    // WTL-REPAIR-010: non-zero exit if any creation failed.
-    if failed > 0 {
-        Err(anyhow::anyhow!("{} worktree(s) failed to create", failed))
-    } else {
-        Ok(())
+/// Helper: the repo path of a Present worktree slot, else None.
+fn classify_present(gbiv_root: &GbivRoot, name: &str) -> Option<std::path::PathBuf> {
+    match classify_worktree(&gbiv_root.root, name) {
+        WorktreePresence::Present(repo) => Some(repo),
+        _ => None,
     }
 }
 
@@ -128,7 +163,7 @@ fn repair_from(cwd: &Path) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use gbiv_core::colors::BASE_COLORS;
-    use gbiv_core::root::find_repo_in_worktree;
+    use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
     use serial_test::serial;
     use std::fs;
     use std::path::PathBuf;
@@ -203,16 +238,102 @@ mod tests {
     // @spec WTL-REPAIR-005
     #[test]
     #[serial]
-    fn repair_creates_configured_extra_worktree() {
+    fn repair_creates_configured_extra_worktree_on_a_fresh_branch() {
         let base = TempDir::new().unwrap();
-        let (root, _main_repo) = setup_gbiv(base.path(), "proj");
+        let (root, main_repo) = setup_gbiv(base.path(), "proj");
         write_palette_config(&root, &["my-extra"]);
 
         repair_from(&root).unwrap();
 
+        let extra_repo = find_repo_in_worktree(&root.join("my-extra"))
+            .expect("configured extra worktree should be created");
+
+        // WTL-REPAIR-005 is specifically the *fresh branch* path (no pre-existing
+        // branch): the new worktree must be on a new branch named after the extra,
+        // pointing at the same commit as main.
+        let head = Cmd::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(&extra_repo)
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&head.stdout).trim(), "my-extra");
+
+        let extra_commit = Cmd::new("git")
+            .args(["rev-parse", "my-extra"])
+            .current_dir(&main_repo)
+            .output()
+            .unwrap();
+        let main_commit = Cmd::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&main_repo)
+            .output()
+            .unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&extra_commit.stdout).trim(),
+            String::from_utf8_lossy(&main_commit.stdout).trim(),
+            "fresh extra branch should start at main's HEAD"
+        );
+    }
+
+    // @spec WTL-REPAIR-007, WTL-REPAIR-009, WTL-REPAIR-010
+    #[test]
+    #[serial]
+    fn repair_reports_broken_worktree_and_exits_nonzero() {
+        let base = TempDir::new().unwrap();
+        let (root, main_repo) = setup_gbiv(base.path(), "proj");
+
+        // Remove green's worktree, then leave a stray file in the directory so it
+        // is non-empty but has no git repo — the "broken" case.
+        git(
+            &["worktree", "remove", "--force", "../../green/proj"],
+            &main_repo,
+        );
+        fs::create_dir_all(root.join("green")).unwrap();
+        fs::write(root.join("green").join("stray.txt"), "leftover").unwrap();
+
+        // The report must count it broken and NOT recreate a repo over it.
+        let report = repair_report(&find_gbiv_root(&root).unwrap()).unwrap();
+        assert_eq!(report.broken, 1, "green should be reported broken");
+        assert_eq!(report.failed, 0);
         assert!(
-            find_repo_in_worktree(&root.join("my-extra")).is_some(),
-            "configured extra worktree should be created"
+            find_repo_in_worktree(&root.join("green")).is_none(),
+            "repair must not overwrite a broken directory"
+        );
+
+        // A broken worktree makes the whole command exit non-zero.
+        assert!(
+            repair_from(&root).is_err(),
+            "repair should exit non-zero when a worktree is broken"
+        );
+    }
+
+    // @spec WTL-REPAIR-010
+    #[test]
+    #[serial]
+    fn repair_counts_creation_failure_and_exits_nonzero() {
+        let base = TempDir::new().unwrap();
+        let (root, main_repo) = setup_gbiv(base.path(), "proj");
+
+        // Create a branch named "amber" and check it out in a *separate* worktree,
+        // so the branch is occupied. Repair will then try to attach "amber" for the
+        // configured extra and git will refuse (already checked out elsewhere).
+        git(&["branch", "amber"], &main_repo);
+        git(
+            &["worktree", "add", "../../amber-held/proj", "amber"],
+            &main_repo,
+        );
+        write_palette_config(&root, &["amber"]);
+
+        let report = repair_report(&find_gbiv_root(&root).unwrap()).unwrap();
+        assert_eq!(report.failed, 1, "amber attach should fail");
+        assert!(
+            find_repo_in_worktree(&root.join("amber")).is_none(),
+            "failed worktree should not exist at the palette path"
+        );
+
+        assert!(
+            repair_from(&root).is_err(),
+            "repair should exit non-zero when a creation fails"
         );
     }
 

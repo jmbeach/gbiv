@@ -79,19 +79,22 @@ If any worktree creation fails, init reverses all changes: removes created workt
 1. Find the gbiv root and the main repo inside `main/`.
 2. Load the active palette (`Palette::load`) — base seven plus any validated extras from `.gbiv/config.toml`. A malformed config aborts here with a `ConfigError` (nothing is created).
 3. Detect the local main branch name (as init does).
-4. For each name in the active palette, in canonical order:
-   - If the worktree directory already exists, skip it (report "present").
-   - Otherwise create it: `git worktree add -b <name> ../../<name>/<folder> <main_branch>` from the main repo, exactly as init does per color.
-5. Print a per-name line (created / present / failed) and a summary count.
-6. If any creation failed, return a non-zero status; successfully created worktrees are kept (append-only, no rollback of the others).
+4. For each name in the active palette, in canonical order, classify the slot with `classify_worktree` (the same helper `status` uses) and act on the result:
+   - **Present** — a git repo exists within `<root>/<name>`: skip it (report "present").
+   - **Broken** — the directory exists and is non-empty but has no git repo: report "broken" and leave it untouched (repair never overwrites it).
+   - **Missing** — the directory is absent or empty:
+     - if a branch named `<name>` already exists, attach it: `git worktree add ../../<name>/<folder> <name>` (report "created (attached existing branch)");
+     - otherwise create a fresh branch: `git worktree add -b <name> ../../<name>/<folder> <main_branch>` from the main repo, exactly as init does per color.
+5. Print a per-name line (created / present / broken / attached / failed) and a summary line counting created, broken, and failed.
+6. If any creation failed *or* any worktree is broken, return a non-zero status — repair could not make the palette whole. Successfully created worktrees are kept (append-only, no rollback of the others).
 
 ### What repair does NOT do
 - It never deletes or renames a worktree, even if a name was removed from the config. Reclaiming a worktree stays the job of `reset` / `tidy`.
 - It does not modify `GBIV.md`.
-- It does not touch worktrees that already exist (no reset, no checkout, no rebase).
+- It does not touch worktrees that already exist (no reset, no checkout, no rebase), and it never overwrites a broken directory.
 
 ### Drift detection (warn, never auto-fix)
-A helper `palette_drift(root, palette) -> Vec<String>` returns the active-palette names that have no worktree directory. Read-only commands (notably `status`) call it and, when it is non-empty, print a one-line hint suggesting `gbiv repair`. Only `gbiv repair` mutates worktrees; observation commands never create anything implicitly.
+The shared helper `classify_worktree(root, name) -> WorktreePresence` returns `Present` / `Missing` / `Broken` for a slot. `status` classifies every active-palette name in one pass and derives two sets from it: **missing** (repairable) names get a one-line hint suggesting `gbiv repair`; **broken** names (directory present, no repo) get a separate "needs attention" hint, because `repair` deliberately will not touch them. Only `gbiv repair` mutates worktrees; observation commands never create anything implicitly.
 
 ## Rebase-All (Upstream Sync)
 
@@ -246,9 +249,9 @@ Callers `?` these into `anyhow::Error` at the command-handler boundary. New vari
 ## References
 
 - `src/git_utils.rs` — worktree-only git command wrappers and state queries
-- `src/core/root.rs` — `find_gbiv_root`, `find_repo_in_worktree`, `is_git_repo` (shared with the orchestration daemon)
+- `src/core/root.rs` — `find_gbiv_root`, `find_repo_in_worktree`, `is_git_repo`, `classify_worktree` (shared with the orchestration daemon)
 - `core::colors` — `BASE_COLORS`, `infer_color_from_path` (shared with the orchestration daemon)
-- `core::palette` — `Palette` runtime active palette and `palette_drift` helper
+- `core::palette` — `Palette` runtime active palette
 - `core::config` — `.gbiv/config.toml` loading and `ConfigError`
 - `src/core/gitignore.rs` — `ensure_gitignore_entry` (shared with the orchestration daemon)
 - `src/commands/init.rs` — project bootstrap

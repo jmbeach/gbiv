@@ -13,9 +13,9 @@ Specs for the status dashboard and cross-worktree command execution.
 
 ### Parallel Collection
 
-- [x] OBS-STATUS-003: When collecting worktree state, the system shall spawn one thread per active-palette worktree (the seven base ROYGBIV colors plus any configured extras) to gather git status in parallel.
-- [x] OBS-STATUS-004: For each color thread, where the worktree directory exists, the system shall locate the git repo within it via `find_repo_in_worktree` (first subdirectory containing `.git`), then call `get_quick_status` to obtain branch name, dirty flag, and ahead/behind counts.
-- [x] OBS-STATUS-005: For each color thread, where the worktree directory does not exist or contains no git repo, the system shall return `None`.
+- [x] OBS-STATUS-003: When collecting worktree state, the system shall spawn one thread per active-palette worktree (the seven base ROYGBIV colors plus any configured extras) to classify the slot via `classify_worktree` and, when present, gather git status in parallel.
+- [x] OBS-STATUS-004: For each color thread that `classify_worktree` reports `Present`, the system shall call `get_quick_status` on the repo path to obtain branch name, dirty flag, and ahead/behind counts.
+- [x] OBS-STATUS-005: For each color thread, the system shall carry the slot's classification (`Present`, `Missing`, or `Broken`) forward so the missing and broken sets can be derived from this single pass without a second filesystem scan.
 
 ### Feature Branch Detection
 
@@ -26,9 +26,10 @@ Specs for the status dashboard and cross-worktree command execution.
 
 - [x] OBS-STATUS-008: When joining thread results, the system shall output worktree statuses in active-palette order: the base ROYGBIV order (red, orange, yellow, green, blue, indigo, violet) followed by any configured extras in their declared order.
 
-### Output Format - Missing Worktree
+### Output Format - Missing / Broken Worktree
 
-- [x] OBS-STATUS-009: When a worktree has no result (directory missing or no repo found), the system shall print `{color} missing` with the color name ANSI-colored and left-padded to 8 characters.
+- [x] OBS-STATUS-009: When a worktree is classified `Missing` (directory absent or empty), the system shall print `{color} missing` with the color name ANSI-colored and left-padded to 8 characters.
+- [x] OBS-STATUS-028: When a worktree is classified `Broken` (directory exists and is non-empty but has no git repo), the system shall print `{color} broken` (the label in YELLOW) rather than `missing`, and shall print a separate one-line hint listing the broken names and stating they need attention. `gbiv status` shall never create or repair a broken worktree.
 
 ### Output Format - On Color Branch
 
@@ -58,7 +59,7 @@ Specs for the status dashboard and cross-worktree command execution.
 
 ### Palette Drift
 
-- [x] OBS-STATUS-027: When one or more active-palette worktrees are missing on disk (per `palette_drift`), the system shall print a one-line hint suggesting `gbiv repair`; `gbiv status` shall never create worktrees itself.
+- [x] OBS-STATUS-027: When one or more active-palette worktrees are classified `Missing` (repairable), the system shall print a one-line hint listing them and suggesting `gbiv repair`, derived from the classification pass in OBS-STATUS-005 (not a second filesystem scan); `gbiv status` shall never create worktrees itself.
 
 ## Exec
 

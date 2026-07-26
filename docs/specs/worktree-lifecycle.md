@@ -97,11 +97,10 @@ Specs for worktree creation, upstream sync, reset, and maintenance.
 - [x] WTL-REPAIR-006: For an active-palette name whose worktree is missing but whose branch already exists, the system shall attach the existing branch via `git worktree add ../../<name>/<folder> <name>` (without `-b`).
 - [x] WTL-REPAIR-007: When `<root>/<name>` exists but contains no git repo, the system shall report it as broken (needs attention) rather than silently treating it as present.
 - [x] WTL-REPAIR-008: When creating worktrees, the system shall process active-palette names sequentially in canonical order, and a failure for one name shall not roll back worktrees already created.
-- [x] WTL-REPAIR-009: When repair completes, the system shall print a per-name line (created, present, broken, or failed) and a summary count.
-- [x] WTL-REPAIR-010: If any worktree creation failed, the system shall return a non-zero status.
+- [x] WTL-REPAIR-009: When repair completes, the system shall print a per-name line (created, present, broken, attached, or failed) followed by a summary line counting created, broken, and failed worktrees.
+- [x] WTL-REPAIR-010: If any worktree creation failed or any worktree is broken (directory exists but has no git repo), the system shall return a non-zero status, because repair could not make the palette whole.
 - [x] WTL-REPAIR-011: The system shall never remove or rename a worktree, even when a name previously present has been removed from the config.
 - [x] WTL-REPAIR-012: The `gbiv repair` command shall not modify `GBIV.md`.
-- [x] WTL-REPAIR-013: When `palette_drift` is called with the gbiv root and the active palette, the system shall return the active-palette names that have no worktree (no git repo found within `<root>/<name>`).
 
 ## Utility Helpers
 
@@ -137,6 +136,10 @@ Specs for worktree creation, upstream sync, reset, and maintenance.
 
 - [x] WTL-UTIL-014: When `find_repo_in_worktree` is called, the system shall scan the given worktree directory for a subdirectory containing a `.git` entry, and return its path.
 - [x] WTL-UTIL-015: If no subdirectory contains a `.git` entry, the system shall return `None`.
+
+### classify_worktree
+
+- [x] WTL-UTIL-020: When `classify_worktree` is called with the gbiv root and a palette name, the system shall return `Present` (a git repo was found within `<root>/<name>`, carrying its path), `Broken` (the directory exists and is non-empty but contains no git repo), or `Missing` (the directory is absent or empty). This is the single definition of those states shared by `status` and `repair`.
 
 ### ensure_gitignore_entry
 

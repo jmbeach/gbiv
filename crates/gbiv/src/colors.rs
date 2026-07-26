@@ -1,4 +1,6 @@
-// @spec CLI-COLOR-002 through CLI-COLOR-009
+// @spec CLI-COLOR-002 through CLI-COLOR-009, CLI-COLOR-017
+// The `_ => RESET` arm also covers extra (non-base) palette names: extras are
+// labels, not hues, so they render with no color (CLI-COLOR-017).
 pub fn ansi_color(color: &str) -> &'static str {
     match color {
         "red" => "\x1b[31m",

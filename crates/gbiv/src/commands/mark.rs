@@ -25,10 +25,11 @@ pub fn mark_command(
     let palette = Palette::load(&gbiv_root.root)?;
 
     // Resolve color: explicit (validated against the active palette) or inferred from CWD
+    // @spec CLI-COLOR-027
     let resolved_color = match color {
         Some(c) => {
             if !palette.contains(c) {
-                return Err(anyhow::anyhow!("'{}' is not a valid color", c));
+                return Err(anyhow::anyhow!("'{}' is not an active-palette worktree", c));
             }
             c.to_string()
         }

@@ -80,12 +80,13 @@ pub struct Palette { names: Vec<String> }   // BASE_COLORS first, then config ex
 
 impl Palette {
     pub fn load(gbiv_root: &Path) -> Result<Palette, ConfigError>; // reads .gbiv/config.toml
-    pub fn default() -> Palette;            // BASE_COLORS only
+    pub fn from_extras(extras: Vec<String>) -> Palette;  // BASE_COLORS then extras (tests / known callers)
     pub fn names(&self) -> &[String];       // full active list, in canonical order
-    pub fn extras(&self) -> &[str];         // names beyond the base seven
+    pub fn extras(&self) -> &[String];      // names beyond the base seven
     pub fn contains(&self, name: &str) -> bool;
     pub fn is_base(name: &str) -> bool;     // BASE_COLORS membership, no load needed
 }
+// Palette also implements Default (BASE_COLORS only).
 ```
 
 `Palette` is the single source of truth, at runtime, for:
@@ -98,18 +99,18 @@ Each command loads the palette once, after root discovery, and passes it (or its
 
 ### Config loading — `core::config`
 
-The palette's extras are declared in an optional, gitignored `.gbiv/config.toml` at the gbiv root. It is a *general* config file (sectioned so other config domains can live alongside the palette), not a feature-state store:
+The palette's extras are declared in an optional `.gbiv/config.toml` at the gbiv root. It is a *general* config file (sectioned so other config domains can live alongside the palette), not a feature-state store:
 
 ```toml
 [palette]
 extra = ["my-lingering-feature", "another-slot"]
 ```
 
-`Palette::load` resolves `<root>/.gbiv/config.toml`. A missing file, a missing `[palette]` table, or an empty `extra` list all yield the default palette (base seven). When `extra` is present each name is validated; the active palette is `BASE_COLORS` followed by the validated extras in declared order.
+`Palette::load` resolves `<root>/.gbiv/config.toml`. A missing file, a missing `[palette]` table, or an empty `extra` list all yield the default palette (base seven). An unrecognized *top-level* table is ignored (so the file can host other config domains), but an unrecognized key *inside* `[palette]` (a mistyped `extra`) is a hard parse error rather than a silent base-only palette. When `extra` is present each name is validated; the active palette is `BASE_COLORS` followed by the validated extras in declared order.
 
 **Validation (all enforced at load; any violation is a hard error).** Each extra name must be:
 - non-empty;
-- unique — no duplicate among the extras, and not equal to any base color;
+- unique, case-insensitively — no duplicate among the extras, and not equal to any base color (e.g. `Red` collides with `red`);
 - not a reserved word — `main` (the canonical main worktree) or `all` (the exec/target keyword);
 - a valid git branch name and a single safe path component — conservatively `[A-Za-z0-9._-]+`, not beginning with `-` or `.`.
 

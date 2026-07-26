@@ -1,4 +1,5 @@
 use crate::commands::reset::{reset_all_to_vec, reset_one};
+use gbiv_core::palette::Palette;
 use std::process::Command as Cmd;
 use tempfile::TempDir;
 
@@ -149,7 +150,7 @@ fn reset_all_to_vec_exists_and_processes_done_entries() {
     let gbiv_md_path = main_repo.join("GBIV.md");
     std::fs::write(&gbiv_md_path, "- [red] [done] Fix critical bug\n").unwrap();
 
-    let messages = reset_all_to_vec(root.path(), false);
+    let messages = reset_all_to_vec(root.path(), &Palette::default(), false);
 
     // Should return a non-empty Vec (at minimum a summary line)
     assert!(

@@ -47,7 +47,7 @@ mod tests {
     fn infer_color_from_path_returns_extra_name_when_under_extra_worktree() {
         let root = PathBuf::from("/tmp/gbiv-root");
         let cwd = root.join("my-extra").join("project");
-        let palette = Palette::from_names(vec!["my-extra".to_string()]);
+        let palette = Palette::from_extras(vec!["my-extra".to_string()]);
         assert_eq!(
             infer_color_from_path(&cwd, &root, &palette).as_deref(),
             Some("my-extra")
