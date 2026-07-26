@@ -3,11 +3,13 @@ use clap::{Arg, ArgGroup, Command};
 use commands::init::init_command;
 use commands::mark::mark_command;
 use commands::rebase_all::rebase_all_command;
+use commands::repair::repair_command;
 use commands::reset::reset_command;
 use commands::status::status_command;
 use commands::tidy::tidy_command;
 use commands::tmux;
-use gbiv_core::colors::{is_valid_color, COLORS};
+use gbiv_core::palette::Palette;
+use gbiv_core::root::find_gbiv_root;
 
 mod colors;
 mod commands;
@@ -41,14 +43,17 @@ pub(crate) fn cli() -> Command {
                 .about("Pull the remote main branch into the main worktree then rebase all color worktrees onto it"),
         )
         .subcommand(
+            Command::new("repair")
+                .about("Create any active-palette worktrees (base colors + configured extras) missing on disk"),
+        )
+        .subcommand(
             Command::new("reset")
                 .about("Check out color branch and remove GBIV.md entry after feature branch is merged")
                 .arg(
                     Arg::new("color")
                         .help("The color worktree to reset (omit to reset all)")
                         .required(false)
-                        .index(1)
-                        .value_parser(clap::builder::PossibleValuesParser::new(COLORS)),
+                        .index(1),
                 )
                 .arg(
                     Arg::new("hard")
@@ -114,14 +119,33 @@ pub(crate) fn cli() -> Command {
                             if s == "done" || s == "in-progress" || s == "unset" {
                                 return Err(format!("'{}' is a status flag, not a color. Did you mean: gbiv mark --{}", s, s));
                             }
-                            if is_valid_color(s) {
-                                Ok(s.to_string())
-                            } else {
-                                Err(format!("invalid color '{}'. Possible values: {}", s, COLORS.join(", ")))
-                            }
+                            // Color validity is checked in the handler against the
+                            // active palette (only known after root discovery).
+                            Ok(s.to_string())
                         })),
                 ),
         )
+}
+
+// @spec CLI-EXEC-PARSE-002, CLI-EXEC-PARSE-003, CLI-EXEC-PARSE-004, CLI-EXEC-PARSE-005
+/// Split the raw exec argument list into an optional target and the command
+/// tokens. The first token is treated as the target when it names an
+/// active-palette worktree or "all"; otherwise the target is inferred from CWD.
+pub(crate) fn split_exec_args(
+    all_args: Vec<String>,
+    palette: &Palette,
+) -> (Option<String>, Vec<String>) {
+    let (target, rest) = if all_args
+        .first()
+        .map(|s| palette.contains(s) || s == "all")
+        .unwrap_or(false)
+    {
+        (Some(all_args[0].clone()), all_args[1..].to_vec())
+    } else {
+        (None, all_args)
+    };
+    let command: Vec<String> = rest.into_iter().filter(|a| a != "--").collect();
+    (target, command)
 }
 
 // @spec CLI-DISPATCH-003, CLI-DISPATCH-007 through CLI-DISPATCH-010
@@ -142,6 +166,9 @@ fn run() -> Result<()> {
         Some(("rebase-all", _)) => {
             rebase_all_command()?;
         }
+        Some(("repair", _)) => {
+            repair_command()?;
+        }
         Some(("reset", sub_matches)) => {
             let color = sub_matches.get_one::<String>("color").map(|s| s.as_str());
             let hard = sub_matches.get_flag("hard");
@@ -154,16 +181,14 @@ fn run() -> Result<()> {
                 .get_many::<String>("args")
                 .map(|vals| vals.cloned().collect())
                 .unwrap_or_default();
-            let (target, rest) = if all_args
-                .first()
-                .map(|s| is_valid_color(s) || s == "all")
-                .unwrap_or(false)
-            {
-                (Some(all_args[0].clone()), all_args[1..].to_vec())
-            } else {
-                (None, all_args)
+            // The target/command split tests the first token against the active
+            // palette, so the palette is loaded (via root discovery) first.
+            let cwd = std::env::current_dir()?;
+            let palette = match find_gbiv_root(&cwd) {
+                Some(root) => Palette::load(&root.root)?,
+                None => Palette::default(),
             };
-            let command: Vec<String> = rest.into_iter().filter(|a| a != "--").collect();
+            let (target, command) = split_exec_args(all_args, &palette);
             if command.is_empty() {
                 return Err(anyhow::anyhow!(
                     "no command specified. Usage: gbiv exec [<color>|all] -- <command...>"
@@ -289,17 +314,19 @@ mod tests {
             .get_many::<String>("args")
             .map(|vals| vals.cloned().collect())
             .unwrap_or_default();
-        let (target, rest) = if all_args
-            .first()
-            .map(|s| is_valid_color(s) || s == "all")
-            .unwrap_or(false)
-        {
-            (Some(all_args[0].clone()), all_args[1..].to_vec())
-        } else {
-            (None, all_args)
-        };
-        let command: Vec<String> = rest.into_iter().filter(|a| a != "--").collect();
-        (target, command)
+        split_exec_args(all_args, &Palette::default())
+    }
+
+    // @spec CLI-EXEC-PARSE-002
+    #[test]
+    fn exec_parses_extra_palette_target() {
+        let palette = Palette::from_names(vec!["my-extra".to_string()]);
+        let (target, cmd) = split_exec_args(
+            vec!["my-extra".to_string(), "--".to_string(), "ls".to_string()],
+            &palette,
+        );
+        assert_eq!(target.as_deref(), Some("my-extra"));
+        assert_eq!(cmd, vec!["ls"]);
     }
 
     // @spec CLI-EXEC-PARSE-002, CLI-EXEC-PARSE-005

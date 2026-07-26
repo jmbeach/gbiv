@@ -25,8 +25,8 @@ Specs for worktree creation, upstream sync, reset, and maintenance.
 - [x] WTL-REBASE-003: When the main repo is found, the system shall detect the remote main branch by trying `origin/main`, `origin/master`, and `origin/develop` in order.
 - [x] WTL-REBASE-004: When the remote main branch is detected, the system shall pull the main worktree first before rebasing color worktrees.
 - [x] WTL-REBASE-005: If the pull on the main worktree fails, the system shall abort the entire rebase-all operation and return an error.
-- [x] WTL-REBASE-006: When the main worktree pull succeeds, the system shall register `.last-branch` in `info/exclude` of the common git directory for each color worktree, before spawning rebase threads.
-- [x] WTL-REBASE-007: When gitignore registration is complete, the system shall spawn one thread per color worktree to perform rebases in parallel.
+- [x] WTL-REBASE-006: When the main worktree pull succeeds, the system shall register `.last-branch` in `info/exclude` of the common git directory for each active-palette worktree (base colors plus configured extras), before spawning rebase threads.
+- [x] WTL-REBASE-007: When gitignore registration is complete, the system shall spawn one thread per active-palette worktree to perform rebases in parallel, in active-palette order.
 - [x] WTL-REBASE-008: While rebasing a color worktree, if the worktree directory does not exist, the system shall skip it with a "not found" message.
 - [x] WTL-REBASE-009: While rebasing a color worktree, if no git repo is found inside the worktree directory, the system shall skip it with a "no repo in worktree" message.
 - [x] WTL-REBASE-010: While rebasing a color worktree, if a `rebase-merge` or `rebase-apply` directory exists in the git dir, the system shall skip it with a "rebase in progress" warning and count it as a failure.
@@ -58,7 +58,7 @@ Specs for worktree creation, upstream sync, reset, and maintenance.
 
 ### All-color soft reset
 
-- [x] WTL-RESET-011: When the user runs `gbiv reset` (no color, no `--hard`), the system shall parse `GBIV.md` to determine feature statuses for each color.
+- [x] WTL-RESET-011: When the user runs `gbiv reset` (no color, no `--hard`), the system shall parse `GBIV.md` to determine feature statuses for each active-palette worktree (base colors plus configured extras).
 - [x] WTL-RESET-012: When performing an all-color soft reset, the system shall only reset worktrees whose GBIV.md entry has `[done]` status.
 - [x] WTL-RESET-013: When performing an all-color soft reset, the system shall skip colors that have no GBIV.md entry (silently).
 - [x] WTL-RESET-014: When performing an all-color soft reset, the system shall skip colors whose GBIV.md entry has a status other than `[done]` and report them as "without [done] status".
@@ -66,7 +66,7 @@ Specs for worktree creation, upstream sync, reset, and maintenance.
 
 ### All-color hard reset
 
-- [x] WTL-RESET-016: When the user runs `gbiv reset --hard`, the system shall attempt to reset all color worktrees regardless of GBIV.md status.
+- [x] WTL-RESET-016: When the user runs `gbiv reset --hard`, the system shall attempt to reset all active-palette worktrees (base colors plus configured extras) regardless of GBIV.md status.
 - [x] WTL-RESET-017: When the user runs `gbiv reset --hard` without `--yes`, the system shall display each worktree's current branch and prompt for confirmation before proceeding.
 - [x] WTL-RESET-018: If the user declines the confirmation prompt, the system shall abort the reset without modifying any worktrees.
 - [x] WTL-RESET-019: When the user runs `gbiv reset --hard --yes`, the system shall skip the confirmation prompt and proceed immediately.
@@ -85,19 +85,37 @@ Specs for worktree creation, upstream sync, reset, and maintenance.
 - [x] WTL-TIDY-006: If any step (rebase-all or tmux clean) fails, the system shall continue executing subsequent steps and collect errors.
 - [x] WTL-TIDY-007: If any step failed during tidy, the system shall return an error after all steps have been attempted.
 
+## Repair
+
+`gbiv repair` reconciles the on-disk worktree layout to the active palette. Idempotent and append-only: it creates missing worktrees and never removes or renames any.
+
+- [x] WTL-REPAIR-001: When the user runs `gbiv repair`, the system shall locate the gbiv root and the main repo inside the `main/` worktree directory.
+- [x] WTL-REPAIR-002: When the user runs `gbiv repair`, the system shall load the active palette; if config loading fails, repair shall abort with that error and create nothing.
+- [x] WTL-REPAIR-003: When the active palette is loaded, the system shall detect the local main branch name (the same detection `gbiv init` uses).
+- [x] WTL-REPAIR-004: For each name in the active palette, in canonical order, if a git repo is found within `<root>/<name>` (via `find_repo_in_worktree`), the system shall skip it and report it as present.
+- [x] WTL-REPAIR-005: For an active-palette name whose worktree directory is missing and whose branch does not exist, the system shall create the worktree via `git worktree add -b <name> ../../<name>/<folder> <main_branch>`.
+- [x] WTL-REPAIR-006: For an active-palette name whose worktree is missing but whose branch already exists, the system shall attach the existing branch via `git worktree add ../../<name>/<folder> <name>` (without `-b`).
+- [x] WTL-REPAIR-007: When `<root>/<name>` exists but contains no git repo, the system shall report it as broken (needs attention) rather than silently treating it as present.
+- [x] WTL-REPAIR-008: When creating worktrees, the system shall process active-palette names sequentially in canonical order, and a failure for one name shall not roll back worktrees already created.
+- [x] WTL-REPAIR-009: When repair completes, the system shall print a per-name line (created, present, broken, or failed) and a summary count.
+- [x] WTL-REPAIR-010: If any worktree creation failed, the system shall return a non-zero status.
+- [x] WTL-REPAIR-011: The system shall never remove or rename a worktree, even when a name previously present has been removed from the config.
+- [x] WTL-REPAIR-012: The `gbiv repair` command shall not modify `GBIV.md`.
+- [x] WTL-REPAIR-013: When `palette_drift` is called with the gbiv root and the active palette, the system shall return the active-palette names that have no worktree (no git repo found within `<root>/<name>`).
+
 ## Utility Helpers
 
 ### find_gbiv_root
 
-- [x] WTL-UTIL-001: When `find_gbiv_root` is called, the system shall walk up from the given directory looking for a directory that contains a `main/<folder-name>` subdirectory with a git repo and at least one ROYGBIV color subdirectory.
+- [x] WTL-UTIL-001: When `find_gbiv_root` is called, the system shall walk up from the given directory looking for a directory that contains a `main/<folder-name>` subdirectory with a git repo and at least one base ROYGBIV color (BASE_COLORS) subdirectory. Root discovery keys off BASE_COLORS, never the active palette, because the palette is loaded from the root.
 - [x] WTL-UTIL-002: When a matching directory is found, the system shall return a `GbivRoot` containing the root path and folder name.
 - [x] WTL-UTIL-003: If no matching directory is found after walking to the filesystem root, the system shall return `None`.
 
 ### infer_color_from_path
 
-- [x] WTL-UTIL-004: When `infer_color_from_path` is called, the system shall extract the first path component relative to the gbiv root and match it against ROYGBIV color names.
-- [x] WTL-UTIL-005: If the first path component matches a ROYGBIV color, the system shall return that color name.
-- [x] WTL-UTIL-006: If the first path component does not match any ROYGBIV color, the system shall return `None`.
+- [x] WTL-UTIL-004: When `infer_color_from_path` is called, the system shall extract the first path component relative to the gbiv root and match it against the names in the active palette.
+- [x] WTL-UTIL-005: If the first path component matches a name in the active palette, the system shall return that name as an owned `String`.
+- [x] WTL-UTIL-006: If the first path component does not match any active-palette name, the system shall return `None`.
 
 ### QuickStatus
 

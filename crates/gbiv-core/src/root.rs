@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::colors::COLORS;
+use crate::colors::BASE_COLORS;
 
 pub struct GbivRoot {
     pub root: PathBuf,
@@ -14,7 +14,7 @@ pub fn find_gbiv_root(start: &Path) -> Option<GbivRoot> {
     loop {
         if let Some(folder_name) = current.file_name().and_then(|n| n.to_str()) {
             let candidate = current.join("main").join(folder_name);
-            let has_color_dir = COLORS.iter().any(|c| current.join(c).is_dir());
+            let has_color_dir = BASE_COLORS.iter().any(|c| current.join(c).is_dir());
             if candidate.exists() && is_git_repo(&candidate) && has_color_dir {
                 return Some(GbivRoot {
                     root: current.clone(),

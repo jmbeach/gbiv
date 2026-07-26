@@ -3,13 +3,15 @@ use std::process::Command as ProcessCommand;
 use std::thread;
 
 use crate::colors::{ansi_color, RESET};
-use gbiv_core::colors::{infer_color_from_path, is_valid_color, COLORS};
+use gbiv_core::colors::infer_color_from_path;
+use gbiv_core::palette::Palette;
 use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
 // @spec OBS-EXEC-005 through OBS-EXEC-009
 pub fn exec_single(root: &Path, color: &str, command: &[String]) -> anyhow::Result<String> {
-    // Validate color
-    if !is_valid_color(color) {
+    // Validate color against the active palette (base colors + configured extras)
+    let palette = Palette::load(root)?;
+    if !palette.contains(color) {
         return Err(anyhow::anyhow!("'{}' is not a valid color", color));
     }
 
@@ -44,12 +46,13 @@ pub fn exec_all(
     root: &Path,
     command: &[String],
 ) -> anyhow::Result<Vec<(String, Result<String, String>)>> {
-    // Find which colors have repos
-    let mut existing: Vec<(&str, std::path::PathBuf)> = Vec::new();
-    for &color in &COLORS {
+    // Find which active-palette worktrees have repos
+    let palette = Palette::load(root)?;
+    let mut existing: Vec<(String, std::path::PathBuf)> = Vec::new();
+    for color in palette.names() {
         let worktree_dir = root.join(color);
         if let Some(repo_path) = find_repo_in_worktree(&worktree_dir) {
-            existing.push((color, repo_path));
+            existing.push((color.clone(), repo_path));
         }
     }
 
@@ -58,9 +61,8 @@ pub fn exec_all(
     // Spawn threads
     let handles: Vec<_> = existing
         .into_iter()
-        .map(|(color, repo_path)| {
+        .map(|(color_str, repo_path)| {
             let cmd = command_owned.clone();
-            let color_str = color.to_string();
             thread::spawn(move || {
                 let joined = cmd.join(" ");
                 let output = ProcessCommand::new("sh")
@@ -112,10 +114,12 @@ pub fn exec_command(
             // Infer color from CWD
             let gbiv_root = find_gbiv_root(&cwd_path)
                 .ok_or_else(|| anyhow::anyhow!("Could not infer color: not in a gbiv worktree"))?;
-            let color = infer_color_from_path(&cwd_path, &gbiv_root.root).ok_or_else(|| {
-                anyhow::anyhow!("Could not infer color from current worktree directory")
-            })?;
-            exec_single(&gbiv_root.root, color, command)
+            let palette = Palette::load(&gbiv_root.root)?;
+            let color =
+                infer_color_from_path(&cwd_path, &gbiv_root.root, &palette).ok_or_else(|| {
+                    anyhow::anyhow!("Could not infer color from current worktree directory")
+                })?;
+            exec_single(&gbiv_root.root, &color, command)
         }
         Some("all") => {
             let gbiv_root = find_gbiv_root(&cwd_path)

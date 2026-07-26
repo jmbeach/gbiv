@@ -5,9 +5,9 @@
 
 ## Context and Current State
 
-gbiv manages a project by restructuring a single git repository into a fixed set of parallel worktrees named after ROYGBIV colors (red, orange, yellow, green, blue, indigo, violet) plus a canonical `main` worktree. This component owns the creation, synchronization, reset, and maintenance of that structure.
+gbiv manages a project by restructuring a single git repository into parallel worktrees named after ROYGBIV colors (red, orange, yellow, green, blue, indigo, violet) plus a canonical `main` worktree. The seven colors are the default; a project may extend the set with extra named worktrees declared in `.gbiv/config.toml` (see the CLI & Palette LLD, *Active palette*). This component owns the creation, synchronization, reset, repair, and maintenance of that structure.
 
-The core insight is that git worktrees provide real, independent working directories that share a single object store. A developer can have 7 features in flight simultaneously — one per color — and switch between them by changing directories (or tmux windows) rather than stashing and switching branches.
+The core insight is that git worktrees provide real, independent working directories that share a single object store. A developer can have seven features in flight simultaneously — one per color — and switch between them by changing directories (or tmux windows) rather than stashing and switching branches. The rare project that needs more than seven adds extra slots via config and materializes them with `gbiv repair`.
 
 ## Worktree Layout
 
@@ -39,14 +39,14 @@ Each color directory contains a subdirectory with the same name as the original 
 
 `core::root::find_gbiv_root()` walks up from any CWD to find the gbiv root by checking for:
 1. A `main/` subdirectory exists
-2. At least one ROYGBIV color subdirectory exists
+2. At least one `BASE_COLORS` (ROYGBIV) subdirectory exists
 3. A git repo exists somewhere under `main/`
 
-Returns `GbivRoot { root: PathBuf, folder_name: String }` where `folder_name` is the repo directory name inside `main/`. Lives in the `core` module because the orchestration daemon calls it from `gbiv start` and from every CLI subcommand to locate `main/<repo>/.gbiv/port`.
+Returns `GbivRoot { root: PathBuf, folder_name: String }` where `folder_name` is the repo directory name inside `main/`. Lives in the `core` module because the orchestration daemon calls it from `gbiv start` and from every CLI subcommand to locate `main/<repo>/.gbiv/port`. Root discovery keys off the immutable `BASE_COLORS`, never the active palette: the active palette is loaded *from* the root, so root discovery must not depend on it. Base worktrees always exist after init (and `gbiv repair` restores any that are deleted), so checking for a base color is sufficient.
 
 ### Color Inference
 
-`core::colors::infer_color_from_path()` extracts which color worktree the CWD is inside by matching the first path component after the gbiv root against the COLORS constant. Returns `Option<&'static str>`. Lives in the `core` module because it depends only on `COLORS` and a `Path`, and belongs with the other root-relative helpers — although the orchestration daemon does not currently call it (the orchestration daemon always runs from `main/`).
+`core::colors::infer_color_from_path()` extracts which worktree the CWD is inside by matching the first path component after the gbiv root against the active palette. It takes the loaded palette (the names) and returns an owned `Option<String>` — the palette is runtime data, not `&'static`. Lives in the `core` module alongside the other root-relative helpers; the orchestration daemon does not currently call it (it always runs from `main/`).
 
 ## Init (Project Bootstrap)
 
@@ -66,8 +66,32 @@ Returns `GbivRoot { root: PathBuf, folder_name: String }` where `folder_name` is
 5. Write `GBIV.md` template to main repo if absent
 6. Ensure `GBIV.md` is listed in the main repo's `.gitignore` (treated as a per-developer working file, not committed)
 
+Init creates only the seven `BASE_COLORS` worktrees. Extra slots are not created at init time — the config file does not exist when a project is first bootstrapped — so the color-branch conflict check (WTL-INIT-004) is concerned only with the base names. Extra worktrees are materialized by `gbiv repair` reading `.gbiv/config.toml`.
+
 ### Rollback
 If any worktree creation fails, init reverses all changes: removes created worktrees, deletes color directories, restores the original folder name and location.
+
+## Repair (Palette Reconciliation)
+
+`gbiv repair` makes the on-disk worktree layout match the active palette. It is idempotent and append-only: it creates worktrees that should exist but don't, and never removes or renames anything. It is the single way to materialize configured extra worktrees, and it doubles as recovery for a base worktree that was deleted.
+
+### Steps
+1. Find the gbiv root and the main repo inside `main/`.
+2. Load the active palette (`Palette::load`) — base seven plus any validated extras from `.gbiv/config.toml`. A malformed config aborts here with a `ConfigError` (nothing is created).
+3. Detect the local main branch name (as init does).
+4. For each name in the active palette, in canonical order:
+   - If the worktree directory already exists, skip it (report "present").
+   - Otherwise create it: `git worktree add -b <name> ../../<name>/<folder> <main_branch>` from the main repo, exactly as init does per color.
+5. Print a per-name line (created / present / failed) and a summary count.
+6. If any creation failed, return a non-zero status; successfully created worktrees are kept (append-only, no rollback of the others).
+
+### What repair does NOT do
+- It never deletes or renames a worktree, even if a name was removed from the config. Reclaiming a worktree stays the job of `reset` / `tidy`.
+- It does not modify `GBIV.md`.
+- It does not touch worktrees that already exist (no reset, no checkout, no rebase).
+
+### Drift detection (warn, never auto-fix)
+A helper `palette_drift(root, palette) -> Vec<String>` returns the active-palette names that have no worktree directory. Read-only commands (notably `status`) call it and, when it is non-empty, print a one-line hint suggesting `gbiv repair`. Only `gbiv repair` mutates worktrees; observation commands never create anything implicitly.
 
 ## Rebase-All (Upstream Sync)
 
@@ -191,7 +215,8 @@ Callers `?` these into `anyhow::Error` at the command-handler boundary. New vari
 
 | Decision | Chosen | Alternatives Considered | Rationale |
 |---|---|---|---|
-| Fixed 7 colors | ROYGBIV constant array | Configurable count | Simplicity; 7 parallel features is a reasonable ceiling. Colors provide memorable names. |
+| ROYGBIV default, config-extensible | Immutable base seven + optional extras from `.gbiv/config.toml` | Fixed 7; always-N; derive-from-disk | Seven memorable colors cover the common case with zero config; a rare project that needs more adds named slots without losing the default simplicity. The base names stay fixed so ROYGBIV remains the product's identity. |
+| Repair is append-only | Create-if-missing, never remove/rename | Two-way sync that prunes removed names | Destroying a worktree (possibly holding unmerged work) on a config edit is unsafe. Removal stays an explicit `reset`/`tidy` action. |
 | `git worktree add` per color | One worktree per color branch | Sparse checkouts, multiple clones | Worktrees share objects (disk-efficient), each gets full working tree. |
 | Parallel rebase | One thread per color | Sequential, async | Worktrees are independent; parallel is safe and faster. |
 | Auto-abort on conflict | Abort rebase, report error, leave worktree clean | Leave in conflicted state, auto-resolve | Clean worktree is safer — developer sees the error output and can manually retry. Avoids leaving worktrees in a half-rebased state. |
@@ -222,9 +247,12 @@ Callers `?` these into `anyhow::Error` at the command-handler boundary. New vari
 
 - `src/git_utils.rs` — worktree-only git command wrappers and state queries
 - `src/core/root.rs` — `find_gbiv_root`, `find_repo_in_worktree`, `is_git_repo` (shared with the orchestration daemon)
-- `src/core/colors.rs` — `infer_color_from_path` (shared with the orchestration daemon)
+- `core::colors` — `BASE_COLORS`, `infer_color_from_path` (shared with the orchestration daemon)
+- `core::palette` — `Palette` runtime active palette and `palette_drift` helper
+- `core::config` — `.gbiv/config.toml` loading and `ConfigError`
 - `src/core/gitignore.rs` — `ensure_gitignore_entry` (shared with the orchestration daemon)
 - `src/commands/init.rs` — project bootstrap
+- `src/commands/repair.rs` — palette reconciliation (`gbiv repair`)
 - `src/commands/rebase_all.rs` — upstream sync
 - `src/commands/reset.rs` — worktree reclamation
 - `src/commands/tidy.rs` — maintenance composite

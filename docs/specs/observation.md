@@ -8,12 +8,12 @@ Specs for the status dashboard and cross-worktree command execution.
 
 ### Root Discovery
 
-- [x] OBS-STATUS-001: When the user runs `gbiv status`, the system shall determine the gbiv root by traversing upward from CWD looking for a directory that contains `main/<folder_name>` as a git repo and at least one ROYGBIV color directory.
+- [x] OBS-STATUS-001: When the user runs `gbiv status`, the system shall determine the gbiv root by traversing upward from CWD looking for a directory that contains `main/<folder_name>` as a git repo and at least one base ROYGBIV color (BASE_COLORS) directory.
 - [x] OBS-STATUS-002: When the gbiv root cannot be found from CWD, the system shall return the error "Not in a gbiv-structured repository".
 
 ### Parallel Collection
 
-- [x] OBS-STATUS-003: When collecting worktree state, the system shall spawn one thread per color (7 total, one for each of red, orange, yellow, green, blue, indigo, violet) to gather git status in parallel.
+- [x] OBS-STATUS-003: When collecting worktree state, the system shall spawn one thread per active-palette worktree (the seven base ROYGBIV colors plus any configured extras) to gather git status in parallel.
 - [x] OBS-STATUS-004: For each color thread, where the worktree directory exists, the system shall locate the git repo within it via `find_repo_in_worktree` (first subdirectory containing `.git`), then call `get_quick_status` to obtain branch name, dirty flag, and ahead/behind counts.
 - [x] OBS-STATUS-005: For each color thread, where the worktree directory does not exist or contains no git repo, the system shall return `None`.
 
@@ -24,7 +24,7 @@ Specs for the status dashboard and cross-worktree command execution.
 
 ### Output Ordering
 
-- [x] OBS-STATUS-008: When joining thread results, the system shall output worktree statuses in ROYGBIV order: red, orange, yellow, green, blue, indigo, violet.
+- [x] OBS-STATUS-008: When joining thread results, the system shall output worktree statuses in active-palette order: the base ROYGBIV order (red, orange, yellow, green, blue, indigo, violet) followed by any configured extras in their declared order.
 
 ### Output Format - Missing Worktree
 
@@ -56,18 +56,22 @@ Specs for the status dashboard and cross-worktree command execution.
 - [x] OBS-STATUS-025: For each tagged feature, the system shall display the tag in its ANSI color, followed by an optional lifecycle status in brackets (e.g., `[done]`, `[in-progress]`), followed by the description.
 - [x] OBS-STATUS-026: For each untagged feature, the system shall display "backlog" in DIM, left-padded to 8 characters, followed by the description.
 
+### Palette Drift
+
+- [x] OBS-STATUS-027: When one or more active-palette worktrees are missing on disk (per `palette_drift`), the system shall print a one-line hint suggesting `gbiv repair`; `gbiv status` shall never create worktrees itself.
+
 ## Exec
 
 ### Target Parsing
 
-- [x] OBS-EXEC-001: When the user runs `gbiv exec <args>`, the system shall check if the first argument matches a valid ROYGBIV color or "all"; if so, that becomes the target and the remaining arguments become the command tokens.
+- [x] OBS-EXEC-001: When the user runs `gbiv exec <args>`, the system shall check if the first argument matches a name in the active palette or "all"; if so, that becomes the target and the remaining arguments become the command tokens.
 - [x] OBS-EXEC-002: When the first argument does not match a color or "all", the system shall set target to None (infer from CWD) and treat all arguments as command tokens.
 - [x] OBS-EXEC-003: When command tokens contain `--` separators, the system shall strip them from the command token list.
 - [x] OBS-EXEC-004: When no command tokens remain after parsing, the system shall print an error "no command specified" with usage hint and exit with code 1.
 
 ### Single Color Execution
 
-- [x] OBS-EXEC-005: When the target is a specific color, the system shall validate the color against the COLORS array and return an error "'<color>' is not a valid color" for invalid values.
+- [x] OBS-EXEC-005: When the target is a specific color, the system shall validate it against the active palette and return an error "'<color>' is not a valid color" for names not in the active palette.
 - [x] OBS-EXEC-006: When the target is a valid color, the system shall locate the repo within the worktree directory via `find_repo_in_worktree` and return an error if the worktree does not exist or has no repo.
 - [x] OBS-EXEC-007: When the repo is found, the system shall join command tokens with spaces and execute `sh -c "<joined>"` with the working directory set to the repo path.
 - [x] OBS-EXEC-008: When the shell command exits with code 0, the system shall return Ok containing stdout.
@@ -75,8 +79,8 @@ Specs for the status dashboard and cross-worktree command execution.
 
 ### All-Color Execution
 
-- [x] OBS-EXEC-010: When the target is "all", the system shall spawn one thread per existing color worktree (skipping colors whose worktree directory has no repo) and run the command in each.
-- [x] OBS-EXEC-011: When joining results from all-color execution, the system shall preserve ROYGBIV order (threads are spawned and joined in color array order).
+- [x] OBS-EXEC-010: When the target is "all", the system shall spawn one thread per existing active-palette worktree (skipping names whose worktree directory has no repo) and run the command in each.
+- [x] OBS-EXEC-011: When joining results from all-color execution, the system shall preserve active-palette order (threads are spawned and joined in palette order: base ROYGBIV, then configured extras).
 - [x] OBS-EXEC-012: When formatting all-color output, the system shall prefix each color's output with an ANSI-colored header `[<color>]` on its own line.
 - [x] OBS-EXEC-013: When a command fails for a color in all-color mode, the system shall append `(FAILED)` to that color's header line.
 - [x] OBS-EXEC-014: When any command fails in all-color mode, the system shall return Err with the combined output; the process shall exit with code 1.
@@ -85,7 +89,7 @@ Specs for the status dashboard and cross-worktree command execution.
 
 ### Inferred Color Execution
 
-- [x] OBS-EXEC-017: When no target is specified, the system shall find the gbiv root from CWD and infer the color by matching the first path component under the root against the COLORS array.
+- [x] OBS-EXEC-017: When no target is specified, the system shall find the gbiv root from CWD and infer the color by matching the first path component under the root against the active palette.
 - [x] OBS-EXEC-018: When the color cannot be inferred (CWD is not under a color directory, e.g., under `main`), the system shall return the error "Could not infer color from current worktree directory".
 - [x] OBS-EXEC-019: When the gbiv root cannot be found from CWD during inference, the system shall return the error "Could not infer color: not in a gbiv worktree".
 - [x] OBS-EXEC-020: When the color is successfully inferred, the system shall delegate to single-color execution with the inferred color and the gbiv root.

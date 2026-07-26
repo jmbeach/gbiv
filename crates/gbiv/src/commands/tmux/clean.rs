@@ -4,7 +4,7 @@ use std::env;
 use std::process::Command as ProcessCommand;
 
 use crate::gbiv_md::parse_gbiv_md;
-use gbiv_core::colors::is_valid_color;
+use gbiv_core::palette::Palette;
 use gbiv_core::root::find_gbiv_root;
 use gbiv_core::tmux::{has_session, list_windows, tmux_available, TmuxError};
 
@@ -13,9 +13,10 @@ pub fn clean_subcommand() -> Command {
 }
 
 // @spec TMX-CLEAN-005, TMX-CLEAN-006, TMX-CLEAN-007
-/// Pure filtering predicate — testable without a live tmux process.
-pub fn is_orphaned_window(name: &str, active_colors: &HashSet<String>) -> bool {
-    is_valid_color(name) && !active_colors.contains(name)
+/// Pure filtering predicate — testable without a live tmux process. A window is
+/// orphaned when its name is in the active palette but has no tagged feature.
+pub fn is_orphaned_window(name: &str, active_colors: &HashSet<String>, palette: &Palette) -> bool {
+    palette.contains(name) && !active_colors.contains(name)
 }
 
 // @spec TMX-CLEAN-001, TMX-CLEAN-002, TMX-CLEAN-003, TMX-CLEAN-004, TMX-CLEAN-005, TMX-CLEAN-006, TMX-CLEAN-007, TMX-CLEAN-008, TMX-CLEAN-009, TMX-CLEAN-010, TMX-CLEAN-011, TMX-CLEAN-012
@@ -31,6 +32,9 @@ pub fn clean_command() -> anyhow::Result<()> {
     let gbiv_root = find_gbiv_root(&cwd).ok_or_else(|| {
         anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one.")
     })?;
+
+    // Load the active palette (base colors + configured extras)
+    let palette = Palette::load(&gbiv_root.root)?;
 
     let session_name = &gbiv_root.folder_name;
 
@@ -67,7 +71,7 @@ pub fn clean_command() -> anyhow::Result<()> {
     // Find orphaned windows
     let orphaned: Vec<&String> = windows
         .iter()
-        .filter(|name| is_orphaned_window(name, &active_colors))
+        .filter(|name| is_orphaned_window(name, &active_colors, &palette))
         .collect();
 
     if orphaned.is_empty() {
@@ -103,7 +107,7 @@ pub fn clean_command() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gbiv_core::colors::COLORS;
+    use gbiv_core::colors::BASE_COLORS;
     use serial_test::serial;
     use std::process::Command as ProcessCommand;
 
@@ -207,13 +211,13 @@ mod tests {
         let active: HashSet<String> = ["red", "blue"].iter().map(|s| s.to_string()).collect();
 
         // ROYGBIV colors not in active → orphaned
-        assert!(is_orphaned_window("orange", &active));
-        assert!(is_orphaned_window("yellow", &active));
-        assert!(is_orphaned_window("green", &active));
+        assert!(is_orphaned_window("orange", &active, &Palette::default()));
+        assert!(is_orphaned_window("yellow", &active, &Palette::default()));
+        assert!(is_orphaned_window("green", &active, &Palette::default()));
 
         // ROYGBIV colors in active → not orphaned
-        assert!(!is_orphaned_window("red", &active));
-        assert!(!is_orphaned_window("blue", &active));
+        assert!(!is_orphaned_window("red", &active, &Palette::default()));
+        assert!(!is_orphaned_window("blue", &active, &Palette::default()));
     }
 
     // @spec TMX-CLEAN-006, TMX-CLEAN-007
@@ -222,19 +226,19 @@ mod tests {
         let active: HashSet<String> = HashSet::new();
 
         // Non-ROYGBIV names must never be considered orphaned
-        assert!(!is_orphaned_window("main", &active));
-        assert!(!is_orphaned_window("bash", &active));
-        assert!(!is_orphaned_window("purple", &active));
-        assert!(!is_orphaned_window("", &active));
+        assert!(!is_orphaned_window("main", &active, &Palette::default()));
+        assert!(!is_orphaned_window("bash", &active, &Palette::default()));
+        assert!(!is_orphaned_window("purple", &active, &Palette::default()));
+        assert!(!is_orphaned_window("", &active, &Palette::default()));
     }
 
     // @spec TMX-CLEAN-005
     #[test]
     fn test_orphan_filtering_all_active() {
-        let active: HashSet<String> = COLORS.iter().map(|s| s.to_string()).collect();
+        let active: HashSet<String> = BASE_COLORS.iter().map(|s| s.to_string()).collect();
 
-        for color in COLORS.iter() {
-            assert!(!is_orphaned_window(color, &active));
+        for color in BASE_COLORS.iter() {
+            assert!(!is_orphaned_window(color, &active, &Palette::default()));
         }
     }
 }

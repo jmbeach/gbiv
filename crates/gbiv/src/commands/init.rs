@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use gbiv_core::colors::COLORS;
+use gbiv_core::colors::BASE_COLORS;
 use gbiv_core::root::is_git_repo;
 
 use crate::git_utils::{get_existing_branches, get_main_branch, has_commits};
@@ -41,7 +41,7 @@ fn ensure_gbiv_md_in_gitignore(main_repo_path: &Path) -> anyhow::Result<()> {
 
 fn check_color_branches(path: &Path) -> Vec<String> {
     let branches = get_existing_branches(path);
-    COLORS
+    BASE_COLORS
         .iter()
         .filter(|c| branches.contains(&c.to_string()))
         .map(|c| c.to_string())
@@ -108,7 +108,7 @@ pub fn init_command(folder: &str) -> anyhow::Result<()> {
     let main_repo_path = format!("{}/main/{}", folder, folder);
 
     let rollback_after_move = |folder: &str| {
-        for color in COLORS {
+        for color in BASE_COLORS {
             let worktree_path = format!("{}/{}/{}", folder, color, folder);
             if Path::new(&worktree_path).exists() {
                 let _ = Command::new("git")
@@ -123,7 +123,7 @@ pub fn init_command(folder: &str) -> anyhow::Result<()> {
         let _ = fs::remove_dir_all(format!("{}/main", folder));
     };
 
-    for color in COLORS {
+    for color in BASE_COLORS {
         let worktree_path = format!("../../{}/{}", color, folder);
         let output = Command::new("git")
             .args(["worktree", "add", "-b", color, &worktree_path, &main_branch])
@@ -363,7 +363,7 @@ mod tests {
         assert!(result.is_ok(), "init_command failed: {:?}", result);
 
         assert!(Path::new(&format!("{}/main/{}", project_name, project_name)).exists());
-        for color in COLORS {
+        for color in BASE_COLORS {
             assert!(Path::new(&format!("{}/{}/{}", project_name, color, project_name)).exists());
         }
 

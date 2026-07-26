@@ -3,7 +3,7 @@ use crate::git_utils::{
     checkout_branch, get_quick_status, get_remote_main_branch, is_merged_into, reset_hard,
     stash_push,
 };
-use gbiv_core::colors::COLORS;
+use gbiv_core::palette::Palette;
 use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 use std::path::Path;
 
@@ -88,7 +88,11 @@ pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> 
         .map(|p| parse_gbiv_md(&p.join("GBIV.md")))
         .unwrap_or_default();
 
-    for &color in COLORS.iter() {
+    // Load the active palette (base colors + configured extras). The real command
+    // path validates the config upstream in reset_command; fall back to base here.
+    let palette = Palette::load(gbiv_root).unwrap_or_else(|_| Palette::default());
+
+    for color in palette.names() {
         // Check if the worktree directory exists
         let worktree_dir = gbiv_root.join(color);
         if !worktree_dir.exists() {
@@ -99,7 +103,9 @@ pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> 
 
         if !hard {
             // Find the feature entry for this color
-            let feature = features.iter().find(|f| f.tag.as_deref() == Some(color));
+            let feature = features
+                .iter()
+                .find(|f| f.tag.as_deref() == Some(color.as_str()));
 
             // If no GBIV.md entry, skip silently
             let feature = match feature {
@@ -181,7 +187,13 @@ pub fn reset_command(color: Option<&str>, hard: bool, yes: bool) -> anyhow::Resu
     let gbiv_root = find_gbiv_root(&cwd)
         .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
 
+    // Load the active palette (base colors + configured extras); hard-fail on bad config.
+    let palette = Palette::load(&gbiv_root.root)?;
+
     if let Some(c) = color {
+        if !palette.contains(c) {
+            return Err(anyhow::anyhow!("'{}' is not a valid color", c));
+        }
         let msg = reset_one(&gbiv_root.root, c, hard)?;
         println!("{}", msg);
         Ok(())
@@ -189,7 +201,7 @@ pub fn reset_command(color: Option<&str>, hard: bool, yes: bool) -> anyhow::Resu
         // For all-color --hard, show confirmation prompt unless --yes
         if hard && !yes {
             let mut lines: Vec<String> = vec![];
-            for &c in COLORS.iter() {
+            for c in palette.names() {
                 let worktree_dir = gbiv_root.root.join(c);
                 if !worktree_dir.exists() {
                     continue;

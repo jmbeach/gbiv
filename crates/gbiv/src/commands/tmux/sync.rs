@@ -4,7 +4,7 @@ use std::env;
 use std::process::Command as ProcessCommand;
 
 use crate::gbiv_md::{parse_gbiv_md, GbivFeature};
-use gbiv_core::colors::{is_valid_color, COLORS};
+use gbiv_core::palette::Palette;
 use gbiv_core::root::find_gbiv_root;
 use gbiv_core::tmux::{
     has_session, list_windows, session_name_for_root, tmux_available, TmuxError,
@@ -22,35 +22,38 @@ pub fn sync_subcommand() -> Command {
 }
 
 // @spec TMX-SYNC-007
-/// Extract the set of valid ROYGBIV colors that have at least one tagged feature in GBIV.md.
-pub fn active_colors_from_features(features: &[GbivFeature]) -> HashSet<String> {
+/// Extract the set of active-palette names that have at least one tagged feature in GBIV.md.
+pub fn active_colors_from_features(features: &[GbivFeature], palette: &Palette) -> HashSet<String> {
     features
         .iter()
         .filter_map(|f| f.tag.as_deref())
-        .filter(|tag| is_valid_color(tag))
+        .filter(|tag| palette.contains(tag))
         .map(|s| s.to_string())
         .collect()
 }
 
 // @spec TMX-SYNC-008
 /// Given the set of active colors and the list of existing window names,
-/// return the colors that need new windows created.
+/// return the active-palette names that need new windows created.
 pub fn missing_windows(
     active_colors: &HashSet<String>,
     existing_windows: &[String],
+    palette: &Palette,
 ) -> Vec<String> {
     let existing_set: HashSet<&str> = existing_windows.iter().map(|s| s.as_str()).collect();
-    COLORS
+    palette
+        .names()
         .iter()
-        .filter(|c| active_colors.contains(**c) && !existing_set.contains(**c))
-        .map(|s| s.to_string())
+        .filter(|c| active_colors.contains(c.as_str()) && !existing_set.contains(c.as_str()))
+        .cloned()
         .collect()
 }
 
 // @spec TMX-SYNC-013
-/// Sort window names into ROYGBIV order: main first, then colors in ROYGBIV order,
-/// then any non-color windows preserving their relative order.
-pub fn sort_windows_roygbiv(window_names: &[String]) -> Vec<String> {
+/// Sort window names into active-palette order: main first, then active-palette
+/// names in canonical order, then any windows not in the palette preserving
+/// their relative order.
+pub fn sort_windows_roygbiv(window_names: &[String], palette: &Palette) -> Vec<String> {
     let mut result: Vec<String> = Vec::new();
 
     // "main" first
@@ -58,16 +61,16 @@ pub fn sort_windows_roygbiv(window_names: &[String]) -> Vec<String> {
         result.push("main".to_string());
     }
 
-    // Colors in ROYGBIV order
-    for color in &COLORS {
-        if window_names.iter().any(|w| w.as_str() == *color) {
-            result.push(color.to_string());
+    // Active-palette names in canonical order
+    for color in palette.names() {
+        if window_names.iter().any(|w| w == color) {
+            result.push(color.clone());
         }
     }
 
-    // Non-color, non-main windows preserving relative order
+    // Windows not in the palette (and not main), preserving relative order
     for w in window_names {
-        if w != "main" && !is_valid_color(w) {
+        if w != "main" && !palette.contains(w) {
             result.push(w.clone());
         }
     }
@@ -88,6 +91,9 @@ pub fn sync_command(session_name: Option<&str>) -> anyhow::Result<()> {
     let gbiv_root = find_gbiv_root(&cwd).ok_or_else(|| {
         anyhow::anyhow!("Not inside a gbiv project. Run `gbiv init` to initialize one.")
     })?;
+
+    // Load the active palette (base colors + configured extras)
+    let palette = Palette::load(&gbiv_root.root)?;
 
     // Determine session name
     let session_name = session_name
@@ -122,10 +128,10 @@ pub fn sync_command(session_name: Option<&str>) -> anyhow::Result<()> {
         .join(&gbiv_root.folder_name)
         .join("GBIV.md");
     let features = parse_gbiv_md(&gbiv_md_path);
-    let active_colors = active_colors_from_features(&features);
+    let active_colors = active_colors_from_features(&features, &palette);
 
     // Find missing windows
-    let missing = missing_windows(&active_colors, &existing_windows);
+    let missing = missing_windows(&active_colors, &existing_windows, &palette);
 
     // Create missing windows
     let mut created: Vec<String> = Vec::new();
@@ -176,7 +182,7 @@ pub fn sync_command(session_name: Option<&str>) -> anyhow::Result<()> {
         .map(|w| w.name)
         .collect();
 
-    let desired_order = sort_windows_roygbiv(&current_windows);
+    let desired_order = sort_windows_roygbiv(&current_windows, &palette);
 
     // Move all windows to high temporary indices first to avoid index collisions,
     // then move them back to their desired positions.
@@ -238,7 +244,7 @@ mod tests {
                 notes: vec![],
             },
         ];
-        let active = active_colors_from_features(&features);
+        let active = active_colors_from_features(&features, &Palette::default());
         assert!(active.contains("red"));
         assert!(active.contains("blue"));
         assert_eq!(active.len(), 2);
@@ -261,7 +267,7 @@ mod tests {
                 notes: vec![],
             },
         ];
-        let active = active_colors_from_features(&features);
+        let active = active_colors_from_features(&features, &Palette::default());
         assert!(active.contains("red"));
         assert!(!active.contains("purple"));
         assert_eq!(active.len(), 1);
@@ -284,7 +290,7 @@ mod tests {
                 notes: vec![],
             },
         ];
-        let active = active_colors_from_features(&features);
+        let active = active_colors_from_features(&features, &Palette::default());
         assert_eq!(active.len(), 1);
         assert!(active.contains("red"));
     }
@@ -293,7 +299,7 @@ mod tests {
     #[test]
     fn test_active_colors_empty_features() {
         let features: Vec<GbivFeature> = vec![];
-        let active = active_colors_from_features(&features);
+        let active = active_colors_from_features(&features, &Palette::default());
         assert!(active.is_empty());
     }
 
@@ -302,7 +308,7 @@ mod tests {
     fn test_missing_windows_color_active_but_no_window() {
         let active: HashSet<String> = ["red", "indigo"].iter().map(|s| s.to_string()).collect();
         let existing = vec!["main".to_string(), "red".to_string()];
-        let missing = missing_windows(&active, &existing);
+        let missing = missing_windows(&active, &existing, &Palette::default());
         assert_eq!(missing, vec!["indigo".to_string()]);
     }
 
@@ -311,7 +317,7 @@ mod tests {
     fn test_missing_windows_all_present() {
         let active: HashSet<String> = ["red", "blue"].iter().map(|s| s.to_string()).collect();
         let existing = vec!["main".to_string(), "red".to_string(), "blue".to_string()];
-        let missing = missing_windows(&active, &existing);
+        let missing = missing_windows(&active, &existing, &Palette::default());
         assert!(missing.is_empty());
     }
 
@@ -320,7 +326,7 @@ mod tests {
     fn test_missing_windows_inactive_color_not_returned() {
         let active: HashSet<String> = ["red"].iter().map(|s| s.to_string()).collect();
         let existing = vec!["main".to_string()];
-        let missing = missing_windows(&active, &existing);
+        let missing = missing_windows(&active, &existing, &Palette::default());
         assert_eq!(missing, vec!["red".to_string()]);
         // "blue" is not active, so it should NOT appear in missing
         assert!(!missing.contains(&"blue".to_string()));
@@ -335,7 +341,7 @@ mod tests {
             "main".to_string(),
             "indigo".to_string(),
         ];
-        let sorted = sort_windows_roygbiv(&windows);
+        let sorted = sort_windows_roygbiv(&windows, &Palette::default());
         assert_eq!(sorted, vec!["main", "red", "yellow", "indigo"]);
     }
 
@@ -348,7 +354,7 @@ mod tests {
             "main".to_string(),
             "htop".to_string(),
         ];
-        let sorted = sort_windows_roygbiv(&windows);
+        let sorted = sort_windows_roygbiv(&windows, &Palette::default());
         assert_eq!(sorted, vec!["main", "red", "bash", "htop"]);
     }
 
@@ -365,7 +371,7 @@ mod tests {
             "red".to_string(),
             "main".to_string(),
         ];
-        let sorted = sort_windows_roygbiv(&windows);
+        let sorted = sort_windows_roygbiv(&windows, &Palette::default());
         assert_eq!(
             sorted,
             vec!["main", "red", "orange", "yellow", "green", "blue", "indigo", "violet"]
@@ -376,7 +382,7 @@ mod tests {
     #[test]
     fn test_sort_windows_roygbiv_subset_of_colors() {
         let windows = vec!["blue".to_string(), "green".to_string()];
-        let sorted = sort_windows_roygbiv(&windows);
+        let sorted = sort_windows_roygbiv(&windows, &Palette::default());
         assert_eq!(sorted, vec!["green", "blue"]);
     }
 
