@@ -85,7 +85,7 @@ The walk does **not short-circuit on first match**: it visits every descendant u
 
 The walk is OS-specific because there is no portable cross-platform process API in std. v1 supports macOS and Linux:
 
-- **macOS**: `ps -A -o pid=,ppid=,comm=` once at the start of the walk; build a child map; DFS from `root_pid`. For each descendant, resolve the executable via `ps -p <pid> -o comm=` (which on macOS returns the full path of the executable, not the renamed title).
+- **macOS**: `ps -A -o pid=,ppid=` once at the start of the walk to build a child map; DFS from `root_pid`. For each descendant, resolve the executable via `ps -p <pid> -o comm=` (which on macOS returns the full path of the executable, not the renamed title). The bulk listing omits `comm` because macOS truncates it there; the per-pid query returns the full path.
 - **Linux**: read `/proc/<pid>/exe` (a symlink to the executable path) for each descendant. Children are listed via `/proc/<pid>/task/<tid>/children` or, more portably, by scanning `/proc/*/stat` for matching `ppid`.
 
 The walk is bounded: depth ≤ 8, total descendants visited ≤ 64. A pane shell rarely has more than a handful of descendants; these caps prevent runaway in pathological cases.
@@ -108,7 +108,9 @@ enum LocatorError {
 
 ## Concurrency
 
-`/sessions` runs the locator for all seven colors. The natural implementation is to walk colors sequentially in ROYGBIV order — list_windows is one call, then per-color list_panes + process walks. v1 does not parallelize: the cost is a handful of tmux invocations and a `ps` per color, well under 100ms in practice. If profiling shows otherwise, parallelizing per color is a single-thread-per-color spawn (matching the gbiv `parallel-by-color` pattern).
+`/sessions` runs the locator for all seven colors. The batch entry point `locate_panes(session, colors)` walks colors sequentially in ROYGBIV order but builds the expensive shared state — the host-wide process snapshot (the `ps -A` / `/proc` child map) **and** the `list_windows` call — exactly once, then resolves every color against it. This avoids the full-host scan being repeated per color that calling the single-color `locate_pane` seven times would incur. Only the per-pane work (per-pid executable/start-time reads and the tree walk) is inherently per-color. v1 does not parallelize the per-color work: the remaining cost is a handful of tmux invocations plus bounded `ps`/`/proc` reads per color, well under 100ms in practice. If profiling shows otherwise, parallelizing per color is a single-thread-per-color spawn (matching the gbiv `parallel-by-color` pattern).
+
+Per-color error handling in the batch is isolated: a color whose `list_panes` fails yields an `Err` for that color alone, while the others still resolve. A failure of the shared `list_windows` (the session itself is missing) fails the whole batch — there are no windows to resolve against. Neither entry point caches across calls; the shared snapshot lives only for the duration of one `locate_panes` call, preserving per-request freshness.
 
 Within a single resolution, pane info from `list_panes` is read once. The walk uses that snapshot. Processes can come and go between snapshot and walk, including PID reuse: a pane PID could in principle be reassigned to an unrelated process between `list_panes` and `is_claude_process_tree`. v1 accepts this race because the consequences are mild: at worst the response says `NoClaudePane` when claude was just starting, or `Ok` for a pane that just exited (the subsequent `capture_pane` then returns `PaneNotFound`). PID reuse mid-resolution would require a process to die and a new one to be spawned with the exact same PID inside the few milliseconds of one HTTP request — vanishingly rare on the timescales involved.
 
