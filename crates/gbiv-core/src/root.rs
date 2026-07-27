@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::colors::COLORS;
+use crate::colors::BASE_COLORS;
 
 pub struct GbivRoot {
     pub root: PathBuf,
@@ -14,7 +14,7 @@ pub fn find_gbiv_root(start: &Path) -> Option<GbivRoot> {
     loop {
         if let Some(folder_name) = current.file_name().and_then(|n| n.to_str()) {
             let candidate = current.join("main").join(folder_name);
-            let has_color_dir = COLORS.iter().any(|c| current.join(c).is_dir());
+            let has_color_dir = BASE_COLORS.iter().any(|c| current.join(c).is_dir());
             if candidate.exists() && is_git_repo(&candidate) && has_color_dir {
                 return Some(GbivRoot {
                     root: current.clone(),
@@ -48,6 +48,38 @@ pub fn find_repo_in_worktree(worktree_dir: &Path) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// The on-disk state of a single palette worktree slot, as seen from the gbiv root.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WorktreePresence {
+    /// A git repo was found within `<root>/<name>`; carries its path.
+    Present(PathBuf),
+    /// The directory is absent or empty — repairable by `gbiv repair`.
+    Missing,
+    /// The directory exists and is non-empty but contains no git repo —
+    /// an unresolved problem that `gbiv repair` deliberately will not overwrite.
+    Broken,
+}
+
+// @spec WTL-UTIL-020
+/// Classify a palette worktree slot at `<gbiv_root>/<name>` as Present, Missing,
+/// or Broken. This is the single definition of those states shared by `status`
+/// (row + drift hints) and `repair` (create vs. skip vs. flag), so the two never
+/// disagree about what "missing" and "broken" mean.
+pub fn classify_worktree(gbiv_root: &Path, name: &str) -> WorktreePresence {
+    let dir = gbiv_root.join(name);
+    if let Some(repo) = find_repo_in_worktree(&dir) {
+        WorktreePresence::Present(repo)
+    } else if dir
+        .read_dir()
+        .map(|mut entries| entries.next().is_some())
+        .unwrap_or(false)
+    {
+        WorktreePresence::Broken
+    } else {
+        WorktreePresence::Missing
+    }
 }
 
 #[cfg(test)]
@@ -122,5 +154,34 @@ mod tests {
     fn test_find_gbiv_root_none() {
         let base = TempDir::new().unwrap();
         assert!(find_gbiv_root(base.path()).is_none());
+    }
+
+    // @spec WTL-UTIL-020
+    #[test]
+    fn classify_worktree_present_missing_broken() {
+        let base = TempDir::new().unwrap();
+        let root = base.path();
+
+        // Present: a real repo inside <root>/red/proj.
+        let red_repo = root.join("red").join("proj");
+        fs::create_dir_all(red_repo.join(".git")).unwrap();
+        assert!(matches!(
+            classify_worktree(root, "red"),
+            WorktreePresence::Present(_)
+        ));
+
+        // Missing: directory absent entirely.
+        assert_eq!(classify_worktree(root, "orange"), WorktreePresence::Missing);
+
+        // Missing: directory exists but is empty (e.g. leftover parent).
+        fs::create_dir_all(root.join("green")).unwrap();
+        assert_eq!(classify_worktree(root, "green"), WorktreePresence::Missing);
+
+        // Broken: directory non-empty but has no git repo — including for a
+        // configured extra name, so extras are classified the same as base colors.
+        let amber = root.join("amber");
+        fs::create_dir_all(&amber).unwrap();
+        fs::write(amber.join("stray.txt"), "x").unwrap();
+        assert_eq!(classify_worktree(root, "amber"), WorktreePresence::Broken);
     }
 }

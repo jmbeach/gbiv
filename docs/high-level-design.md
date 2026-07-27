@@ -7,7 +7,9 @@
 
 gbiv is a binary CLI that turns one git repository into seven parallel
 workspaces — one per ROYGBIV color — using git worktrees, and lets one Claude
-Code session observe and drive the others across those worktrees.
+Code session observe and drive the others across those worktrees. The seven
+colors are the default palette; an advanced, opt-in per-project config can append
+extra named worktrees beyond ROYGBIV for the rare case that seven aren't enough.
 
 The name comes from the colors: gbiv manages ROYGBIV color-named worktrees and
 is named for them.
@@ -51,6 +53,17 @@ of agents observable on demand.
 - **Orchestration is an explicit, opt-in mode.** Worktree commands never spawn a
   background process. The only long-running mode is `gbiv start`, run in the
   foreground and stopped with Ctrl+C.
+- **An extensible palette, ROYGBIV by default.** The seven color names are the
+  built-in default. A power user who needs more than seven concurrent worktrees
+  can declare extra named slots in an optional `.gbiv/config.toml`
+  at the project root, then run `gbiv repair` to materialize them. Absent that file,
+  behavior is exactly the seven-color layout. The base ROYGBIV names are fixed —
+  the config only *appends* extra names; it never renames or removes a color.
+- **`gbiv repair` makes the layout match the palette.** A single idempotent,
+  append-only command that creates any worktree in the active palette that is
+  missing on disk — whether a configured extra not yet materialized, or a base
+  ROYGBIV worktree that was deleted. It never removes or renames worktrees;
+  destructive cleanup stays with `reset`/`tidy`.
 
 ## Target Users
 
@@ -119,8 +132,8 @@ conflict, each domain keeps its own bias rather than forcing one house style.
 
 | Component | Domain | Purpose | LLD |
 |---|---|---|---|
-| **CLI & Palette** | worktree | Parse commands, route to handlers, provide ROYGBIV constants and ANSI formatting | `docs/llds/cli-and-palette.md` |
-| **Worktree Lifecycle** | worktree | Create, sync, reset, and maintain the 7-color worktree structure | `docs/llds/worktree-lifecycle.md` |
+| **CLI & Palette** | worktree | Parse commands, route to handlers, load the active palette (ROYGBIV + optional extras) and provide ANSI formatting | `docs/llds/cli-and-palette.md` |
+| **Worktree Lifecycle** | worktree | Create, repair, reset, and maintain the color worktree structure, including `gbiv repair` palette reconciliation (restore missing worktrees + materialize configured extras) | `docs/llds/worktree-lifecycle.md` |
 | **Feature Ledger** | worktree | Parse and mutate `GBIV.md` as the source of truth for feature assignments and status | `docs/llds/feature-ledger.md` |
 | **Observation** | worktree | Surface worktree health and run arbitrary commands across worktrees | `docs/llds/observation.md` |
 | **Tmux Mirror** | worktree | Keep tmux windows synchronized with the worktree layout | `docs/llds/tmux-mirror.md` |
@@ -136,17 +149,24 @@ conflict, each domain keeps its own bias rather than forcing one house style.
 from CWD until a directory with `main/` plus at least one color subdirectory and a
 git repo is found. The universal entry point for both domains.
 
+**Active palette.** The list of worktree names is ROYGBIV by default, loaded at
+runtime from the gbiv root. When `.gbiv/config.toml` declares extra names, the
+active palette is ROYGBIV followed by those names, in order. Validation, iteration
+order, and color inference all operate over the active palette. The palette is a
+*configuration input*, not authoritative state, and is exactly ROYGBIV when no
+config file is present.
+
 **Color inference.** When a `<color>` argument is optional, commands infer it from
-CWD by matching the first path component after the root against the ROYGBIV
-constant, so `cd red/repo && gbiv mark --done` works without naming `red`.
+CWD by matching the first path component after the root against the active palette,
+so `cd red/repo && gbiv mark --done` works without naming `red`.
 
-**ROYGBIV ordering.** Output and iteration always follow the canonical ROYGBIV
-order. Status, exec, tmux window order, and rebase/reset processing are all
-consistent.
+**Canonical ordering.** Output and iteration always follow the active palette's
+order — ROYGBIV first, then any configured extras. Status, exec, tmux window
+order, and rebase/reset processing are all consistent.
 
-**Parallel-by-color.** `status`, `exec all`, and `rebase-all` process all seven
-colors in parallel, joining in ROYGBIV order for deterministic output. Safe
-because worktrees are independent.
+**Parallel-by-worktree.** `status`, `exec all`, and `rebase-all` process every
+worktree in the active palette in parallel, joining in palette order for
+deterministic output. Safe because worktrees are independent.
 
 **Error handling.** gbiv splits typed errors from contextual ones by *module
 role*, not by crate — it is one crate, so the boundary is internal. Leaf modules
@@ -172,7 +192,10 @@ the others.
 
 The two authoritative stores are **`GBIV.md`** (feature assignments and lifecycle)
 and **git state** (branch positions, cleanliness, merge status). There is no third
-store — no database, no JSON state file.
+store for *feature or worktree state* — no database, no JSON state file. The
+optional `.gbiv/config.toml` is a *configuration* input, not a state store: it
+names extra worktree slots but holds no feature, lifecycle, or branch state, and
+is absent in the default seven-color setup.
 
 ### Orchestration domain — how it works
 
@@ -202,9 +225,11 @@ messages pass through.
 ## Architectural Boundaries
 
 ### What gbiv owns
-- The `project/{main,red,…,violet}/repo/` directory layout
+- The `project/{main,red,…,violet,…}/repo/` directory layout
 - `GBIV.md` format and mutations
 - Color branch naming, and tmux session/window naming
+- The optional `.gbiv/config.toml` palette config and the `gbiv repair`
+  reconciliation it drives (append-only worktree creation; warn-on-drift)
 - The fleet HTTP API and its port-file discovery convention
 
 ### What gbiv delegates

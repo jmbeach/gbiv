@@ -6,8 +6,8 @@ use crate::git_utils::{
     fetch_remote, get_ahead_behind_vs, get_git_dir, get_remote_main_branch, pull, rebase_onto,
     resolve_git_dir,
 };
-use gbiv_core::colors::COLORS;
 use gbiv_core::gitignore::ensure_gitignore_entry;
+use gbiv_core::palette::Palette;
 use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
 const GBIV_STATE_FILES: &[&str] = &[".last-branch"];
@@ -65,6 +65,10 @@ pub fn rebase_all_command() -> anyhow::Result<()> {
     let gbiv_root =
         find_gbiv_root(&cwd).ok_or_else(|| anyhow::anyhow!("Could not find gbiv root"))?;
 
+    // Load the active palette (base colors + configured extras)
+    let palette = Palette::load(&gbiv_root.root)?;
+    let names: Vec<String> = palette.names().to_vec();
+
     // Pull the main worktree first so colour rebases are based on the latest main
     let main_worktree_dir = gbiv_root.root.join("main");
     let main_repo = find_repo_in_worktree(&main_worktree_dir)
@@ -86,7 +90,7 @@ pub fn rebase_all_command() -> anyhow::Result<()> {
 
     // Register gbiv state files in info/exclude before spawning threads to avoid
     // concurrent writes to the same file (all worktrees share one git common dir).
-    for &color in &COLORS {
+    for color in &names {
         let worktree_dir = gbiv_root.root.join(color);
         if let Some(repo_path) = find_repo_in_worktree(&worktree_dir) {
             if let Some(common_git_dir) = get_git_dir(&repo_path) {
@@ -102,21 +106,25 @@ pub fn rebase_all_command() -> anyhow::Result<()> {
         }
     }
 
-    // Rebase all color worktrees in parallel
+    // Rebase all active-palette worktrees in parallel
     let root = gbiv_root.root.clone();
-    let handles: Vec<_> = COLORS
+    let handles: Vec<_> = names
         .iter()
-        .map(|&color| {
+        .map(|color| {
+            let color = color.clone();
             let root = root.clone();
             let remote_main = remote_main.clone();
-            thread::spawn(move || (color, rebase_worktree(&root, color, &remote_main)))
+            thread::spawn(move || {
+                let result = rebase_worktree(&root, &color, &remote_main);
+                (color, result)
+            })
         })
         .collect();
 
     let mut succeeded = 0u32;
     let mut failed = 0u32;
 
-    for (color, handle) in COLORS.iter().zip(handles) {
+    for (color, handle) in names.iter().zip(handles) {
         let result = match handle.join() {
             Ok((_, result)) => result,
             Err(_) => RebaseResult::RebaseFailed("thread panicked".to_string()),

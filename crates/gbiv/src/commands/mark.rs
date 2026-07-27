@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::gbiv_md::set_gbiv_feature_status;
 use gbiv_core::colors::infer_color_from_path;
+use gbiv_core::palette::Palette;
 use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
 // @spec FL-MARK-001 through FL-MARK-011
@@ -20,14 +21,21 @@ pub fn mark_command(
     let gbiv_root = find_gbiv_root(&cwd)
         .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
 
-    // Resolve color: explicit or inferred from CWD relative to gbiv root
+    // Load the active palette (base colors + configured extras)
+    let palette = Palette::load(&gbiv_root.root)?;
+
+    // Resolve color: explicit (validated against the active palette) or inferred from CWD
+    // @spec CLI-COLOR-027
     let resolved_color = match color {
-        Some(c) => c.to_string(),
-        None => infer_color_from_path(&cwd, &gbiv_root.root)
-            .ok_or_else(|| {
-                anyhow::anyhow!("Could not infer color from current worktree directory")
-            })?
-            .to_string(),
+        Some(c) => {
+            if !palette.contains(c) {
+                return Err(anyhow::anyhow!("'{}' is not an active-palette worktree", c));
+            }
+            c.to_string()
+        }
+        None => infer_color_from_path(&cwd, &gbiv_root.root, &palette).ok_or_else(|| {
+            anyhow::anyhow!("Could not infer color from current worktree directory")
+        })?,
     };
 
     // Locate GBIV.md in main worktree

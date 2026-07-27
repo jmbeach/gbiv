@@ -3,7 +3,7 @@ use crate::git_utils::{
     checkout_branch, get_quick_status, get_remote_main_branch, is_merged_into, reset_hard,
     stash_push,
 };
-use gbiv_core::colors::COLORS;
+use gbiv_core::palette::Palette;
 use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 use std::path::Path;
 
@@ -72,7 +72,10 @@ pub fn reset_one(gbiv_root: &Path, color: &str, hard: bool) -> anyhow::Result<St
 
 // @spec WTL-RESET-011 through WTL-RESET-015
 /// Returns all output lines (including a summary) produced by all-color reset.
-pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> {
+/// The caller passes the already-validated active palette so the config is loaded
+/// (and hard-fails) exactly once per command — this function never falls back to a
+/// base-only palette on its own (CLI-COLOR-026).
+pub fn reset_all_to_vec(gbiv_root: &std::path::Path, palette: &Palette, hard: bool) -> Vec<String> {
     use crate::gbiv_md::parse_gbiv_md;
 
     let mut messages: Vec<String> = vec![];
@@ -88,7 +91,7 @@ pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> 
         .map(|p| parse_gbiv_md(&p.join("GBIV.md")))
         .unwrap_or_default();
 
-    for &color in COLORS.iter() {
+    for color in palette.names() {
         // Check if the worktree directory exists
         let worktree_dir = gbiv_root.join(color);
         if !worktree_dir.exists() {
@@ -99,7 +102,9 @@ pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> 
 
         if !hard {
             // Find the feature entry for this color
-            let feature = features.iter().find(|f| f.tag.as_deref() == Some(color));
+            let feature = features
+                .iter()
+                .find(|f| f.tag.as_deref() == Some(color.as_str()));
 
             // If no GBIV.md entry, skip silently
             let feature = match feature {
@@ -175,13 +180,19 @@ pub fn reset_all_to_vec(gbiv_root: &std::path::Path, hard: bool) -> Vec<String> 
     messages
 }
 
-// @spec WTL-RESET-016 through WTL-RESET-019
+// @spec WTL-RESET-016 through WTL-RESET-019, CLI-COLOR-027
 pub fn reset_command(color: Option<&str>, hard: bool, yes: bool) -> anyhow::Result<()> {
     let cwd = std::env::current_dir()?;
     let gbiv_root = find_gbiv_root(&cwd)
         .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
 
+    // Load the active palette (base colors + configured extras); hard-fail on bad config.
+    let palette = Palette::load(&gbiv_root.root)?;
+
     if let Some(c) = color {
+        if !palette.contains(c) {
+            return Err(anyhow::anyhow!("'{}' is not an active-palette worktree", c));
+        }
         let msg = reset_one(&gbiv_root.root, c, hard)?;
         println!("{}", msg);
         Ok(())
@@ -189,7 +200,7 @@ pub fn reset_command(color: Option<&str>, hard: bool, yes: bool) -> anyhow::Resu
         // For all-color --hard, show confirmation prompt unless --yes
         if hard && !yes {
             let mut lines: Vec<String> = vec![];
-            for &c in COLORS.iter() {
+            for c in palette.names() {
                 let worktree_dir = gbiv_root.root.join(c);
                 if !worktree_dir.exists() {
                     continue;
@@ -217,7 +228,7 @@ pub fn reset_command(color: Option<&str>, hard: bool, yes: bool) -> anyhow::Resu
             }
         }
 
-        let messages = reset_all_to_vec(&gbiv_root.root, hard);
+        let messages = reset_all_to_vec(&gbiv_root.root, &palette, hard);
         for msg in &messages {
             println!("{}", msg);
         }
@@ -508,7 +519,7 @@ mod tests {
             "setup should produce an [in-progress] entry"
         );
 
-        let messages = reset_all_to_vec(root.path(), false);
+        let messages = reset_all_to_vec(root.path(), &Palette::default(), false);
 
         // The worktree should NOT have been reset because it has [in-progress] status
         let output = Cmd::new("git")
@@ -634,7 +645,7 @@ mod tests {
         let (_source_dir, root, _repo_path, _main_repo, _gbiv_md_path) =
             setup_worktree_with_gbiv_entry(Some("in-progress"));
 
-        let messages = reset_all_to_vec(root.path(), false);
+        let messages = reset_all_to_vec(root.path(), &Palette::default(), false);
 
         let has_summary = messages.iter().any(|msg| {
             msg.contains("reset")

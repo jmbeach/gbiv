@@ -8,8 +8,8 @@ use crate::git_utils::{
     get_ahead_behind_vs, get_last_commit_age, get_quick_status, get_remote_main_branch,
     is_merged_into,
 };
-use gbiv_core::colors::COLORS;
-use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
+use gbiv_core::palette::Palette;
+use gbiv_core::root::{classify_worktree, find_gbiv_root, find_repo_in_worktree, WorktreePresence};
 
 struct WorktreeStatus {
     branch: Option<String>,
@@ -17,6 +17,14 @@ struct WorktreeStatus {
     merged: Option<bool>,
     age: Option<Duration>,
     ahead_behind: Option<(u32, u32)>,
+}
+
+/// A worktree slot as rendered by `status`: a collected git status when present,
+/// or a missing/broken marker (mirroring `gbiv_core::root::WorktreePresence`).
+enum WorktreeRow {
+    Present(WorktreeStatus),
+    Missing,
+    Broken,
 }
 
 fn format_age(duration: Duration) -> String {
@@ -33,7 +41,7 @@ fn format_age(duration: Duration) -> String {
 }
 
 // @spec OBS-STATUS-003 through OBS-STATUS-007
-fn collect_worktree_status(color: &'static str, repo_path: PathBuf) -> WorktreeStatus {
+fn collect_worktree_status(color: &str, repo_path: PathBuf) -> WorktreeStatus {
     let quick = get_quick_status(&repo_path);
     let branch = quick.branch;
     let is_dirty = quick.is_dirty;
@@ -70,32 +78,54 @@ pub fn status_command() -> anyhow::Result<()> {
     let gbiv_root = find_gbiv_root(&cwd)
         .ok_or_else(|| anyhow::anyhow!("Not in a gbiv-structured repository"))?;
 
-    let handles: Vec<_> = COLORS
+    let palette = Palette::load(&gbiv_root.root)?;
+    let names: Vec<String> = palette.names().to_vec();
+
+    let handles: Vec<_> = names
         .iter()
-        .map(|&color| {
-            let worktree_dir = gbiv_root.root.join(color);
+        .map(|color| {
+            let color = color.clone();
+            let root = gbiv_root.root.clone();
             thread::spawn(move || {
-                if !worktree_dir.exists() {
-                    return None;
+                // Classify with the same definition `repair` uses, so status and
+                // repair never disagree about missing vs. broken.
+                match classify_worktree(&root, &color) {
+                    WorktreePresence::Present(repo_path) => {
+                        WorktreeRow::Present(collect_worktree_status(&color, repo_path))
+                    }
+                    WorktreePresence::Missing => WorktreeRow::Missing,
+                    WorktreePresence::Broken => WorktreeRow::Broken,
                 }
-                let repo_path = find_repo_in_worktree(&worktree_dir)?;
-                Some(collect_worktree_status(color, repo_path))
             })
         })
         .collect();
 
     let results: Vec<_> = handles
         .into_iter()
-        .map(|h| h.join().unwrap_or(None))
+        .map(|h| h.join().unwrap_or(WorktreeRow::Missing))
         .collect();
 
-    for (i, result) in results.into_iter().enumerate() {
-        let color = COLORS[i];
+    // Derived from the single classification pass above — no second filesystem scan.
+    let mut missing: Vec<&str> = Vec::new();
+    let mut broken: Vec<&str> = Vec::new();
+
+    for (i, result) in results.iter().enumerate() {
+        let color = names[i].as_str();
         let color_code = ansi_color(color);
 
         match result {
-            None => println!("{}{:<8}{}  missing", color_code, color, RESET),
-            Some(status) => {
+            WorktreeRow::Missing => {
+                missing.push(color);
+                println!("{}{:<8}{}  missing", color_code, color, RESET);
+            }
+            WorktreeRow::Broken => {
+                broken.push(color);
+                println!(
+                    "{}{:<8}{}  {}broken{}",
+                    color_code, color, RESET, YELLOW, RESET
+                );
+            }
+            WorktreeRow::Present(status) => {
                 let branch = status.branch.as_deref().unwrap_or("???");
                 let is_dirty = status.is_dirty;
 
@@ -166,6 +196,29 @@ pub fn status_command() -> anyhow::Result<()> {
         .map(|p| parse_gbiv_md(&p.join("GBIV.md")))
         .unwrap_or_default();
     print!("{}", format_gbiv_features(&features));
+
+    // @spec OBS-STATUS-027, OBS-STATUS-028
+    // Missing worktrees are repairable; broken ones (dir present, no repo) are not
+    // — `gbiv repair` deliberately leaves them alone — so hint at them separately
+    // rather than telling the user to run a repair that will decline to act.
+    if !missing.is_empty() {
+        println!(
+            "\n{}{} worktree(s) missing: {} — run `gbiv repair`{}",
+            DIM,
+            missing.len(),
+            missing.join(", "),
+            RESET
+        );
+    }
+    if !broken.is_empty() {
+        println!(
+            "\n{}{} worktree(s) broken (directory exists but has no git repo): {} — needs attention{}",
+            DIM,
+            broken.len(),
+            broken.join(", "),
+            RESET
+        );
+    }
 
     Ok(())
 }

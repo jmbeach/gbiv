@@ -2,7 +2,7 @@ use clap::{Arg, Command};
 use std::env;
 use std::process::Command as ProcessCommand;
 
-use gbiv_core::colors::COLORS;
+use gbiv_core::palette::Palette;
 use gbiv_core::root::find_gbiv_root;
 use gbiv_core::tmux::{has_session, session_name_for_root, tmux_available, TmuxError};
 
@@ -44,12 +44,16 @@ pub fn new_session_command(session_name: Option<&str>) -> anyhow::Result<()> {
         ));
     }
 
-    // Build the list of worktree paths: main first, then all ROYGBIV colors
-    let worktree_paths: Vec<(String, std::path::PathBuf)> = std::iter::once("main")
-        .chain(COLORS.iter().copied())
+    // Build the list of worktree paths: main first, then the active palette
+    // (base colors, then configured extras)
+    let palette = Palette::load(&gbiv_root.root)?;
+    let mut names: Vec<String> = vec!["main".to_string()];
+    names.extend(palette.names().iter().cloned());
+    let worktree_paths: Vec<(String, std::path::PathBuf)> = names
+        .into_iter()
         .map(|color| {
-            let path = gbiv_root.root.join(color).join(&gbiv_root.folder_name);
-            (color.to_string(), path)
+            let path = gbiv_root.root.join(&color).join(&gbiv_root.folder_name);
+            (color, path)
         })
         .collect();
 
