@@ -45,6 +45,11 @@ operations (`list_panes`) and the shared `gbiv_core::tmux` primitives
 - [x] **PANE-LOC-019**: On macOS the walk shall build the child map via `ps -A -o pid=,ppid=` and resolve each process's full executable path via `ps -p <pid> -o comm=` (per-pid, since the bulk listing truncates `comm`), and read start time via `ps -p <pid> -o lstart=`.
 - [x] **PANE-LOC-020**: On Linux the walk shall resolve each process's executable via `/proc/<pid>/exe`, enumerate descendants via `/proc/<pid>/stat` `ppid` fields, and read start time from field 22 of `/proc/<pid>/stat`.
 
+## Batch Resolution
+
+- [x] **PANE-LOC-024**: `locate_panes(session, colors)` shall build the host process snapshot and window list once and resolve every color against that shared snapshot, returning a `(color, Result<Resolution, LocatorError>)` per color so that one color's pane-listing failure does not fail the others.
+- [x] **PANE-LOC-025**: If the shared `list_windows(session)` call fails (the gbiv tmux session is missing or unavailable), `locate_panes` shall return a single `Err(LocatorError::TmuxSession(_))` for the whole batch rather than a per-color result.
+
 ## Caching
 
-- [x] **PANE-LOC-021**: The locator shall re-resolve on every call and shall not cache resolutions, so pane state that changes between requests is always observed fresh.
+- [x] **PANE-LOC-021**: Both `locate_pane` and `locate_panes` shall re-resolve on every call and shall not cache resolutions across calls, so pane state that changes between requests is always observed fresh. (Within a single `locate_panes` call the host snapshot is shared across colors; this is per-request amortization, not cross-request caching.)

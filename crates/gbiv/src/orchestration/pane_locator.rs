@@ -43,6 +43,10 @@ pub enum LocatorError {
     TmuxSession(#[from] TmuxError),
 }
 
+/// One color paired with its resolution outcome, as returned by [`locate_panes`].
+/// A per-color `Err` isolates that color's failure from the rest of the batch.
+pub type ColorResolution = (String, Result<Resolution, LocatorError>);
+
 /// A source of process-tree information, abstracted so the walk logic is testable
 /// with an injected in-memory table instead of the live OS.
 trait ProcSource {
@@ -149,21 +153,21 @@ fn resolve_claude_panes(mut panes: Vec<ClaudePane>) -> Resolution {
     }
 }
 
-// @spec PANE-LOC-003, PANE-LOC-004, PANE-LOC-005, PANE-LOC-006, PANE-LOC-014, PANE-LOC-022, PANE-LOC-023
-/// Core locator logic with tmux calls and the process source injected.
-fn locate_pane_with<W, P, S>(
+// @spec PANE-LOC-005, PANE-LOC-006, PANE-LOC-014, PANE-LOC-022, PANE-LOC-023
+/// Resolve one color against an already-fetched window list and a shared process
+/// source. Factored out so the batch path can amortize the host-wide process
+/// scan and the window listing across many colors in a single request.
+fn resolve_color<P, S>(
     session: &str,
     color: &str,
-    list_windows: W,
-    list_panes: P,
+    windows: &[WindowInfo],
+    list_panes: &P,
     src: &S,
 ) -> Result<Resolution, LocatorError>
 where
-    W: Fn(&str) -> Result<Vec<WindowInfo>, TmuxError>,
     P: Fn(&str) -> Result<Vec<PaneInfo>, TmuxError>,
     S: ProcSource,
 {
-    let windows = list_windows(session)?;
     // First window whose name matches the color; the daemon creates exactly one
     // per color, so a duplicate name is a tolerated anomaly (PANE-LOC-022).
     if !windows.iter().any(|w| w.name == color) {
@@ -185,6 +189,53 @@ where
         })
         .collect();
     Ok(resolve_claude_panes(claude_panes))
+}
+
+// @spec PANE-LOC-003, PANE-LOC-004
+/// Single-color locator logic with tmux calls and the process source injected.
+fn locate_pane_with<W, P, S>(
+    session: &str,
+    color: &str,
+    list_windows: W,
+    list_panes: P,
+    src: &S,
+) -> Result<Resolution, LocatorError>
+where
+    W: Fn(&str) -> Result<Vec<WindowInfo>, TmuxError>,
+    P: Fn(&str) -> Result<Vec<PaneInfo>, TmuxError>,
+    S: ProcSource,
+{
+    let windows = list_windows(session)?;
+    resolve_color(session, color, &windows, &list_panes, src)
+}
+
+// @spec PANE-LOC-024, PANE-LOC-025
+/// Batch locator logic: fetch the window list once and resolve every color
+/// against a single shared process source. A per-color pane-listing failure is
+/// isolated to that color's inline `Result`; a session-level window-listing
+/// failure (session missing) fails the whole batch.
+fn locate_panes_with<W, P, S>(
+    session: &str,
+    colors: &[&str],
+    list_windows: W,
+    list_panes: P,
+    src: &S,
+) -> Result<Vec<ColorResolution>, LocatorError>
+where
+    W: Fn(&str) -> Result<Vec<WindowInfo>, TmuxError>,
+    P: Fn(&str) -> Result<Vec<PaneInfo>, TmuxError>,
+    S: ProcSource,
+{
+    let windows = list_windows(session)?;
+    Ok(colors
+        .iter()
+        .map(|color| {
+            (
+                (*color).to_string(),
+                resolve_color(session, color, &windows, &list_panes, src),
+            )
+        })
+        .collect())
 }
 
 // @spec PANE-LOC-019, PANE-LOC-020
@@ -279,9 +330,12 @@ fn read_start_time(pid: u32) -> Option<u64> {
     parse_lstart(String::from_utf8_lossy(&out.stdout).trim())
 }
 
-/// Parse a C-locale `ps lstart` string ("Dow Mon DD HH:MM:SS YYYY") to unix
-/// seconds. Returns `None` on any malformed field.
-#[cfg(target_os = "macos")]
+/// Parse a C-locale `ps lstart` string ("Dow Mon DD HH:MM:SS YYYY") into an
+/// ordering key (seconds, treating the fields as if UTC). `ps` reports local
+/// time, so the value is offset from the true unix epoch by the host's timezone
+/// — but that offset is constant across all panes on one host, so it cancels
+/// under comparison, which is all the locator uses it for. Returns `None` on any
+/// malformed field. Pure (no OS access) so it is unit-tested directly.
 fn parse_lstart(s: &str) -> Option<u64> {
     let parts: Vec<&str> = s.split_whitespace().collect();
     if parts.len() != 5 {
@@ -315,7 +369,6 @@ fn parse_lstart(s: &str) -> Option<u64> {
 
 /// Days since the Unix epoch for a civil (proleptic Gregorian) date.
 /// Howard Hinnant's algorithm.
-#[cfg(target_os = "macos")]
 fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     let y = if m <= 2 { y - 1 } else { y };
     let era = (if y >= 0 { y } else { y - 399 }) / 400;
@@ -358,20 +411,26 @@ fn read_exe_basename(pid: u32) -> Option<String> {
 // @spec PANE-LOC-020
 #[cfg(target_os = "linux")]
 fn read_start_time(pid: u32) -> Option<u64> {
-    read_stat_field(pid, StatField::StartTime)
+    let content = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    parse_stat_field(&content, StatField::StartTime)
 }
 
 #[cfg(target_os = "linux")]
+fn read_stat_field(pid: u32, field: StatField) -> Option<u64> {
+    let content = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    parse_stat_field(&content, field)
+}
+
 enum StatField {
     Ppid,
     StartTime,
 }
 
-/// Read a field from `/proc/<pid>/stat`. `comm` (field 2) is parenthesized and
-/// may contain spaces/parens, so fields are indexed from after the last ')'.
-#[cfg(target_os = "linux")]
-fn read_stat_field(pid: u32, field: StatField) -> Option<u64> {
-    let content = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+/// Parse a field from the contents of `/proc/<pid>/stat`. `comm` (field 2) is
+/// parenthesized and may itself contain spaces and parentheses, so fields are
+/// indexed from after the *last* ')'. Pure (no `/proc` access) so it is
+/// unit-tested directly with synthetic stat lines.
+fn parse_stat_field(content: &str, field: StatField) -> Option<u64> {
     let rest = &content[content.rfind(')')? + 1..];
     let tokens: Vec<&str> = rest.split_whitespace().collect();
     // After the last ')', tokens[0] is field 3 (state); field N maps to N-3.
@@ -400,13 +459,31 @@ fn read_start_time(_pid: u32) -> Option<u64> {
 }
 
 // @spec PANE-LOC-003, PANE-LOC-021
-/// Locate the claude pane for `color` in the gbiv tmux `session`. Re-resolves on
-/// every call (no caching), so pane state that changes between calls is observed
-/// fresh.
+/// Locate the claude pane for a single `color` in the gbiv tmux `session`.
+/// Re-resolves on every call (no caching), so pane state that changes between
+/// calls is observed fresh. To resolve several colors at once, prefer
+/// [`locate_panes`], which shares one host process scan across them.
 pub fn locate_pane(session: &str, color: &str) -> Result<Resolution, LocatorError> {
     locate_pane_with(
         session,
         color,
+        list_windows,
+        list_panes,
+        &RealProcSource::new(),
+    )
+}
+
+// @spec PANE-LOC-021, PANE-LOC-024, PANE-LOC-025
+/// Locate the claude pane for each of `colors` in one pass, building the host
+/// process snapshot and window list **once** and resolving every color against
+/// that shared snapshot. This is the batch path for callers resolving the whole
+/// fleet (e.g. all seven ROYGBIV colors); it avoids the redundant full-host scan
+/// that calling [`locate_pane`] per color would incur. Like the single-color
+/// path it does not cache across calls — freshness is preserved per request.
+pub fn locate_panes(session: &str, colors: &[&str]) -> Result<Vec<ColorResolution>, LocatorError> {
+    locate_panes_with(
+        session,
+        colors,
         list_windows,
         list_panes,
         &RealProcSource::new(),
@@ -845,5 +922,150 @@ mod tests {
             src.start_time(me).is_some(),
             "should read this test process's start time"
         );
+    }
+
+    // ---- locate_panes_with (batch, PANE-LOC-024, 025) ------------------------
+
+    // @spec PANE-LOC-024
+    #[test]
+    fn locate_panes_shares_one_window_list_across_colors() {
+        // The window list (and, in production, the host process scan) is fetched
+        // once per batch, not once per color.
+        let win_calls = Cell::new(0usize);
+        let windows = |_s: &str| {
+            win_calls.set(win_calls.get() + 1);
+            Ok(vec![win("red"), win("blue")])
+        };
+        let list = |t: &str| {
+            if t == "sess:red" {
+                Ok(vec![pane("%1", 10, "node")])
+            } else {
+                Ok(vec![])
+            }
+        };
+        let mut src = FakeProcSource::default();
+        src.add(10, Some("claude"), Some(5), &[]);
+        let out = locate_panes_with("sess", &["red", "blue"], windows, list, &src).unwrap();
+        assert_eq!(
+            win_calls.get(),
+            1,
+            "window list must be fetched once per batch"
+        );
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].0, "red");
+        assert_eq!(
+            out[0].1.as_ref().unwrap(),
+            &Resolution::Ok {
+                pane_id: "%1".into(),
+                other_pane_ids: vec![],
+            }
+        );
+        assert_eq!(out[1].0, "blue");
+        assert_eq!(out[1].1.as_ref().unwrap(), &Resolution::NoClaudePane);
+    }
+
+    // @spec PANE-LOC-024
+    #[test]
+    fn locate_panes_isolates_per_color_pane_errors() {
+        // One color's list_panes failure must not sink the others.
+        let windows = |_s: &str| Ok(vec![win("red"), win("blue")]);
+        let list = |t: &str| {
+            if t == "sess:red" {
+                Err(TmuxError::PaneNotFound(t.to_string()))
+            } else {
+                Ok(vec![])
+            }
+        };
+        let src = FakeProcSource::default();
+        let out = locate_panes_with("sess", &["red", "blue"], windows, list, &src).unwrap();
+        assert!(matches!(
+            out[0].1,
+            Err(LocatorError::TmuxSession(TmuxError::PaneNotFound(_)))
+        ));
+        assert_eq!(out[1].1.as_ref().unwrap(), &Resolution::NoClaudePane);
+    }
+
+    // @spec PANE-LOC-025
+    #[test]
+    fn locate_panes_session_missing_fails_whole_batch() {
+        let windows = |s: &str| Err(TmuxError::SessionNotFound(s.to_string()));
+        let src = FakeProcSource::default();
+        let err = locate_panes_with("sess", &["red", "blue"], windows, no_panes, &src).unwrap_err();
+        assert!(matches!(
+            err,
+            LocatorError::TmuxSession(TmuxError::SessionNotFound(_))
+        ));
+    }
+
+    // ---- parse_lstart / days_from_civil (macOS start time, PANE-LOC-019) -----
+
+    // @spec PANE-LOC-019
+    #[test]
+    fn parse_lstart_known_timestamp() {
+        // 2026-07-26 16:54:03; fields treated as if UTC (ordering key), so this is
+        // a fixed, concrete value independent of the host timezone.
+        assert_eq!(
+            parse_lstart("Sun Jul 26 16:54:03 2026"),
+            Some(1_785_084_843)
+        );
+    }
+
+    // @spec PANE-LOC-019
+    #[test]
+    fn parse_lstart_single_digit_day_double_space() {
+        // `ps` pads a single-digit day with an extra space; split_whitespace
+        // absorbs it, and an earlier day sorts strictly before a later one.
+        assert_eq!(
+            parse_lstart("Sun Jul  6 16:54:03 2026"),
+            Some(1_783_356_843)
+        );
+        assert!(
+            parse_lstart("Sun Jul  6 16:54:03 2026") < parse_lstart("Sun Jul 26 16:54:03 2026")
+        );
+    }
+
+    // @spec PANE-LOC-019
+    #[test]
+    fn parse_lstart_rejects_malformed() {
+        assert_eq!(parse_lstart("garbage"), None);
+        assert_eq!(parse_lstart("Sun Jul 26 16:54:03"), None); // only 4 fields
+        assert_eq!(parse_lstart("Sun Foo 26 16:54:03 2026"), None); // bad month
+        assert_eq!(parse_lstart("Sun Jul 26 16:54 2026"), None); // missing seconds
+    }
+
+    // @spec PANE-LOC-019
+    #[test]
+    fn days_from_civil_epoch_anchors() {
+        assert_eq!(days_from_civil(1970, 1, 1), 0);
+        assert_eq!(days_from_civil(2000, 1, 1), 10_957);
+        assert_eq!(days_from_civil(2026, 1, 1), 20_454);
+    }
+
+    // ---- parse_stat_field (Linux /proc/stat, PANE-LOC-020) -------------------
+
+    // @spec PANE-LOC-020
+    #[test]
+    fn parse_stat_field_handles_comm_with_parens_and_spaces() {
+        // comm = "sh (foo)" contains a space AND parentheses; field indexing must
+        // key off the LAST ')'. Fields after comm: 3=state, 4=ppid, ..., 22=start.
+        let mut fields = vec!["R".to_string(), "1000".to_string()]; // f3 state, f4 ppid
+        for f in 5..=21 {
+            fields.push(f.to_string()); // f5..f21 placeholders
+        }
+        fields.push("8675309".to_string()); // f22 starttime
+        let content = format!("4242 (sh (foo)) {}\n", fields.join(" "));
+        assert_eq!(parse_stat_field(&content, StatField::Ppid), Some(1000));
+        assert_eq!(
+            parse_stat_field(&content, StatField::StartTime),
+            Some(8_675_309)
+        );
+    }
+
+    // @spec PANE-LOC-020
+    #[test]
+    fn parse_stat_field_rejects_short_or_missing() {
+        assert_eq!(parse_stat_field("no parens here", StatField::Ppid), None);
+        // Has ')' but too few fields to reach starttime (field 22).
+        assert_eq!(parse_stat_field("1 (x) R 2 3", StatField::StartTime), None);
     }
 }
