@@ -37,6 +37,20 @@ pub(crate) fn cli() -> Command {
             Command::new("status")
                 .about("Show status of all ROYGBIV worktrees"),
         )
+        .subcommand(
+            Command::new("start")
+                .about("Run the fleet orchestration HTTP daemon in the foreground")
+                .arg(
+                    Arg::new("session-name")
+                        .long("session-name")
+                        .help("Override the inferred tmux session name"),
+                )
+                .arg(
+                    Arg::new("bind")
+                        .long("bind")
+                        .help("Reserved; parsed but ignored in v1 (always binds 127.0.0.1)"),
+                ),
+        )
         .subcommand(tmux::tmux_command())
         .subcommand(
             Command::new("rebase-all")
@@ -160,6 +174,11 @@ fn run() -> Result<()> {
         Some(("status", _)) => {
             status_command()?;
         }
+        Some(("start", sub_matches)) => {
+            let session_name = sub_matches.get_one::<String>("session-name").cloned();
+            let bind = sub_matches.get_one::<String>("bind").cloned();
+            orchestration::daemon::run(orchestration::daemon::StartOptions { session_name, bind })?;
+        }
         Some(("tmux", sub_matches)) => {
             tmux::dispatch(sub_matches)?;
         }
@@ -269,6 +288,35 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- `gbiv start` flag parsing (HTTP-SRV-057, HTTP-SRV-058) -----------
+
+    // @spec HTTP-SRV-057
+    #[test]
+    fn start_parses_session_name_flag() {
+        let m = cli().get_matches_from(["gbiv", "start", "--session-name", "custom"]);
+        let sub = m.subcommand_matches("start").unwrap();
+        assert_eq!(
+            sub.get_one::<String>("session-name").map(String::as_str),
+            Some("custom")
+        );
+    }
+
+    // @spec HTTP-SRV-057
+    #[test]
+    fn start_session_name_is_optional() {
+        let m = cli().get_matches_from(["gbiv", "start"]);
+        let sub = m.subcommand_matches("start").unwrap();
+        assert_eq!(sub.get_one::<String>("session-name"), None);
+    }
+
+    // @spec HTTP-SRV-058
+    #[test]
+    fn start_parses_bind_flag_but_it_is_only_stored_not_acted_on() {
+        let m = cli().get_matches_from(["gbiv", "start", "--bind", "0.0.0.0"]);
+        let sub = m.subcommand_matches("start").unwrap();
+        assert_eq!(sub.get_one::<String>("bind").map(String::as_str), Some("0.0.0.0"));
+    }
 
     // @spec CLI-DISPATCH-003
     #[test]

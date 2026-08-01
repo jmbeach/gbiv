@@ -129,7 +129,7 @@ Status codes:
 - `200` — keystrokes accepted by tmux
 - `400` — request body missing/invalid; `text` is empty
 - `404` — color invalid or no window
-- `409` — input was rejected by the prompt-response guard, OR `pane_status` is `no_claude_pane` (resolvable conflict, not malformed input). Multiple-claude-panes is **not** a 409 — the locator auto-picks the oldest and returns `ok`; the response body includes `other_claude_panes` so the caller knows.
+- `409` — input was rejected by the prompt-response guard, OR `pane_status` is `no_claude_pane` (resolvable conflict, not malformed input). The `no_claude_pane` case's body is `{"ok": false, "error": "no_claude_pane", "color": "<color>"}` — no `explanation` field, since there's no guard rule to explain (the caller just needs to know the window has no active claude pane to send to). Multiple-claude-panes is **not** a 409 — the locator auto-picks the oldest and returns `ok`; the response body includes `other_claude_panes` so the caller knows.
 - `502` — tmux driver returned `SendKeysIncomplete` (text sent, Enter failed)
 - `503` — tmux session does not exist
 
@@ -151,26 +151,31 @@ Multi-word natural-language text (e.g., `"yes please run that"`) is **not** reje
 ### Startup
 
 1. Discover the gbiv root by walking up from CWD (`core::find_gbiv_root`).
-2. Resolve `main/<repo>/` (`core::find_repo_in_worktree`) and the tmux session name (folder-derived unless `--session-name` provided; both come from the `core` module so the daemon and the worktree commands cannot disagree).
-3. Verify `tmux -V` succeeds (`core::tmux::tmux_available`) → fatal exit if not.
-4. Bind a TCP listener on `127.0.0.1:0` (kernel-assigned port).
-5. Create `<gbiv-root>/main/<repo>/.gbiv/` if missing.
-6. Write the bound port to `<gbiv-root>/main/<repo>/.gbiv/port` as plain ASCII (e.g., `54321\n`).
-7. Ensure `.gbiv/` is in `.git/info/exclude` (`core::ensure_gitignore_entry`) so the user doesn't have to edit anything to keep the port file out of git.
-8. Validate `:color` URL params against `core::colors::is_valid_color` at request time (rejected at the routing layer before the locator is called).
-9. Print `gbiv listening on http://127.0.0.1:<port>` to stdout.
-10. Block in the accept loop.
+2. Resolve `main/<repo>/` (`core::find_repo_in_worktree`) and the tmux session name (folder-derived via `core::tmux::session_name_for_root` unless `--session-name` is provided; both come from the `core` module so the daemon and the worktree commands cannot disagree).
+3. Load the active palette (`gbiv_core::palette::Palette::load(&gbiv_root)`, base ROYGBIV plus any configured `.gbiv/config.toml` extras) once at startup and hold it for the process lifetime — see § "Active Palette" below.
+4. Verify `tmux -V` succeeds (`core::tmux::tmux_available`) → fatal exit if not.
+5. Bind a TCP listener on `127.0.0.1:0` (kernel-assigned port).
+6. Create `<gbiv-root>/main/<repo>/.gbiv/` if missing.
+7. Write the bound port to `<gbiv-root>/main/<repo>/.gbiv/port` as plain ASCII (e.g., `54321\n`).
+8. Ensure `.gbiv/` is in `.git/info/exclude` (`core::ensure_gitignore_entry`) so the user doesn't have to edit anything to keep the port file out of git.
+9. Validate `:color` URL params against the loaded `Palette::contains` at request time (rejected at the routing layer before the locator is called) — see § "Active Palette".
+10. Print `gbiv listening on http://127.0.0.1:<port>` to stdout.
+11. Block in the accept loop.
+
+### Active Palette
+
+The server validates and iterates colors against the **active palette** (base ROYGBIV plus any `.gbiv/config.toml` extras), not a hard-coded `BASE_COLORS` list — consistent with every other gbiv surface (`status`, `exec all`, `tmux sync`), which already treat configured extras as first-class. The palette is loaded once at startup (step 3 above) rather than per-request: it changes only when a human edits `.gbiv/config.toml`, and a running daemon reflecting a stale palette until restarted is an acceptable tradeoff against re-reading a config file on every request. `GET /sessions` iterates the loaded palette's `names()` in order; `GET /session/:color` and `POST /session/:color/send` validate `:color` via `Palette::contains`.
 
 ### Shutdown
 
-- Ctrl+C / SIGTERM: best-effort delete the port file, then exit. Listener cleanup is handled by process exit.
+- Ctrl+C / SIGTERM: best-effort delete the port file, then exit. Registered via the `ctrlc` crate (small, cross-platform SIGINT handling; SIGTERM too on unix), the only signal-handling dependency in the workspace. Listener cleanup is handled by process exit.
 - Any other exit (panic, bind failure mid-flight): port file may be left stale. CLI subcommands handle stale port files (see CLI LLD: connection-refused → "is the daemon running?").
 
 ### Concurrency
 
-- One worker thread per request. tiny_http (or equivalent sync HTTP lib) gives a thread per accepted connection.
+- **16 long-lived worker threads**, each looping `tiny_http::Server::recv()` on the one shared `Server` instance. `tiny_http::Server` is documented as safe to call `.recv()` from multiple threads concurrently — this is the library's intended pattern for bounded parallelism, and it naturally caps concurrency at exactly 16 in-flight requests without a separate semaphore or thread-spawn-per-connection.
 - Pane Locator and tmux Driver are independently safe to call concurrently — they hold no shared state and tmux subprocesses don't conflict at the granularity gbiv uses.
-- Request handling is bounded by tmux subprocess speed (~tens of ms per call). v1 sets a max of 16 worker threads to cap runaway parallelism if a misbehaving client floods.
+- Request handling is bounded by tmux subprocess speed (~tens of ms per call). The worker count (16) caps runaway parallelism if a misbehaving client floods; a 17th concurrent request queues in the OS accept backlog until a worker frees up.
 
 ## Binding & Security
 
@@ -206,6 +211,8 @@ JSON serialization uses `serde` + `serde_json`. These are the de-facto standard 
 
 If gbiv later needs SSE streaming (`/events`), revisit: `hyper` + `tokio` becomes a credible move.
 
+Shutdown signal handling uses the `ctrlc` crate (small, ~2 transitive deps) rather than hand-rolled `signal-hook`/raw `libc` calls — it handles SIGINT portably and SIGTERM on unix with one `ctrlc::set_handler` call, which is all the port-file cleanup in § "Shutdown" needs.
+
 ## Decisions & Alternatives
 
 | Decision | Chosen | Alternatives | Rationale |
@@ -216,7 +223,9 @@ If gbiv later needs SSE streaming (`/events`), revisit: `hyper` + `tokio` become
 | Multiple claude panes | Locator auto-picks oldest; HTTP layer returns `ok` plus `other_claude_panes: [...]` | Distinct status (`multiple_claude_panes`); pick first; ignore others silently | Old session is almost always the worktree's primary claude. Surfacing the also-rans keeps it transparent without forcing the caller to handle a separate error path |
 | Send body shape | `{"text": "..."}` | Plain string body, multipart, query param | JSON is consistent with responses; explicit field name leaves room for future fields (`text_only_no_enter`, etc.) |
 | Pane Locator runs per-request | Yes | Cache for short TTL | Trades a few ms per call for zero invalidation logic; revisit if `/sessions` becomes hot |
-| Worker model | Thread per request, capped at 16 | Single-threaded loop, fully async | Threads are simple and adequate; cap prevents pathological clients |
+| Worker model | 16 worker threads looping `Server::recv()` | Thread spawned per accepted connection; single-threaded loop; fully async | Matches tiny_http's documented concurrent-`recv()` pattern; caps concurrency without a thread-spawn-per-request or a separate semaphore |
+| `:color` validation scope | Active palette (base ROYGBIV + configured `.gbiv/config.toml` extras), loaded once at startup | Hard-coded `BASE_COLORS` only | Consistent with every other gbiv surface (status/exec/tmux already treat extras as first-class) |
+| Shutdown signal handling | `ctrlc` crate | Hand-rolled `signal-hook` or raw `libc` | One-call portable SIGINT/SIGTERM handling; workspace's only signal-handling dependency |
 
 ## Edge Cases
 

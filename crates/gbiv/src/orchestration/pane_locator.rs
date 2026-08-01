@@ -421,6 +421,10 @@ fn read_stat_field(pid: u32, field: StatField) -> Option<u64> {
     parse_stat_field(&content, field)
 }
 
+// Only the Linux path (`read_stat_field` above) calls these in production;
+// deliberately not `#[cfg(target_os = "linux")]` so the parsing logic stays
+// unit-tested on every CI platform (see `parse_stat_field`'s doc comment).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 enum StatField {
     Ppid,
     StartTime,
@@ -430,6 +434,7 @@ enum StatField {
 /// parenthesized and may itself contain spaces and parentheses, so fields are
 /// indexed from after the *last* ')'. Pure (no `/proc` access) so it is
 /// unit-tested directly with synthetic stat lines.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn parse_stat_field(content: &str, field: StatField) -> Option<u64> {
     let rest = &content[content.rfind(')')? + 1..];
     let tokens: Vec<&str> = rest.split_whitespace().collect();

@@ -1,5 +1,5 @@
 schema_version: 1
-last_updated: 2026-07-26
+last_updated: 2026-08-01
 
 # Taxonomy groups segments by domain within the single gbiv product.
 # Purely organizational.
@@ -77,6 +77,7 @@ arrows:
   # orchestration domain — HLD + LLDs designed; core::tmux shared primitives implemented (gbv-x2v)
   # observability + tmux-driver orchestration ops implemented (gbv-9p1)
   # pane-locator implemented (gbv-h5m)
+  # http-server + port file + prompt-response guard + gbiv start implemented (gbv-3wb)
   observability:
     status: OK
     sampled: 2026-06-28
@@ -111,14 +112,14 @@ arrows:
     drift: null
 
   http-server:
-    status: UNMAPPED
-    sampled: 2026-05-15
+    status: OK
+    sampled: 2026-08-01
     audited: null
     audited_sha: null
     blocks: [orchestrate-cli]
     blockedBy: [tmux-driver, pane-locator]
     detail: http-server.md
-    next: "Author EARS specs in docs/specs/http-server.md"
+    next: null
     drift: null
 
   orchestrate-cli:
