@@ -265,6 +265,15 @@ fn error_response(status: u16, message: impl Into<String>) -> HttpResponse {
     HttpResponse::json(status, &ErrorBody { error: message.into() })
 }
 
+/// The standard `404` for a `:color` that fails active-palette validation
+/// (HTTP-SRV-019). Public so `daemon::handle_request` can reject an invalid
+/// color for `POST /session/:color/send` *before* reading the request body
+/// (HTTP-SRV-037) while still producing a byte-identical body to the one
+/// `handle_session_get`/`handle_session_send` return internally.
+pub fn invalid_color_response(color_raw: &str) -> HttpResponse {
+    error_response(404, format!("unknown color: {color_raw}"))
+}
+
 #[derive(Debug, serde::Deserialize)]
 struct SendRequest {
     text: Option<String>,
@@ -436,7 +445,7 @@ pub fn handle_session_get(
 ) -> HttpResponse {
     let color = match validate_color(color_raw, palette) {
         ColorValidation::Valid(c) => c,
-        ColorValidation::Invalid => return error_response(404, format!("unknown color: {color_raw}")),
+        ColorValidation::Invalid => return invalid_color_response(color_raw),
     };
 
     let range = match parse_range(lines, start_line, end_line) {
@@ -515,7 +524,7 @@ pub fn handle_session_send(
     // HTTP-SRV-037: route (:color) is validated before the body is even parsed.
     let color = match validate_color(color_raw, palette) {
         ColorValidation::Valid(c) => c,
-        ColorValidation::Invalid => return error_response(404, format!("unknown color: {color_raw}")),
+        ColorValidation::Invalid => return invalid_color_response(color_raw),
     };
 
     let text = match serde_json::from_str::<SendRequest>(raw_body) {

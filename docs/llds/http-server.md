@@ -97,7 +97,7 @@ The split between `404` and `200-with-non-ok-status` is intentional: missing-win
 
 ### POST /session/:color/send
 
-Validates input shape, resolves the pane (must be `ok`), then calls `tmux_driver::send_keys`.
+Validates `:color` against the active palette *before touching the request body at all* — an unrecognized color 404s without a single byte being read off the socket, not merely without JSON-parsing an already-buffered body (this ordering lives in the routing layer, not inside the handler, since a handler can only reject a body it has already been handed one). Once the color is valid, the body is read capped at a fixed size (64 KiB — generous for a `{"text": "..."}` payload, small enough to bound what one worker thread will buffer for a misbehaving local client; loopback-only per § "Binding & Security" so this is defense-in-depth, not network hardening). Then: parses input shape, runs the prompt-response guard, resolves the pane (must be `ok`), then calls `tmux_driver::send_keys`.
 
 Request body:
 ```json
@@ -154,13 +154,23 @@ Multi-word natural-language text (e.g., `"yes please run that"`) is **not** reje
 2. Resolve `main/<repo>/` (`core::find_repo_in_worktree`) and the tmux session name (folder-derived via `core::tmux::session_name_for_root` unless `--session-name` is provided; both come from the `core` module so the daemon and the worktree commands cannot disagree).
 3. Load the active palette (`gbiv_core::palette::Palette::load(&gbiv_root)`, base ROYGBIV plus any configured `.gbiv/config.toml` extras) once at startup and hold it for the process lifetime — see § "Active Palette" below.
 4. Verify `tmux -V` succeeds (`core::tmux::tmux_available`) → fatal exit if not.
-5. Bind a TCP listener on `127.0.0.1:0` (kernel-assigned port).
-6. Create `<gbiv-root>/main/<repo>/.gbiv/` if missing.
-7. Write the bound port to `<gbiv-root>/main/<repo>/.gbiv/port` as plain ASCII (e.g., `54321\n`).
-8. Ensure `.gbiv/` is in `.git/info/exclude` (`core::ensure_gitignore_entry`) so the user doesn't have to edit anything to keep the port file out of git.
-9. Validate `:color` URL params against the loaded `Palette::contains` at request time (rejected at the routing layer before the locator is called) — see § "Active Palette".
-10. Print `gbiv listening on http://127.0.0.1:<port>` to stdout.
-11. Block in the accept loop.
+5. Check the existing `.gbiv/port` file (if any) for a live daemon — see § "Single-Instance Guard" below. Fatal exit if one is found; otherwise continue.
+6. Bind a TCP listener on `127.0.0.1:0` (kernel-assigned port).
+7. Create `<gbiv-root>/main/<repo>/.gbiv/` if missing.
+8. Write the bound port to `<gbiv-root>/main/<repo>/.gbiv/port` as plain ASCII (e.g., `54321\n`).
+9. Ensure `.gbiv/` is in `.git/info/exclude` (`core::ensure_gitignore_entry`) so the user doesn't have to edit anything to keep the port file out of git.
+10. Validate `:color` URL params against the loaded `Palette::contains` at request time (rejected at the routing layer before the locator is called) — see § "Active Palette".
+11. Print `gbiv listening on http://127.0.0.1:<port>` to stdout.
+12. Block in the accept loop.
+
+### Single-Instance Guard
+
+Binding always requests a fresh ephemeral port (`127.0.0.1:0`), so an OS-level bind failure can never mean "another gbiv daemon already holds this workspace's port" — the kernel will happily hand out a different port to a second daemon. Detecting an already-running daemon is therefore a separate, explicit check *before* binding: if `.gbiv/port` exists, the new process attempts a short-timeout (200ms) loopback TCP connect to the port it names.
+
+- **Connect succeeds** → a daemon is still listening there. The new process exits non-zero without binding a listener or touching the port file, so the running daemon is never orphaned by a second one silently taking over the file.
+- **Connect fails** (refused/timeout) → the port file is stale (previous daemon exited without cleanup, e.g. `kill -9`). Startup proceeds normally: bind, then overwrite the port file.
+
+This is a liveness probe, not process-identity verification — it can't distinguish "a gbiv daemon" from "some other process that happens to be listening on that exact port," but that's an acceptable tradeoff for a v1, single-workspace, developer-local tool.
 
 ### Active Palette
 
@@ -226,6 +236,8 @@ Shutdown signal handling uses the `ctrlc` crate (small, ~2 transitive deps) rath
 | Worker model | 16 worker threads looping `Server::recv()` | Thread spawned per accepted connection; single-threaded loop; fully async | Matches tiny_http's documented concurrent-`recv()` pattern; caps concurrency without a thread-spawn-per-request or a separate semaphore |
 | `:color` validation scope | Active palette (base ROYGBIV + configured `.gbiv/config.toml` extras), loaded once at startup | Hard-coded `BASE_COLORS` only | Consistent with every other gbiv surface (status/exec/tmux already treat extras as first-class) |
 | Shutdown signal handling | `ctrlc` crate | Hand-rolled `signal-hook` or raw `libc` | One-call portable SIGINT/SIGTERM handling; workspace's only signal-handling dependency |
+| Single-instance detection | Loopback TCP liveness probe against the existing port file, before binding | Rely on OS bind failure; PID file + `kill -0` | Binding always requests an ephemeral port, so bind can never fail on "port in use by another gbiv daemon" — a probe against the *previous* port is the only way to detect it |
+| POST /send body size | Capped at 64 KiB, checked before the color-validated body is read | No cap; cap after JSON parsing | Bounds per-request memory on a loopback-only surface without touching the common case (real `text` payloads are tiny) |
 
 ## Edge Cases
 
@@ -237,8 +249,9 @@ Shutdown signal handling uses the `ctrlc` crate (small, ~2 transitive deps) rath
 | Body of POST `/send` is not valid JSON | `400` |
 | `text` field present but empty string | `400` (HLD: caller responsible for not sending empty) |
 | Two simultaneous sends to the same color | Both go through; tmux serializes keystrokes per pane |
-| Daemon already running (port file exists, port in use) | New `gbiv start` fails to bind, exits with a clear message; existing daemon untouched |
-| Port file exists but daemon is dead | `gbiv start` succeeds (kernel rejects re-bind only if port still in use); writes a fresh port file |
+| Daemon already running (port file exists and its port answers a loopback connect) | New `gbiv start` refuses to bind or touch the port file, exits with a clear message; existing daemon untouched (Single-Instance Guard, below) |
+| Port file exists but daemon is dead (port doesn't answer) | `gbiv start` proceeds normally, binds a fresh port, and overwrites the port file |
+| `POST /send` body exceeds the size cap (declared `Content-Length` or actual bytes) | `400`, body not treated as complete/parsed even if truncated bytes happen to be valid JSON |
 
 ## Technical Debt & Future Work
 

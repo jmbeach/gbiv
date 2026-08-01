@@ -17,12 +17,17 @@ shared `gbiv_core` primitives (`root`, `tmux`, `gitignore`, `palette`,
 - [x] **HTTP-SRV-003**: The daemon shall resolve the tmux session name via `core::tmux::session_name_for_root(folder_name)` unless a `--session-name` value was supplied, in which case the supplied value is used verbatim (identical resolution order to `gbiv tmux new-session`/`gbiv tmux sync`).
 - [x] **HTTP-SRV-004**: The daemon shall load the active palette once at startup via `gbiv_core::palette::Palette::load(&gbiv_root)` and hold it for the process lifetime; a malformed `.gbiv/config.toml` shall cause the process to exit non-zero with the underlying `ConfigError`.
 - [x] **HTTP-SRV-005**: The daemon shall verify tmux is available via `core::tmux::tmux_available()` before binding; if it returns `Err`, the process shall exit non-zero with a message describing the failure.
-- [x] **HTTP-SRV-006**: The daemon shall bind a TCP listener on `127.0.0.1:0` (kernel-assigned ephemeral port); if the bind fails (e.g. another daemon already running in this workspace), the process shall exit non-zero with a message naming the likely cause.
+- [x] **HTTP-SRV-006**: The daemon shall bind a TCP listener on `127.0.0.1:0` (kernel-assigned ephemeral port); since this always requests a fresh port from the kernel, a bind failure here reflects a genuine OS-level problem (resource exhaustion, permission), not a port already in use by another gbiv daemon (see HTTP-SRV-060 for that case) — the process shall exit non-zero with a message naming the likely cause.
 - [x] **HTTP-SRV-007**: The daemon shall create `<gbiv-root>/main/<repo>/.gbiv/` if it does not already exist.
 - [x] **HTTP-SRV-008**: The daemon shall write the bound port to `<gbiv-root>/main/<repo>/.gbiv/port` as plain ASCII decimal followed by a newline (e.g. `54321\n`), overwriting any existing content.
 - [x] **HTTP-SRV-009**: The daemon shall ensure `.gbiv/` is present in `.git/info/exclude` via `core::gitignore::ensure_gitignore_entry`, idempotently (a second `gbiv start` does not duplicate the entry).
 - [x] **HTTP-SRV-010**: On successful bind, the daemon shall print `gbiv listening on http://127.0.0.1:<port>` to stdout and log an equivalent `info`-level line (host, port, tmux session name, gbiv root path).
 - [x] **HTTP-SRV-011**: After startup, the daemon shall block in a request-accept loop until a shutdown signal is received.
+
+## Single-Instance Guard
+
+- [x] **HTTP-SRV-060**: Before binding (after HTTP-SRV-005, before HTTP-SRV-006), if an existing `.gbiv/port` file names a port that accepts a loopback TCP connection within a short timeout, the daemon shall exit non-zero without binding a new listener or modifying the port file, reporting that another gbiv daemon is already running for this workspace.
+- [x] **HTTP-SRV-061**: If an existing `.gbiv/port` file names a port that does not accept a connection (stale — the previous daemon is no longer running), the daemon shall proceed with startup normally, binding a fresh port and overwriting the port file (HTTP-SRV-006 through HTTP-SRV-008).
 
 ## Shutdown
 
@@ -77,9 +82,10 @@ guard, (4) pane resolution, (5) send. This mirrors the GET endpoints' existing
 guard runs after route/body validation but always before any Pane Locator or
 tmux Driver call.
 
-- [x] **HTTP-SRV-037**: `POST /session/:color/send` shall validate the normalized `:color` against the active palette (HTTP-SRV-017, HTTP-SRV-018) **before** parsing the request body; an unrecognized color shall respond `404` without reading or validating the body.
+- [x] **HTTP-SRV-037**: `POST /session/:color/send` shall validate the normalized `:color` against the active palette (HTTP-SRV-017, HTTP-SRV-018) **before** parsing the request body; an unrecognized color shall respond `404` without reading the request body off the socket at all (not merely without JSON-parsing an already-buffered body).
 - [x] **HTTP-SRV-038**: `POST /session/:color/send` shall require a JSON body with a string `text` field; if the body is not valid JSON, the daemon shall respond `400`.
 - [x] **HTTP-SRV-039**: If `text` is missing, or is empty or all-whitespace after trimming, `POST /session/:color/send` shall respond `400` without evaluating any guard rule.
+- [x] **HTTP-SRV-062**: For a `:color` that passes HTTP-SRV-037, the daemon shall read the request body capped at a fixed maximum size; if a declared `Content-Length` exceeds the cap, or an undeclared/chunked body turns out to exceed it, the daemon shall respond `400` without treating the (possibly truncated) bytes as a complete body.
 - [x] **HTTP-SRV-040**: `POST /session/:color/send` shall run the prompt-response guard (HTTP-SRV-041 through HTTP-SRV-045) against the trimmed `text` after route (HTTP-SRV-037) and body (HTTP-SRV-038/039) validation pass, and before any Pane Locator or tmux Driver call.
 - [x] **HTTP-SRV-041**: If the trimmed `text` matches `^[yn]$` (case-insensitive), the guard shall reject with `reason: "single-letter yes/no"`.
 - [x] **HTTP-SRV-042**: If the trimmed `text` matches `^(yes|no)$` (case-insensitive), the guard shall reject with `reason: "yes/no word"`.

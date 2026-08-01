@@ -7,9 +7,12 @@
 //! signal-handling glue that wires the real Pane Locator and tmux Driver in.
 
 use std::fs;
+use std::io::Read;
+use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 use gbiv_core::gitignore::ensure_gitignore_entry;
 use gbiv_core::palette::Palette;
@@ -49,11 +52,13 @@ pub fn run(options: StartOptions) -> anyhow::Result<()> {
 
     tmux_available().map_err(|e| anyhow::anyhow!("tmux is not available: {e}"))?;
 
+    let gbiv_dir = repo.join(".gbiv");
+    let port_file = gbiv_dir.join("port");
+    reject_if_daemon_already_running(&port_file)?;
+
     let server = bind_server()?;
     let port = server_port(&server)?;
-
-    let gbiv_dir = repo.join(".gbiv");
-    let port_file = write_port_file(&gbiv_dir, port)?;
+    write_port_file(&gbiv_dir, port)?;
     ensure_gitignore_entry(&repo.join(".git"), ".gbiv/")?;
 
     println!("gbiv listening on http://127.0.0.1:{port}");
@@ -86,10 +91,49 @@ fn resolve_session_name(override_name: Option<String>, folder_name: &str) -> Str
     override_name.unwrap_or_else(|| session_name_for_root(folder_name))
 }
 
+// Binding always asks the kernel for a fresh ephemeral port (`127.0.0.1:0`),
+// so an OS-level bind failure here is never "another gbiv daemon is already
+// running" (that case is caught earlier by `reject_if_daemon_already_running`,
+// via a liveness probe against the *previous* port file) — it's a genuine
+// resource/permission problem.
 // @spec HTTP-SRV-006, HTTP-SRV-015
 fn bind_server() -> anyhow::Result<tiny_http::Server> {
     tiny_http::Server::http("127.0.0.1:0")
-        .map_err(|e| anyhow::anyhow!("failed to bind 127.0.0.1: {e} (another gbiv daemon may already be running)"))
+        .map_err(|e| anyhow::anyhow!("failed to bind an ephemeral port on 127.0.0.1: {e}"))
+}
+
+/// Read the port recorded in an existing `.gbiv/port` file, if any.
+fn read_existing_port(port_file: &Path) -> Option<u16> {
+    fs::read_to_string(port_file).ok()?.trim().parse().ok()
+}
+
+/// Whether a daemon is still listening on `port` (a short-timeout loopback
+/// connect — this is a liveness probe, not a claim about *which* process).
+fn daemon_is_alive(port: u16) -> bool {
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok()
+}
+
+// @spec HTTP-SRV-060, HTTP-SRV-061
+/// If `port_file` names a port that's still accepting connections, another
+/// daemon owns this workspace's port file — refuse to start a second one
+/// rather than silently overwriting it and orphaning the first (the previous
+/// `bind_server` error message described this guarantee without actually
+/// providing it, since binding `127.0.0.1:0` can't fail on a port conflict).
+/// A stale port file (daemon no longer listening) is not an error — `run`
+/// proceeds to bind fresh and overwrite it.
+fn reject_if_daemon_already_running(port_file: &Path) -> anyhow::Result<()> {
+    let Some(port) = read_existing_port(port_file) else {
+        return Ok(());
+    };
+    if daemon_is_alive(port) {
+        anyhow::bail!(
+            "another gbiv daemon is already running for this workspace on port {port} (see {})",
+            port_file.display()
+        );
+    }
+    tracing::info!(port, "stale port file found (daemon not responding); starting fresh");
+    Ok(())
 }
 
 fn server_port(server: &tiny_http::Server) -> anyhow::Result<u16> {
@@ -161,16 +205,46 @@ fn query_get<'a>(params: &[(&'a str, &'a str)], key: &str) -> Option<&'a str> {
     params.iter().find(|(k, _)| *k == key).map(|(_, v)| *v)
 }
 
-fn read_body(request: &mut tiny_http::Request) -> String {
-    let mut body = String::new();
-    let _ = request.as_reader().read_to_string(&mut body);
-    body
+/// Cap on a `POST /session/:color/send` body. Generous for a `{"text": "..."}`
+/// payload while bounding how much an oversized/endless local client can make
+/// one worker thread buffer in memory (loopback-only per HTTP-SRV-016, so this
+/// is defense-in-depth rather than a hardening measure against a hostile network).
+const MAX_SEND_BODY_BYTES: usize = 64 * 1024;
+
+/// Read a request body capped at `max_bytes`. A declared `Content-Length`
+/// over the cap is rejected without reading anything off the socket; an
+/// undeclared/chunked body that turns out to exceed the cap is also rejected
+/// (by reading one byte past the limit) rather than silently truncated and
+/// parsed as if it were complete.
+fn read_body_capped(request: &mut tiny_http::Request, max_bytes: usize) -> Result<String, ()> {
+    if let Some(len) = request.body_length() {
+        if len > max_bytes {
+            return Err(());
+        }
+    }
+    let mut buf = Vec::new();
+    request
+        .as_reader()
+        .take(max_bytes as u64 + 1)
+        .read_to_end(&mut buf)
+        .map_err(|_| ())?;
+    if buf.len() > max_bytes {
+        return Err(());
+    }
+    String::from_utf8(buf).map_err(|_| ())
 }
 
 fn method_not_allowed() -> http_server::HttpResponse {
     http_server::HttpResponse {
         status: 404,
         body: r#"{"error":"not found"}"#.to_string(),
+    }
+}
+
+fn body_too_large_response() -> http_server::HttpResponse {
+    http_server::HttpResponse {
+        status: 400,
+        body: r#"{"error":"request body too large"}"#.to_string(),
     }
 }
 
@@ -208,16 +282,27 @@ fn handle_request(mut request: tiny_http::Request, palette: &Palette, session: &
                 &RealClock,
             )
         }
+        // HTTP-SRV-037: an invalid color must 404 without reading the body at
+        // all — checked here, before `read_body_capped` ever touches the
+        // socket, since `handle_session_send`'s own internal color check runs
+        // too late to avoid the read.
         (tiny_http::Method::Post, ["session", color, "send"]) => {
-            let body = read_body(&mut request);
-            http_server::handle_session_send(
-                palette,
-                session,
-                color,
-                &body,
-                &|s, c| locate_pane(s, c),
-                &|pane, text| send_keys(pane, text),
-            )
+            match http_server::validate_color(color, palette) {
+                http_server::ColorValidation::Invalid => http_server::invalid_color_response(color),
+                http_server::ColorValidation::Valid(_) => {
+                    match read_body_capped(&mut request, MAX_SEND_BODY_BYTES) {
+                        Ok(body) => http_server::handle_session_send(
+                            palette,
+                            session,
+                            color,
+                            &body,
+                            &|s, c| locate_pane(s, c),
+                            &|pane, text| send_keys(pane, text),
+                        ),
+                        Err(()) => body_too_large_response(),
+                    }
+                }
+            }
         }
         _ => method_not_allowed(),
     };
@@ -339,5 +424,115 @@ mod tests {
     #[test]
     fn worker_thread_count_is_sixteen() {
         assert_eq!(WORKER_THREADS, 16);
+    }
+
+    // ---- read_existing_port / daemon_is_alive / reject_if_daemon_already_running
+    // ---- (HTTP-SRV-060, HTTP-SRV-061) --------------------------------------
+
+    #[test]
+    fn read_existing_port_parses_trimmed_content() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let port_file = tmp.path().join("port");
+        fs::write(&port_file, "54321\n").unwrap();
+        assert_eq!(read_existing_port(&port_file), Some(54321));
+    }
+
+    #[test]
+    fn read_existing_port_missing_file_is_none() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert_eq!(read_existing_port(&tmp.path().join("nope")), None);
+    }
+
+    #[test]
+    fn read_existing_port_malformed_content_is_none() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let port_file = tmp.path().join("port");
+        fs::write(&port_file, "not-a-port\n").unwrap();
+        assert_eq!(read_existing_port(&port_file), None);
+    }
+
+    #[test]
+    fn daemon_is_alive_true_for_a_listening_port() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(daemon_is_alive(port));
+    }
+
+    #[test]
+    fn daemon_is_alive_false_once_the_listener_is_dropped() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        assert!(!daemon_is_alive(port));
+    }
+
+    // @spec HTTP-SRV-061
+    #[test]
+    fn reject_if_daemon_already_running_allows_missing_port_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        reject_if_daemon_already_running(&tmp.path().join("port")).unwrap();
+    }
+
+    // @spec HTTP-SRV-061
+    #[test]
+    fn reject_if_daemon_already_running_allows_stale_port_file() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let tmp = tempfile::TempDir::new().unwrap();
+        let port_file = tmp.path().join("port");
+        fs::write(&port_file, format!("{port}\n")).unwrap();
+        reject_if_daemon_already_running(&port_file).unwrap();
+    }
+
+    // @spec HTTP-SRV-060
+    #[test]
+    fn reject_if_daemon_already_running_errors_for_a_live_port() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = tempfile::TempDir::new().unwrap();
+        let port_file = tmp.path().join("port");
+        fs::write(&port_file, format!("{port}\n")).unwrap();
+        let err = reject_if_daemon_already_running(&port_file).unwrap_err();
+        assert!(err.to_string().contains("already running"), "got: {err}");
+    }
+
+    // ---- read_body_capped (HTTP-SRV-062) -----------------------------------
+    // `tiny_http::Request` can't be constructed directly, so these spin a real
+    // server on a loopback ephemeral port and drive it with a hand-written raw
+    // HTTP request over an actual `TcpStream` — the same shape as the manual
+    // end-to-end smoke test, just scoped to one function.
+
+    fn request_from_raw_http(raw_request: &[u8]) -> tiny_http::Request {
+        use std::io::Write;
+        let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+        let addr = match server.server_addr() {
+            tiny_http::ListenAddr::IP(a) => a,
+            other => panic!("expected an IP listen address, got {other:?}"),
+        };
+        let mut stream = TcpStream::connect(addr).unwrap();
+        stream.write_all(raw_request).unwrap();
+        server.recv().unwrap()
+    }
+
+    // @spec HTTP-SRV-062
+    #[test]
+    fn read_body_capped_reads_body_under_cap() {
+        let raw = b"POST /session/red/send HTTP/1.1\r\nHost: x\r\nContent-Length: 5\r\n\r\nhello";
+        let mut request = request_from_raw_http(raw);
+        assert_eq!(read_body_capped(&mut request, 1024), Ok("hello".to_string()));
+    }
+
+    // @spec HTTP-SRV-062
+    #[test]
+    fn read_body_capped_rejects_declared_content_length_over_cap() {
+        // The full declared body is sent (tiny_http's `recv()` waits for it to
+        // arrive before returning the `Request`) — `read_body_capped` must
+        // reject based on the `Content-Length` header alone, without reading
+        // any of that body back off the reader.
+        let body = "a".repeat(1000);
+        let raw = format!("POST /session/red/send HTTP/1.1\r\nHost: x\r\nContent-Length: 1000\r\n\r\n{body}");
+        let mut request = request_from_raw_http(raw.as_bytes());
+        assert_eq!(read_body_capped(&mut request, 10), Err(()));
     }
 }
