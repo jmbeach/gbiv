@@ -51,6 +51,7 @@ pub(crate) fn cli() -> Command {
                         .help("Reserved; parsed but ignored in v1 (always binds 127.0.0.1)"),
                 ),
         )
+        .subcommand(fleet_command())
         .subcommand(tmux::tmux_command())
         .subcommand(
             Command::new("rebase-all")
@@ -141,6 +142,89 @@ pub(crate) fn cli() -> Command {
         )
 }
 
+// @spec FLEET-CLI-001, FLEET-CLI-002, FLEET-CLI-003, FLEET-CLI-004,
+// FLEET-CLI-005, FLEET-CLI-006, FLEET-CLI-007
+fn fleet_command() -> Command {
+    Command::new("fleet")
+        .about("Fleet orchestration client commands (talk to a running `gbiv start` daemon)")
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(
+            Command::new("status")
+                .about("Survey every color's Claude Code pane")
+                .arg(
+                    Arg::new("lines")
+                        .long("lines")
+                        .help("Lines of tail output per color (default 35)"),
+                ),
+        )
+        .subcommand(
+            Command::new("get")
+                .about("Detail on one color's Claude Code pane")
+                .arg(Arg::new("color").required(true).index(1))
+                .arg(
+                    Arg::new("lines")
+                        .long("lines")
+                        .conflicts_with_all(["start-line", "end-line"])
+                        .help("Tail mode: lines of output (default: server default of 200)"),
+                )
+                .arg(
+                    Arg::new("start-line")
+                        .long("start-line")
+                        .requires("end-line")
+                        .help("Window mode: first line (or \"top\")"),
+                )
+                .arg(
+                    Arg::new("end-line")
+                        .long("end-line")
+                        .requires("start-line")
+                        .help("Window mode: last line"),
+                ),
+        )
+        .subcommand(
+            Command::new("send")
+                .about("Send text + Enter to one color's Claude Code pane")
+                .arg(Arg::new("color").required(true).index(1))
+                .arg(Arg::new("text").required(true).index(2)),
+        )
+}
+
+/// Dispatch a `gbiv fleet` subcommand and exit the process with its resolved
+/// exit code (docs/llds/orchestrate-cli.md exit tables) — bypassing the
+/// generic anyhow `Err -> 1` path, since fleet subcommands need distinct
+/// exit codes 0 through 6, not just success/failure.
+fn dispatch_fleet(sub_matches: &clap::ArgMatches) -> Result<()> {
+    let cwd = std::env::current_dir()?;
+    let outcome = match sub_matches.subcommand() {
+        Some(("status", m)) => {
+            let lines = m.get_one::<String>("lines").map(String::as_str);
+            orchestration::fleet_cli::run_status(&cwd, lines)
+        }
+        Some(("get", m)) => {
+            let color = m.get_one::<String>("color").unwrap();
+            let lines = m.get_one::<String>("lines").map(String::as_str);
+            let start_line = m.get_one::<String>("start-line").map(String::as_str);
+            let end_line = m.get_one::<String>("end-line").map(String::as_str);
+            orchestration::fleet_cli::run_get(&cwd, color, lines, start_line, end_line)
+        }
+        Some(("send", m)) => {
+            let color = m.get_one::<String>("color").unwrap();
+            let text = m.get_one::<String>("text").unwrap();
+            orchestration::fleet_cli::run_send(&cwd, color, text)
+        }
+        _ => unreachable!(),
+    };
+
+    // @spec FLEET-CLI-050
+    if let Some(stdout) = &outcome.stdout {
+        println!("{stdout}");
+    }
+    if let Some(stderr) = &outcome.stderr {
+        eprintln!("{stderr}");
+    }
+    std::process::exit(outcome.exit_code);
+}
+
 // @spec CLI-EXEC-PARSE-002, CLI-EXEC-PARSE-003, CLI-EXEC-PARSE-004, CLI-EXEC-PARSE-005
 /// Split the raw exec argument list into an optional target and the command
 /// tokens. The first token is treated as the target when it names an
@@ -189,6 +273,9 @@ fn run() -> Result<()> {
         }
         Some(("start", sub_matches)) => {
             orchestration::daemon::run(start_options_from_matches(sub_matches))?;
+        }
+        Some(("fleet", sub_matches)) => {
+            dispatch_fleet(sub_matches)?;
         }
         Some(("tmux", sub_matches)) => {
             tmux::dispatch(sub_matches)?;
@@ -299,6 +386,96 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- `gbiv fleet` argument parsing (FLEET-CLI-001 through -007) -------
+
+    // @spec FLEET-CLI-001, FLEET-CLI-002
+    #[test]
+    fn fleet_status_parses_lines_flag() {
+        let m = cli().get_matches_from(["gbiv", "fleet", "status", "--lines", "50"]);
+        let sub = m.subcommand_matches("fleet").unwrap();
+        let status = sub.subcommand_matches("status").unwrap();
+        assert_eq!(
+            status.get_one::<String>("lines").map(String::as_str),
+            Some("50")
+        );
+    }
+
+    // @spec FLEET-CLI-001, FLEET-CLI-003
+    #[test]
+    fn fleet_get_parses_color_and_lines() {
+        let m = cli().get_matches_from(["gbiv", "fleet", "get", "red", "--lines", "100"]);
+        let get = m
+            .subcommand_matches("fleet")
+            .unwrap()
+            .subcommand_matches("get")
+            .unwrap();
+        assert_eq!(get.get_one::<String>("color").map(String::as_str), Some("red"));
+        assert_eq!(get.get_one::<String>("lines").map(String::as_str), Some("100"));
+    }
+
+    // @spec FLEET-CLI-004
+    #[test]
+    fn fleet_get_parses_start_and_end_line() {
+        let m = cli().get_matches_from([
+            "gbiv", "fleet", "get", "red", "--start-line", "top", "--end-line", "20",
+        ]);
+        let get = m
+            .subcommand_matches("fleet")
+            .unwrap()
+            .subcommand_matches("get")
+            .unwrap();
+        assert_eq!(
+            get.get_one::<String>("start-line").map(String::as_str),
+            Some("top")
+        );
+        assert_eq!(
+            get.get_one::<String>("end-line").map(String::as_str),
+            Some("20")
+        );
+    }
+
+    // @spec FLEET-CLI-005
+    #[test]
+    fn fleet_get_rejects_lines_with_start_line() {
+        let result = cli().try_get_matches_from([
+            "gbiv",
+            "fleet",
+            "get",
+            "red",
+            "--lines",
+            "50",
+            "--start-line",
+            "top",
+            "--end-line",
+            "20",
+        ]);
+        assert!(result.is_err(), "expected a clap usage error");
+    }
+
+    // @spec FLEET-CLI-006
+    #[test]
+    fn fleet_get_rejects_start_line_without_end_line() {
+        let result =
+            cli().try_get_matches_from(["gbiv", "fleet", "get", "red", "--start-line", "top"]);
+        assert!(result.is_err(), "expected a clap usage error");
+    }
+
+    // @spec FLEET-CLI-007
+    #[test]
+    fn fleet_send_parses_color_and_text() {
+        let m = cli().get_matches_from(["gbiv", "fleet", "send", "red", "please run the tests"]);
+        let send = m
+            .subcommand_matches("fleet")
+            .unwrap()
+            .subcommand_matches("send")
+            .unwrap();
+        assert_eq!(send.get_one::<String>("color").map(String::as_str), Some("red"));
+        assert_eq!(
+            send.get_one::<String>("text").map(String::as_str),
+            Some("please run the tests")
+        );
+    }
 
     // ---- `gbiv start` flag parsing (HTTP-SRV-057, HTTP-SRV-058) -----------
 

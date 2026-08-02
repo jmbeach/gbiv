@@ -78,6 +78,7 @@ arrows:
   # observability + tmux-driver orchestration ops implemented (gbv-9p1)
   # pane-locator implemented (gbv-h5m)
   # http-server + port file + prompt-response guard + gbiv start implemented (gbv-3wb)
+  # orchestrate-cli: gbiv fleet status|get|send client CLI implemented (gbv-d6t); gbiv install-skill still unspecced
   observability:
     status: OK
     sampled: 2026-06-28
@@ -123,14 +124,14 @@ arrows:
     drift: null
 
   orchestrate-cli:
-    status: UNMAPPED
+    status: OK
     sampled: 2026-05-15
-    audited: null
+    audited: 2026-08-02
     audited_sha: null
     blocks: []
     blockedBy: [http-server]
     detail: orchestrate-cli.md
-    next: "Author EARS specs in docs/specs/orchestrate-cli.md"
+    next: "gbiv install-skill remains unspecced and unimplemented (separate backlog item)"
     drift: null
 
   orchestrate-skill:
