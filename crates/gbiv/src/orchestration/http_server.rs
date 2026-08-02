@@ -149,7 +149,11 @@ pub enum LinesParseError {
 
 /// Parse a `lines` query value, defaulting when absent and clamping to `max`.
 // @spec HTTP-SRV-021, HTTP-SRV-022, HTTP-SRV-028
-pub fn parse_lines(raw: Option<&str>, default: usize, max: usize) -> Result<usize, LinesParseError> {
+pub fn parse_lines(
+    raw: Option<&str>,
+    default: usize,
+    max: usize,
+) -> Result<usize, LinesParseError> {
     match raw {
         None => Ok(default.min(max)),
         Some(s) => s
@@ -269,7 +273,11 @@ fn other_panes(ids: Vec<String>) -> Option<Vec<String>> {
 /// output/pane to report. Shared by `handle_sessions`'s `NoWindow`/
 /// `NoClaudePane` branches, which differ only in `pane_status` and whether a
 /// tmux window is known to exist.
-fn degraded_entry(color: String, pane_status: &'static str, tmux_window: Option<String>) -> SessionEntry {
+fn degraded_entry(
+    color: String,
+    pane_status: &'static str,
+    tmux_window: Option<String>,
+) -> SessionEntry {
     SessionEntry {
         color,
         tmux_window,
@@ -334,7 +342,12 @@ pub struct ErrorBody {
 }
 
 fn error_response(status: u16, message: impl Into<String>) -> HttpResponse {
-    HttpResponse::json(status, &ErrorBody { error: message.into() })
+    HttpResponse::json(
+        status,
+        &ErrorBody {
+            error: message.into(),
+        },
+    )
 }
 
 /// The standard `404` for a `:color` that fails active-palette validation
@@ -411,8 +424,8 @@ pub trait Clock {
 
 /// `locate_panes`-shaped injection: batch-resolve every color against one
 /// shared tmux/process snapshot (see pane_locator::locate_panes, PANE-LOC-024).
-pub type LocatePanesFn<'a> =
-    dyn Fn(&str, &[&str]) -> Result<Vec<(String, Result<Resolution, LocatorError>)>, LocatorError> + 'a;
+pub type LocatePanesFn<'a> = dyn Fn(&str, &[&str]) -> Result<Vec<(String, Result<Resolution, LocatorError>)>, LocatorError>
+    + 'a;
 
 /// `capture_pane`-shaped injection (see tmux_driver::capture_pane).
 pub type CapturePaneFn<'a> = dyn Fn(&str, CaptureRange, usize) -> Result<Capture, TmuxError> + 'a;
@@ -443,10 +456,17 @@ pub struct Deps<'a> {
 
 // @spec HTTP-SRV-020, HTTP-SRV-021, HTTP-SRV-022, HTTP-SRV-023, HTTP-SRV-024,
 // HTTP-SRV-025, HTTP-SRV-026, HTTP-SRV-027, HTTP-SRV-065
-pub fn handle_sessions(palette: &Palette, session: &str, lines_param: Option<&str>, deps: &Deps) -> HttpResponse {
+pub fn handle_sessions(
+    palette: &Palette,
+    session: &str,
+    lines_param: Option<&str>,
+    deps: &Deps,
+) -> HttpResponse {
     let lines = match parse_lines(lines_param, SESSIONS_DEFAULT_LINES, SESSIONS_MAX_LINES) {
         Ok(n) => n,
-        Err(LinesParseError::NotNumeric) => return error_response(400, "lines must be a non-negative integer"),
+        Err(LinesParseError::NotNumeric) => {
+            return error_response(400, "lines must be a non-negative integer")
+        }
     };
 
     let colors: Vec<&str> = palette.names().iter().map(String::as_str).collect();
@@ -458,8 +478,12 @@ pub fn handle_sessions(palette: &Palette, session: &str, lines_param: Option<&st
     let mut entries = Vec::with_capacity(resolutions.len());
     for (color, resolution) in resolutions {
         let entry = match resolution {
-            Ok(Resolution::Ok { pane_id, other_pane_ids }) => {
-                match (deps.capture_pane)(&pane_id, CaptureRange::Tail { lines }, DEFAULT_CAP_BYTES) {
+            Ok(Resolution::Ok {
+                pane_id,
+                other_pane_ids,
+            }) => {
+                match (deps.capture_pane)(&pane_id, CaptureRange::Tail { lines }, DEFAULT_CAP_BYTES)
+                {
                     Ok(capture) => SessionEntry {
                         color: color.clone(),
                         tmux_window: Some(color),
@@ -490,7 +514,9 @@ pub fn handle_sessions(palette: &Palette, session: &str, lines_param: Option<&st
                 }
             }
             Ok(Resolution::NoWindow) => degraded_entry(color, "no_window", None),
-            Ok(Resolution::NoClaudePane) => degraded_entry(color.clone(), "no_claude_pane", Some(color)),
+            Ok(Resolution::NoClaudePane) => {
+                degraded_entry(color.clone(), "no_claude_pane", Some(color))
+            }
             // A per-color resolution failure (e.g. that window's panes
             // vanished between the shared window list and this color's
             // lookup) is likewise a genuine error, not a structural absence —
@@ -538,8 +564,12 @@ pub fn handle_session_get(
         Err(RangeParseError::IncompleteRangePair) => {
             return error_response(400, "start_line and end_line must both be supplied")
         }
-        Err(RangeParseError::NotNumeric) => return error_response(400, "lines/start_line/end_line must be integers"),
-        Err(RangeParseError::StartAfterEnd) => return error_response(400, "start_line must not be after end_line"),
+        Err(RangeParseError::NotNumeric) => {
+            return error_response(400, "lines/start_line/end_line must be integers")
+        }
+        Err(RangeParseError::StartAfterEnd) => {
+            return error_response(400, "start_line must not be after end_line")
+        }
     };
 
     let resolution = match (deps.locate_pane)(session, &color) {
@@ -564,29 +594,30 @@ pub fn handle_session_get(
                 other_claude_panes: None,
             },
         ),
-        Resolution::Ok { pane_id, other_pane_ids } => {
-            match (deps.capture_pane)(&pane_id, to_capture_range(range), DEFAULT_CAP_BYTES) {
-                Ok(capture) => HttpResponse::json(
-                    200,
-                    &SessionDetail {
-                        color,
-                        claude_pane: Some(pane_id),
-                        pane_status: "ok",
-                        captured_at: Some(deps.clock.now_rfc3339()),
-                        output: Some(capture.text),
-                        output_truncated: capture.truncated,
-                        output_original_bytes: capture.original_bytes,
-                        output_returned_bytes: capture.returned_bytes,
-                        range_returned: Some(RangeReturned {
-                            start_line: capture.range_returned.0,
-                            end_line: capture.range_returned.1,
-                        }),
-                        other_claude_panes: other_panes(other_pane_ids),
-                    },
-                ),
-                Err(e) => error_response(map_tmux_error(&e), e.to_string()),
-            }
-        }
+        Resolution::Ok {
+            pane_id,
+            other_pane_ids,
+        } => match (deps.capture_pane)(&pane_id, to_capture_range(range), DEFAULT_CAP_BYTES) {
+            Ok(capture) => HttpResponse::json(
+                200,
+                &SessionDetail {
+                    color,
+                    claude_pane: Some(pane_id),
+                    pane_status: "ok",
+                    captured_at: Some(deps.clock.now_rfc3339()),
+                    output: Some(capture.text),
+                    output_truncated: capture.truncated,
+                    output_original_bytes: capture.original_bytes,
+                    output_returned_bytes: capture.returned_bytes,
+                    range_returned: Some(RangeReturned {
+                        start_line: capture.range_returned.0,
+                        end_line: capture.range_returned.1,
+                    }),
+                    other_claude_panes: other_panes(other_pane_ids),
+                },
+            ),
+            Err(e) => error_response(map_tmux_error(&e), e.to_string()),
+        },
     }
 }
 
@@ -648,7 +679,10 @@ pub fn handle_session_send(
                 color,
             },
         ),
-        Resolution::Ok { pane_id, other_pane_ids } => match (deps.send_keys)(&pane_id, trimmed) {
+        Resolution::Ok {
+            pane_id,
+            other_pane_ids,
+        } => match (deps.send_keys)(&pane_id, trimmed) {
             Ok(()) => HttpResponse::json(
                 200,
                 &SendSuccess {
@@ -702,7 +736,10 @@ mod tests {
     // @spec HTTP-SRV-019
     #[test]
     fn validate_color_rejects_unknown_name() {
-        assert_eq!(validate_color("purple", &palette()), ColorValidation::Invalid);
+        assert_eq!(
+            validate_color("purple", &palette()),
+            ColorValidation::Invalid
+        );
     }
 
     // ---- guard_check (HTTP-SRV-041 through HTTP-SRV-046) ------------------
@@ -727,7 +764,9 @@ mod tests {
         for s in ["yes", "no", "YES", "No"] {
             assert_eq!(
                 guard_check(s),
-                Some(GuardRejection { reason: GuardReason::YesNoWord }),
+                Some(GuardRejection {
+                    reason: GuardReason::YesNoWord
+                }),
                 "expected rejection for {s:?}"
             );
         }
@@ -739,7 +778,9 @@ mod tests {
         for s in ["1", "12", "123"] {
             assert_eq!(
                 guard_check(s),
-                Some(GuardRejection { reason: GuardReason::NumericChoice }),
+                Some(GuardRejection {
+                    reason: GuardReason::NumericChoice
+                }),
                 "expected rejection for {s:?}"
             );
         }
@@ -798,7 +839,9 @@ mod tests {
         for s in ["yes.", "Yes!", "no)", "NO:", "no;"] {
             assert_eq!(
                 guard_check(s),
-                Some(GuardRejection { reason: GuardReason::YesNoWord }),
+                Some(GuardRejection {
+                    reason: GuardReason::YesNoWord
+                }),
                 "expected rejection for {s:?}"
             );
         }
@@ -810,7 +853,9 @@ mod tests {
         for s in ["yeah", "yep", "nope", "nah", "Nope!", "yeah."] {
             assert_eq!(
                 guard_check(s),
-                Some(GuardRejection { reason: GuardReason::YesNoWord }),
+                Some(GuardRejection {
+                    reason: GuardReason::YesNoWord
+                }),
                 "expected rejection for {s:?}"
             );
         }
@@ -822,7 +867,9 @@ mod tests {
         for s in ["1.", "12)", "123:"] {
             assert_eq!(
                 guard_check(s),
-                Some(GuardRejection { reason: GuardReason::NumericChoice }),
+                Some(GuardRejection {
+                    reason: GuardReason::NumericChoice
+                }),
                 "expected rejection for {s:?}"
             );
         }
@@ -869,7 +916,10 @@ mod tests {
     // @spec HTTP-SRV-022
     #[test]
     fn parse_lines_rejects_non_numeric() {
-        assert_eq!(parse_lines(Some("abc"), 35, 1000), Err(LinesParseError::NotNumeric));
+        assert_eq!(
+            parse_lines(Some("abc"), 35, 1000),
+            Err(LinesParseError::NotNumeric)
+        );
     }
 
     // ---- parse_range (HTTP-SRV-028 through HTTP-SRV-032) ------------------
@@ -886,7 +936,10 @@ mod tests {
     // @spec HTTP-SRV-028
     #[test]
     fn parse_range_tail_mode_from_lines() {
-        assert_eq!(parse_range(Some("50"), None, None), Ok(RequestedRange::Tail(50)));
+        assert_eq!(
+            parse_range(Some("50"), None, None),
+            Ok(RequestedRange::Tail(50))
+        );
     }
 
     // @spec HTTP-SRV-029
@@ -942,7 +995,10 @@ mod tests {
             parse_range(None, Some("abc"), Some("-1")),
             Err(RangeParseError::NotNumeric)
         );
-        assert_eq!(parse_range(Some("abc"), None, None), Err(RangeParseError::NotNumeric));
+        assert_eq!(
+            parse_range(Some("abc"), None, None),
+            Err(RangeParseError::NotNumeric)
+        );
     }
 
     // @spec HTTP-SRV-064
@@ -994,7 +1050,10 @@ mod tests {
     // @spec HTTP-SRV-055
     #[test]
     fn map_tmux_error_send_keys_incomplete_is_502() {
-        assert_eq!(map_tmux_error(&TmuxError::SendKeysIncomplete("p".into())), 502);
+        assert_eq!(
+            map_tmux_error(&TmuxError::SendKeysIncomplete("p".into())),
+            502
+        );
     }
 
     // @spec HTTP-SRV-056
@@ -1024,7 +1083,10 @@ mod tests {
             other_claude_panes: Some(vec!["%2".to_string()]),
         };
         let json = serde_json::to_string(&body).unwrap();
-        assert!(json.contains(r#""other_claude_panes":["%2"]"#), "got: {json}");
+        assert!(
+            json.contains(r#""other_claude_panes":["%2"]"#),
+            "got: {json}"
+        );
     }
 
     // @spec HTTP-SRV-025
@@ -1062,7 +1124,10 @@ mod tests {
             color: "red".to_string(),
         };
         let json = serde_json::to_string(&body).unwrap();
-        assert_eq!(json, r#"{"ok":false,"error":"no_claude_pane","color":"red"}"#);
+        assert_eq!(
+            json,
+            r#"{"ok":false,"error":"no_claude_pane","color":"red"}"#
+        );
     }
 
     // ---- handle_sessions / handle_session_get / handle_session_send -------
@@ -1104,7 +1169,10 @@ mod tests {
         unreachable!("send_keys should not be called")
     }
 
-    fn sessions_deps<'a>(locate_panes: &'a LocatePanesFn<'a>, capture_pane: &'a CapturePaneFn<'a>) -> Deps<'a> {
+    fn sessions_deps<'a>(
+        locate_panes: &'a LocatePanesFn<'a>,
+        capture_pane: &'a CapturePaneFn<'a>,
+    ) -> Deps<'a> {
         Deps {
             locate_panes,
             locate_pane: &unreachable_locate_pane,
@@ -1114,7 +1182,10 @@ mod tests {
         }
     }
 
-    fn session_get_deps<'a>(locate_pane: &'a LocatePaneFn<'a>, capture_pane: &'a CapturePaneFn<'a>) -> Deps<'a> {
+    fn session_get_deps<'a>(
+        locate_pane: &'a LocatePaneFn<'a>,
+        capture_pane: &'a CapturePaneFn<'a>,
+    ) -> Deps<'a> {
         Deps {
             locate_panes: &unreachable_locate_panes,
             locate_pane,
@@ -1124,7 +1195,10 @@ mod tests {
         }
     }
 
-    fn session_send_deps<'a>(locate_pane: &'a LocatePaneFn<'a>, send_keys: &'a SendKeysFn<'a>) -> Deps<'a> {
+    fn session_send_deps<'a>(
+        locate_pane: &'a LocatePaneFn<'a>,
+        send_keys: &'a SendKeysFn<'a>,
+    ) -> Deps<'a> {
         Deps {
             locate_panes: &unreachable_locate_panes,
             locate_pane,
@@ -1200,9 +1274,13 @@ mod tests {
                 .map(|c| (c.to_string(), ok_resolution("%1")))
                 .collect())
         };
-        let capture = |_p: &str, _r: CaptureRange, _m: usize| Err(TmuxError::PaneNotFound("%1".into()));
+        let capture =
+            |_p: &str, _r: CaptureRange, _m: usize| Err(TmuxError::PaneNotFound("%1".into()));
         let resp = handle_sessions(&palette(), "sess", None, &sessions_deps(&locate, &capture));
-        assert_eq!(resp.status, 200, "a per-color error must not fail the whole survey");
+        assert_eq!(
+            resp.status, 200,
+            "a per-color error must not fail the whole survey"
+        );
         let parsed: serde_json::Value = serde_json::from_str(&resp.body).unwrap();
         let red = parsed
             .as_array()
@@ -1225,7 +1303,9 @@ mod tests {
                 .map(|c| {
                     (
                         c.to_string(),
-                        Err(LocatorError::TmuxSession(TmuxError::PaneNotFound(c.to_string()))),
+                        Err(LocatorError::TmuxSession(TmuxError::PaneNotFound(
+                            c.to_string(),
+                        ))),
                     )
                 })
                 .collect())
@@ -1263,7 +1343,12 @@ mod tests {
     fn sessions_non_numeric_lines_is_400() {
         let locate = |_s: &str, _c: &[&str]| unreachable!("must not resolve panes on bad input");
         let capture = |_p: &str, _r: CaptureRange, _m: usize| unreachable!();
-        let resp = handle_sessions(&palette(), "sess", Some("abc"), &sessions_deps(&locate, &capture));
+        let resp = handle_sessions(
+            &palette(),
+            "sess",
+            Some("abc"),
+            &sessions_deps(&locate, &capture),
+        );
         assert_eq!(resp.status, 400);
     }
 
@@ -1287,8 +1372,11 @@ mod tests {
     // @spec HTTP-SRV-036
     #[test]
     fn session_get_session_not_found_is_503() {
-        let locate =
-            |_s: &str, _c: &str| Err(LocatorError::TmuxSession(TmuxError::SessionNotFound("s".into())));
+        let locate = |_s: &str, _c: &str| {
+            Err(LocatorError::TmuxSession(TmuxError::SessionNotFound(
+                "s".into(),
+            )))
+        };
         let capture = |_p: &str, _r: CaptureRange, _m: usize| unreachable!();
         let resp = handle_session_get(
             &palette(),
@@ -1305,7 +1393,8 @@ mod tests {
     // @spec HTTP-SRV-030
     #[test]
     fn session_get_incomplete_range_pair_is_400() {
-        let locate = |_s: &str, _c: &str| unreachable!("must not resolve panes on bad query params");
+        let locate =
+            |_s: &str, _c: &str| unreachable!("must not resolve panes on bad query params");
         let capture = |_p: &str, _r: CaptureRange, _m: usize| unreachable!();
         let resp = handle_session_get(
             &palette(),
@@ -1383,7 +1472,13 @@ mod tests {
     fn session_get_window_mode_maps_to_capture_range_window() {
         let locate = |_s: &str, _c: &str| ok_resolution("%1");
         let capture = |_pane: &str, range: CaptureRange, _max: usize| {
-            assert_eq!(range, CaptureRange::Window { start: -700, end: -313 });
+            assert_eq!(
+                range,
+                CaptureRange::Window {
+                    start: -700,
+                    end: -313
+                }
+            );
             Ok(Capture {
                 text: "chunk".to_string(),
                 truncated: false,
@@ -1412,7 +1507,13 @@ mod tests {
         let send = |_p: &str, _t: &str| unreachable!("must not send for invalid color");
         // Malformed JSON body — proves color validation runs first (HTTP-SRV-037),
         // since a 400 (body) must not win over the 404 (route) here.
-        let resp = handle_session_send(&palette(), "sess", "purple", "not json", &session_send_deps(&locate, &send));
+        let resp = handle_session_send(
+            &palette(),
+            "sess",
+            "purple",
+            "not json",
+            &session_send_deps(&locate, &send),
+        );
         assert_eq!(resp.status, 404);
     }
 
@@ -1421,7 +1522,13 @@ mod tests {
     fn send_invalid_json_body_is_400() {
         let locate = |_s: &str, _c: &str| ok_resolution("%1");
         let send = |_p: &str, _t: &str| unreachable!("must not send for malformed body");
-        let resp = handle_session_send(&palette(), "sess", "red", "not json", &session_send_deps(&locate, &send));
+        let resp = handle_session_send(
+            &palette(),
+            "sess",
+            "red",
+            "not json",
+            &session_send_deps(&locate, &send),
+        );
         assert_eq!(resp.status, 400);
     }
 
@@ -1430,7 +1537,13 @@ mod tests {
     fn send_empty_text_is_400_and_skips_guard() {
         let locate = |_s: &str, _c: &str| ok_resolution("%1");
         let send = |_p: &str, _t: &str| unreachable!("must not send for empty text");
-        let resp = handle_session_send(&palette(), "sess", "red", r#"{"text": "   "}"#, &session_send_deps(&locate, &send));
+        let resp = handle_session_send(
+            &palette(),
+            "sess",
+            "red",
+            r#"{"text": "   "}"#,
+            &session_send_deps(&locate, &send),
+        );
         assert_eq!(resp.status, 400);
     }
 
@@ -1439,7 +1552,13 @@ mod tests {
     fn send_guard_rejects_before_pane_resolution() {
         let locate = |_s: &str, _c: &str| unreachable!("guard must reject before pane resolution");
         let send = |_p: &str, _t: &str| unreachable!("guard must reject before send");
-        let resp = handle_session_send(&palette(), "sess", "red", r#"{"text": "yes"}"#, &session_send_deps(&locate, &send));
+        let resp = handle_session_send(
+            &palette(),
+            "sess",
+            "red",
+            r#"{"text": "yes"}"#,
+            &session_send_deps(&locate, &send),
+        );
         assert_eq!(resp.status, 409);
         let body: serde_json::Value = serde_json::from_str(&resp.body).unwrap();
         assert_eq!(body["error"], "looks_like_prompt_response");
@@ -1542,8 +1661,11 @@ mod tests {
     // @spec HTTP-SRV-052
     #[test]
     fn send_session_not_found_is_503() {
-        let locate =
-            |_s: &str, _c: &str| Err(LocatorError::TmuxSession(TmuxError::SessionNotFound("s".into())));
+        let locate = |_s: &str, _c: &str| {
+            Err(LocatorError::TmuxSession(TmuxError::SessionNotFound(
+                "s".into(),
+            )))
+        };
         let send = |_p: &str, _t: &str| unreachable!();
         let resp = handle_session_send(
             &palette(),

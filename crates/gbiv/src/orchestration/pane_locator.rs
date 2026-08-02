@@ -336,6 +336,10 @@ fn read_start_time(pid: u32) -> Option<u64> {
 /// — but that offset is constant across all panes on one host, so it cancels
 /// under comparison, which is all the locator uses it for. Returns `None` on any
 /// malformed field. Pure (no OS access) so it is unit-tested directly.
+// Only the macOS path (`read_start_time` above) calls this in production;
+// deliberately not `#[cfg(target_os = "macos")]` so the parsing logic stays
+// unit-tested on every CI platform (see this function's own doc comment).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn parse_lstart(s: &str) -> Option<u64> {
     let parts: Vec<&str> = s.split_whitespace().collect();
     if parts.len() != 5 {
@@ -369,6 +373,7 @@ fn parse_lstart(s: &str) -> Option<u64> {
 
 /// Days since the Unix epoch for a civil (proleptic Gregorian) date.
 /// Howard Hinnant's algorithm.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     let y = if m <= 2 { y - 1 } else { y };
     let era = (if y >= 0 { y } else { y - 399 }) / 400;

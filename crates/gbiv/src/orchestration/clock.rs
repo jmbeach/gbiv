@@ -63,7 +63,10 @@ mod tests {
     fn known_timestamp_formats_correctly() {
         // 2026-07-26T16:54:03Z, cross-checked against
         // pane_locator::tests::parse_lstart_known_timestamp's 1_785_084_843.
-        assert_eq!(rfc3339_from_unix_secs(1_785_084_843), "2026-07-26T16:54:03Z");
+        assert_eq!(
+            rfc3339_from_unix_secs(1_785_084_843),
+            "2026-07-26T16:54:03Z"
+        );
     }
 
     #[test]

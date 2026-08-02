@@ -166,7 +166,9 @@ pub(crate) fn split_exec_args(
 /// dispatch arm so the extraction itself — which field name maps to which
 /// clap arg — is unit-testable without invoking `orchestration::daemon::run`
 /// (which binds a real port and blocks forever).
-fn start_options_from_matches(sub_matches: &clap::ArgMatches) -> orchestration::daemon::StartOptions {
+fn start_options_from_matches(
+    sub_matches: &clap::ArgMatches,
+) -> orchestration::daemon::StartOptions {
     orchestration::daemon::StartOptions {
         session_name: sub_matches.get_one::<String>("session-name").cloned(),
         bind: sub_matches.get_one::<String>("bind").cloned(),
@@ -322,7 +324,14 @@ mod tests {
     // @spec HTTP-SRV-057, HTTP-SRV-058
     #[test]
     fn start_options_from_matches_extracts_both_flags() {
-        let m = cli().get_matches_from(["gbiv", "start", "--session-name", "custom", "--bind", "0.0.0.0"]);
+        let m = cli().get_matches_from([
+            "gbiv",
+            "start",
+            "--session-name",
+            "custom",
+            "--bind",
+            "0.0.0.0",
+        ]);
         let sub = m.subcommand_matches("start").unwrap();
         let opts = start_options_from_matches(sub);
         assert_eq!(opts.session_name.as_deref(), Some("custom"));
@@ -344,7 +353,10 @@ mod tests {
     fn start_parses_bind_flag_but_it_is_only_stored_not_acted_on() {
         let m = cli().get_matches_from(["gbiv", "start", "--bind", "0.0.0.0"]);
         let sub = m.subcommand_matches("start").unwrap();
-        assert_eq!(sub.get_one::<String>("bind").map(String::as_str), Some("0.0.0.0"));
+        assert_eq!(
+            sub.get_one::<String>("bind").map(String::as_str),
+            Some("0.0.0.0")
+        );
     }
 
     // @spec CLI-DISPATCH-003

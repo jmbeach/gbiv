@@ -179,7 +179,10 @@ fn reject_if_daemon_already_running(port_file: &Path) -> anyhow::Result<()> {
             port_file.display()
         );
     }
-    tracing::info!(port, "stale port file found (daemon not responding); starting fresh");
+    tracing::info!(
+        port,
+        "stale port file found (daemon not responding); starting fresh"
+    );
     Ok(())
 }
 
@@ -216,8 +219,12 @@ fn write_port_file(gbiv_dir: &Path, port: u16) -> anyhow::Result<PathBuf> {
 // @spec HTTP-SRV-012, HTTP-SRV-013
 fn remove_port_file_best_effort(port_file: &Path) {
     match fs::remove_file(port_file) {
-        Ok(()) => tracing::info!(path = %port_file.display(), "port file removed; shutdown complete"),
-        Err(e) => tracing::warn!(error = %e, path = %port_file.display(), "failed to remove port file on shutdown"),
+        Ok(()) => {
+            tracing::info!(path = %port_file.display(), "port file removed; shutdown complete")
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, path = %port_file.display(), "failed to remove port file on shutdown")
+        }
     }
 }
 
@@ -333,7 +340,12 @@ fn body_too_large_response() -> http_server::HttpResponse {
 /// below — is unit-testable against a real `tiny_http::Request` without a
 /// live tmux session (see the `handle_request_routes_*` tests).
 // @spec HTTP-SRV-063
-fn handle_request(mut request: tiny_http::Request, palette: &Palette, session: &str, deps: &http_server::Deps) {
+fn handle_request(
+    mut request: tiny_http::Request,
+    palette: &Palette,
+    session: &str,
+    deps: &http_server::Deps,
+) {
     let start = std::time::Instant::now();
     let method = request.method().clone();
     let url = request.url().to_string();
@@ -349,7 +361,9 @@ fn handle_request(mut request: tiny_http::Request, palette: &Palette, session: &
             let lines = query_get(&query, "lines");
             let start_line = query_get(&query, "start_line");
             let end_line = query_get(&query, "end_line");
-            http_server::handle_session_get(palette, session, color, lines, start_line, end_line, deps)
+            http_server::handle_session_get(
+                palette, session, color, lines, start_line, end_line, deps,
+            )
         }
         // HTTP-SRV-037: an invalid color must 404 without reading the body at
         // all — checked here, before `read_body_capped` ever touches the
@@ -358,10 +372,14 @@ fn handle_request(mut request: tiny_http::Request, palette: &Palette, session: &
         (tiny_http::Method::Post, ["session", color, "send"]) => {
             match http_server::validate_color(color, palette) {
                 http_server::ColorValidation::Invalid => http_server::invalid_color_response(color),
-                http_server::ColorValidation::Valid(_) => match read_body_capped(&mut request, MAX_SEND_BODY_BYTES) {
-                    Ok(body) => http_server::handle_session_send(palette, session, color, &body, deps),
-                    Err(()) => body_too_large_response(),
-                },
+                http_server::ColorValidation::Valid(_) => {
+                    match read_body_capped(&mut request, MAX_SEND_BODY_BYTES) {
+                        Ok(body) => {
+                            http_server::handle_session_send(palette, session, color, &body, deps)
+                        }
+                        Err(()) => body_too_large_response(),
+                    }
+                }
             }
         }
         _ => method_not_allowed(),
@@ -608,7 +626,10 @@ mod tests {
     fn read_body_capped_reads_body_under_cap() {
         let raw = b"POST /session/red/send HTTP/1.1\r\nHost: x\r\nContent-Length: 5\r\n\r\nhello";
         let mut request = request_from_raw_http(raw);
-        assert_eq!(read_body_capped(&mut request, 1024), Ok("hello".to_string()));
+        assert_eq!(
+            read_body_capped(&mut request, 1024),
+            Ok("hello".to_string())
+        );
     }
 
     // @spec HTTP-SRV-062
@@ -619,7 +640,9 @@ mod tests {
         // reject based on the `Content-Length` header alone, without reading
         // any of that body back off the reader.
         let body = "a".repeat(1000);
-        let raw = format!("POST /session/red/send HTTP/1.1\r\nHost: x\r\nContent-Length: 1000\r\n\r\n{body}");
+        let raw = format!(
+            "POST /session/red/send HTTP/1.1\r\nHost: x\r\nContent-Length: 1000\r\n\r\n{body}"
+        );
         let mut request = request_from_raw_http(raw.as_bytes());
         assert_eq!(read_body_capped(&mut request, 10), Err(()));
     }
@@ -692,15 +715,23 @@ mod tests {
             locate_panes: &|_, colors| {
                 Ok(colors
                     .iter()
-                    .map(|c| (c.to_string(), Ok(crate::orchestration::pane_locator::Resolution::NoWindow)))
+                    .map(|c| {
+                        (
+                            c.to_string(),
+                            Ok(crate::orchestration::pane_locator::Resolution::NoWindow),
+                        )
+                    })
                     .collect())
             },
-            locate_pane: &|_, _| unreachable!("GET /sessions must use locate_panes, not locate_pane"),
+            locate_pane: &|_, _| {
+                unreachable!("GET /sessions must use locate_panes, not locate_pane")
+            },
             capture_pane: &|_, _, _| unreachable!("no pane resolved; capture must not be called"),
             send_keys: &|_, _| unreachable!("GET /sessions must never send keys"),
             clock: &RealClock,
         };
-        let (request, mut stream) = request_and_stream(b"GET /sessions HTTP/1.1\r\nHost: x\r\n\r\n");
+        let (request, mut stream) =
+            request_and_stream(b"GET /sessions HTTP/1.1\r\nHost: x\r\n\r\n");
         handle_request(request, &Palette::default(), "sess", &deps);
         assert_eq!(read_status_code(&mut stream), 200);
     }
@@ -708,13 +739,16 @@ mod tests {
     #[test]
     fn handle_request_routes_get_session_color_to_locate_pane() {
         let deps = http_server::Deps {
-            locate_panes: &|_, _| unreachable!("GET /session/:color must use locate_pane, not locate_panes"),
+            locate_panes: &|_, _| {
+                unreachable!("GET /session/:color must use locate_pane, not locate_panes")
+            },
             locate_pane: &|_, _| Ok(crate::orchestration::pane_locator::Resolution::NoWindow),
             capture_pane: &|_, _, _| unreachable!("no pane resolved; capture must not be called"),
             send_keys: &|_, _| unreachable!("GET /session/:color must never send keys"),
             clock: &RealClock,
         };
-        let (request, mut stream) = request_and_stream(b"GET /session/red HTTP/1.1\r\nHost: x\r\n\r\n");
+        let (request, mut stream) =
+            request_and_stream(b"GET /session/red HTTP/1.1\r\nHost: x\r\n\r\n");
         handle_request(request, &Palette::default(), "sess", &deps);
         // NoWindow maps to 404 (http_server::handle_session_get) — proves this
         // request reached that handler, not handle_sessions (which would 200).
@@ -731,7 +765,10 @@ mod tests {
             clock: &RealClock,
         };
         let body = r#"{"text": "please run the tests"}"#;
-        let raw = format!("POST /session/red/send HTTP/1.1\r\nHost: x\r\nContent-Length: {}\r\n\r\n{body}", body.len());
+        let raw = format!(
+            "POST /session/red/send HTTP/1.1\r\nHost: x\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        );
         let (request, mut stream) = request_and_stream(raw.as_bytes());
         handle_request(request, &Palette::default(), "sess", &deps);
         assert_eq!(read_status_code(&mut stream), 404);
@@ -739,7 +776,8 @@ mod tests {
 
     #[test]
     fn handle_request_unknown_route_is_404() {
-        let (request, mut stream) = request_and_stream(b"GET /nonexistent HTTP/1.1\r\nHost: x\r\n\r\n");
+        let (request, mut stream) =
+            request_and_stream(b"GET /nonexistent HTTP/1.1\r\nHost: x\r\n\r\n");
         handle_request(request, &Palette::default(), "sess", &unreachable_deps());
         assert_eq!(read_status_code(&mut stream), 404);
     }
@@ -794,7 +832,10 @@ mod tests {
             Err(e) => e,
             Ok(_) => panic!("expected bootstrap to fail"),
         };
-        assert!(err.to_string().contains("not inside a gbiv project"), "got: {err}");
+        assert!(
+            err.to_string().contains("not inside a gbiv project"),
+            "got: {err}"
+        );
     }
 
     #[test]
