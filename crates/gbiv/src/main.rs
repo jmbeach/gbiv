@@ -37,6 +37,20 @@ pub(crate) fn cli() -> Command {
             Command::new("status")
                 .about("Show status of all ROYGBIV worktrees"),
         )
+        .subcommand(
+            Command::new("start")
+                .about("Run the fleet orchestration HTTP daemon in the foreground")
+                .arg(
+                    Arg::new("session-name")
+                        .long("session-name")
+                        .help("Override the inferred tmux session name"),
+                )
+                .arg(
+                    Arg::new("bind")
+                        .long("bind")
+                        .help("Reserved; parsed but ignored in v1 (always binds 127.0.0.1)"),
+                ),
+        )
         .subcommand(tmux::tmux_command())
         .subcommand(
             Command::new("rebase-all")
@@ -148,6 +162,19 @@ pub(crate) fn split_exec_args(
     (target, command)
 }
 
+/// Extract `gbiv start`'s flags into `StartOptions`. Factored out of the
+/// dispatch arm so the extraction itself — which field name maps to which
+/// clap arg — is unit-testable without invoking `orchestration::daemon::run`
+/// (which binds a real port and blocks forever).
+fn start_options_from_matches(
+    sub_matches: &clap::ArgMatches,
+) -> orchestration::daemon::StartOptions {
+    orchestration::daemon::StartOptions {
+        session_name: sub_matches.get_one::<String>("session-name").cloned(),
+        bind: sub_matches.get_one::<String>("bind").cloned(),
+    }
+}
+
 // @spec CLI-DISPATCH-003, CLI-DISPATCH-007 through CLI-DISPATCH-010
 fn run() -> Result<()> {
     let matches = cli().get_matches();
@@ -159,6 +186,9 @@ fn run() -> Result<()> {
         }
         Some(("status", _)) => {
             status_command()?;
+        }
+        Some(("start", sub_matches)) => {
+            orchestration::daemon::run(start_options_from_matches(sub_matches))?;
         }
         Some(("tmux", sub_matches)) => {
             tmux::dispatch(sub_matches)?;
@@ -269,6 +299,65 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- `gbiv start` flag parsing (HTTP-SRV-057, HTTP-SRV-058) -----------
+
+    // @spec HTTP-SRV-057
+    #[test]
+    fn start_parses_session_name_flag() {
+        let m = cli().get_matches_from(["gbiv", "start", "--session-name", "custom"]);
+        let sub = m.subcommand_matches("start").unwrap();
+        assert_eq!(
+            sub.get_one::<String>("session-name").map(String::as_str),
+            Some("custom")
+        );
+    }
+
+    // @spec HTTP-SRV-057
+    #[test]
+    fn start_session_name_is_optional() {
+        let m = cli().get_matches_from(["gbiv", "start"]);
+        let sub = m.subcommand_matches("start").unwrap();
+        assert_eq!(sub.get_one::<String>("session-name"), None);
+    }
+
+    // @spec HTTP-SRV-057, HTTP-SRV-058
+    #[test]
+    fn start_options_from_matches_extracts_both_flags() {
+        let m = cli().get_matches_from([
+            "gbiv",
+            "start",
+            "--session-name",
+            "custom",
+            "--bind",
+            "0.0.0.0",
+        ]);
+        let sub = m.subcommand_matches("start").unwrap();
+        let opts = start_options_from_matches(sub);
+        assert_eq!(opts.session_name.as_deref(), Some("custom"));
+        assert_eq!(opts.bind.as_deref(), Some("0.0.0.0"));
+    }
+
+    // @spec HTTP-SRV-057, HTTP-SRV-058
+    #[test]
+    fn start_options_from_matches_defaults_to_none() {
+        let m = cli().get_matches_from(["gbiv", "start"]);
+        let sub = m.subcommand_matches("start").unwrap();
+        let opts = start_options_from_matches(sub);
+        assert!(opts.session_name.is_none());
+        assert!(opts.bind.is_none());
+    }
+
+    // @spec HTTP-SRV-058
+    #[test]
+    fn start_parses_bind_flag_but_it_is_only_stored_not_acted_on() {
+        let m = cli().get_matches_from(["gbiv", "start", "--bind", "0.0.0.0"]);
+        let sub = m.subcommand_matches("start").unwrap();
+        assert_eq!(
+            sub.get_one::<String>("bind").map(String::as_str),
+            Some("0.0.0.0")
+        );
+    }
 
     // @spec CLI-DISPATCH-003
     #[test]

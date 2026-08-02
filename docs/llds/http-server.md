@@ -45,11 +45,20 @@ Response body:
     "output": null,
     "captured_at": null
   },
+  {
+    "color": "yellow",
+    "tmux_window": "yellow",
+    "claude_pane": null,
+    "pane_status": "error",
+    "output": null,
+    "captured_at": null,
+    "error": "tmux: pane not found: %9"
+  },
   ...
 ]
 ```
 
-`pane_status` is one of: `ok`, `no_window`, `no_claude_pane`. When status is anything other than `ok`, `output`, `captured_at`, and `claude_pane` are `null`.
+`pane_status` is one of: `ok`, `no_window`, `no_claude_pane`, `error`. When status is anything other than `ok`, `output` and `captured_at` are `null`. `error` (a short message, present only when `pane_status` is `"error"`) distinguishes a genuine failure — a pane resolved but the subsequent capture failed, or the Pane Locator's batch call returned a per-color error (e.g. the window's panes vanished between the shared window list and this color's lookup) — from `"no_window"`/`"no_claude_pane"`, which are normal absence states rather than errors. `claude_pane` may still be populated on an `"error"` entry when the pane itself was successfully identified before the failure (e.g. capture failed after a successful resolution); it's `null` when the failure occurred before a pane was ever identified.
 
 When the locator finds more than one claude pane in a window it picks the oldest by process start time (see Pane Locator LLD § "Resolve") and the entry's `pane_status` stays `ok`. The remaining claude pane IDs are exposed as `other_claude_panes: ["%17", "%23"]` so the commander can see the ambiguity was resolved automatically. The field is omitted (or empty) when only one claude pane was found.
 
@@ -61,7 +70,7 @@ Returns rows from the named color's claude pane. Used when the commander wants d
 
 Query parameters (mutually exclusive groups):
 - `lines` (optional, default 200, max 5000) — tail mode: last N rows. Maps to driver `CaptureRange::Tail { lines }`.
-- `start_line` + `end_line` (optional pair, both signed integers in tmux row-offset semantics) — window mode for pagination. Maps to driver `CaptureRange::Window`. Use `start_line=top` (literal string) to mean "top of history" (driver `i32::MIN`). If either param is supplied without the other, returns `400`. If both are supplied along with `lines`, returns `400`.
+- `start_line` + `end_line` (optional pair, both signed integers in tmux row-offset semantics) — window mode for pagination. Maps to driver `CaptureRange::Window`. Use `start_line=top` (literal string) to mean "top of history" (driver `i32::MIN`). If either param is supplied without the other, returns `400`. If both are supplied along with `lines`, returns `400`. If `start_line` is after `end_line`, returns `400` — validated at the HTTP layer (`parse_range`) rather than left for the tmux Driver's own `start > end` check (`tmux_driver::capture_args`'s `TmuxError::Other("invalid range")`, which would otherwise surface as a `500`; a malformed client request should never look like a server error).
 
 Response body (success):
 ```json
@@ -97,7 +106,7 @@ The split between `404` and `200-with-non-ok-status` is intentional: missing-win
 
 ### POST /session/:color/send
 
-Validates input shape, resolves the pane (must be `ok`), then calls `tmux_driver::send_keys`.
+Validates `:color` against the active palette *before touching the request body at all* — an unrecognized color 404s without a single byte being read off the socket, not merely without JSON-parsing an already-buffered body (this ordering lives in the routing layer, not inside the handler, since a handler can only reject a body it has already been handed one). Once the color is valid, the body is read capped at a fixed size (64 KiB — generous for a `{"text": "..."}` payload, small enough to bound what one worker thread will buffer for a misbehaving local client; loopback-only per § "Binding & Security" so this is defense-in-depth, not network hardening). Then: parses input shape, runs the prompt-response guard, resolves the pane (must be `ok`), then calls `tmux_driver::send_keys`.
 
 Request body:
 ```json
@@ -129,7 +138,7 @@ Status codes:
 - `200` — keystrokes accepted by tmux
 - `400` — request body missing/invalid; `text` is empty
 - `404` — color invalid or no window
-- `409` — input was rejected by the prompt-response guard, OR `pane_status` is `no_claude_pane` (resolvable conflict, not malformed input). Multiple-claude-panes is **not** a 409 — the locator auto-picks the oldest and returns `ok`; the response body includes `other_claude_panes` so the caller knows.
+- `409` — input was rejected by the prompt-response guard, OR `pane_status` is `no_claude_pane` (resolvable conflict, not malformed input). The `no_claude_pane` case's body is `{"ok": false, "error": "no_claude_pane", "color": "<color>"}` — no `explanation` field, since there's no guard rule to explain (the caller just needs to know the window has no active claude pane to send to). Multiple-claude-panes is **not** a 409 — the locator auto-picks the oldest and returns `ok`; the response body includes `other_claude_panes` so the caller knows.
 - `502` — tmux driver returned `SendKeysIncomplete` (text sent, Enter failed)
 - `503` — tmux session does not exist
 
@@ -137,40 +146,59 @@ Status codes:
 
 Before pane resolution, `text` is trimmed of leading/trailing whitespace and tested against the rule set below. Any match is rejected with `409` and `error: "looks_like_prompt_response"`. The `reason` field names the matching rule (machine-readable). The `explanation` field (see response body above) carries a verbose human/LLM-readable rationale and an explicit "do not try to bypass this" instruction — the consumer is almost always an LLM, and a one-line error invites creative re-attempts.
 
-| Pattern (case-insensitive, on trimmed text) | `reason` value |
+| Pattern (case-insensitive, on trimmed text with one trailing punctuation char `.!?):;` removed) | `reason` value |
 |---|---|
 | `^[yn]$` | `single-letter yes/no` |
-| `^(yes\|no)$` | `yes/no word` |
+| `^(yes\|no\|yeah\|yep\|nope\|nah)$` | `yes/no word` |
 | `^\d{1,3}$` | `numeric choice` |
-| single non-alphanumeric character | `bare punctuation` |
+| single non-alphanumeric character (no punctuation stripped) | `bare punctuation` |
 
-Multi-word natural-language text (e.g., `"yes please run that"`) is **not** rejected — only the trimmed text as a whole is matched against the patterns. Empty text after trim continues to return `400`, not the guard error, since it's malformed rather than dangerous-shaped. Rationale and the path to loosening this in a future version are in the HLD § "Reject prompt-shaped input on send."
+The trailing-punctuation strip exists because a prompt answer is just as likely to arrive as `"yes."` or `"1)"` as bare `"yes"`/`"1"` — matching only the unpunctuated exact string would let a trivially-decorated answer slip through untouched. It only ever strips from the very end of the string, so a genuine sentence like `"no. let's not do that"` is unaffected (its last character isn't punctuation in the stripped set). The `bare punctuation` rule itself is deliberately exempt from the strip — it already targets exactly one punctuation character, so stripping first would make it unreachable.
+
+Multi-word natural-language text (e.g., `"yes please run that"`) is **not** rejected — only the trimmed (and, for the three rules above, punctuation-stripped) text as a whole is matched against the patterns. Empty text after trim continues to return `400`, not the guard error, since it's malformed rather than dangerous-shaped. Rationale and the path to loosening this in a future version are in the HLD § "Reject prompt-shaped input on send."
+
+The word list intentionally stays narrow (six exact colloquial variants of yes/no) rather than attempting exhaustive natural-language intent detection — the guard is deliberately shape-based, not a classifier, and broader coverage risks false positives on legitimate short replies (the existing `"ok"` pass-through case is why `"sure"`/`"kk"`/etc. are not in the list).
 
 ## Lifecycle
 
 ### Startup
 
 1. Discover the gbiv root by walking up from CWD (`core::find_gbiv_root`).
-2. Resolve `main/<repo>/` (`core::find_repo_in_worktree`) and the tmux session name (folder-derived unless `--session-name` provided; both come from the `core` module so the daemon and the worktree commands cannot disagree).
-3. Verify `tmux -V` succeeds (`core::tmux::tmux_available`) → fatal exit if not.
-4. Bind a TCP listener on `127.0.0.1:0` (kernel-assigned port).
-5. Create `<gbiv-root>/main/<repo>/.gbiv/` if missing.
-6. Write the bound port to `<gbiv-root>/main/<repo>/.gbiv/port` as plain ASCII (e.g., `54321\n`).
-7. Ensure `.gbiv/` is in `.git/info/exclude` (`core::ensure_gitignore_entry`) so the user doesn't have to edit anything to keep the port file out of git.
-8. Validate `:color` URL params against `core::colors::is_valid_color` at request time (rejected at the routing layer before the locator is called).
-9. Print `gbiv listening on http://127.0.0.1:<port>` to stdout.
-10. Block in the accept loop.
+2. Resolve `main/<repo>/` (`core::find_repo_in_worktree`) and the tmux session name (folder-derived via `core::tmux::session_name_for_root` unless `--session-name` is provided; both come from the `core` module so the daemon and the worktree commands cannot disagree).
+3. Load the active palette (`gbiv_core::palette::Palette::load(&gbiv_root)`, base ROYGBIV plus any configured `.gbiv/config.toml` extras) once at startup and hold it for the process lifetime — see § "Active Palette" below.
+4. Verify `tmux -V` succeeds (`core::tmux::tmux_available`) → fatal exit if not.
+5. Check the existing `.gbiv/port` file (if any) for a live daemon — see § "Single-Instance Guard" below. Fatal exit if one is found; otherwise continue.
+6. Bind a TCP listener on `127.0.0.1:0` (kernel-assigned port).
+7. Create `<gbiv-root>/main/<repo>/.gbiv/` if missing.
+8. Write the bound port to `<gbiv-root>/main/<repo>/.gbiv/port` as plain ASCII (e.g., `54321\n`).
+9. Ensure `.gbiv/` is in `.git/info/exclude` (`core::ensure_gitignore_entry`) so the user doesn't have to edit anything to keep the port file out of git.
+10. Validate `:color` URL params against the loaded `Palette::contains` at request time (rejected at the routing layer before the locator is called) — see § "Active Palette".
+11. Print `gbiv listening on http://127.0.0.1:<port>` to stdout.
+12. Block in the accept loop.
+
+### Single-Instance Guard
+
+Binding always requests a fresh ephemeral port (`127.0.0.1:0`), so an OS-level bind failure can never mean "another gbiv daemon already holds this workspace's port" — the kernel will happily hand out a different port to a second daemon. Detecting an already-running daemon is therefore a separate, explicit check *before* binding: if `.gbiv/port` exists, the new process attempts a short-timeout (200ms) loopback TCP connect to the port it names.
+
+- **Connect succeeds** → a daemon is still listening there. The new process exits non-zero without binding a listener or touching the port file, so the running daemon is never orphaned by a second one silently taking over the file.
+- **Connect fails** (refused/timeout) → the port file is stale (previous daemon exited without cleanup, e.g. `kill -9`). Startup proceeds normally: bind, then overwrite the port file.
+
+This is a liveness probe, not process-identity verification — it can't distinguish "a gbiv daemon" from "some other process that happens to be listening on that exact port," but that's an acceptable tradeoff for a v1, single-workspace, developer-local tool.
+
+### Active Palette
+
+The server validates and iterates colors against the **active palette** (base ROYGBIV plus any `.gbiv/config.toml` extras), not a hard-coded `BASE_COLORS` list — consistent with every other gbiv surface (`status`, `exec all`, `tmux sync`), which already treat configured extras as first-class. The palette is loaded once at startup (step 3 above) rather than per-request: it changes only when a human edits `.gbiv/config.toml`, and a running daemon reflecting a stale palette until restarted is an acceptable tradeoff against re-reading a config file on every request. `GET /sessions` iterates the loaded palette's `names()` in order; `GET /session/:color` and `POST /session/:color/send` validate `:color` via `Palette::contains`.
 
 ### Shutdown
 
-- Ctrl+C / SIGTERM: best-effort delete the port file, then exit. Listener cleanup is handled by process exit.
+- Ctrl+C / SIGTERM: best-effort delete the port file, then exit. Registered via the `ctrlc` crate (small, cross-platform SIGINT handling; SIGTERM too on unix), the only signal-handling dependency in the workspace. Listener cleanup is handled by process exit.
 - Any other exit (panic, bind failure mid-flight): port file may be left stale. CLI subcommands handle stale port files (see CLI LLD: connection-refused → "is the daemon running?").
 
 ### Concurrency
 
-- One worker thread per request. tiny_http (or equivalent sync HTTP lib) gives a thread per accepted connection.
+- **16 long-lived worker threads**, each looping `tiny_http::Server::recv()` on the one shared `Server` instance. `tiny_http::Server` is documented as safe to call `.recv()` from multiple threads concurrently — this is the library's intended pattern for bounded parallelism, and it naturally caps concurrency at exactly 16 in-flight requests without a separate semaphore or thread-spawn-per-connection.
 - Pane Locator and tmux Driver are independently safe to call concurrently — they hold no shared state and tmux subprocesses don't conflict at the granularity gbiv uses.
-- Request handling is bounded by tmux subprocess speed (~tens of ms per call). v1 sets a max of 16 worker threads to cap runaway parallelism if a misbehaving client floods.
+- Request handling is bounded by tmux subprocess speed (~tens of ms per call). The worker count (16) caps runaway parallelism if a misbehaving client floods; a 17th concurrent request queues in the OS accept backlog until a worker frees up.
 
 ## Binding & Security
 
@@ -181,18 +209,17 @@ Multi-word natural-language text (e.g., `"yes please run that"`) is **not** reje
 
 ## Error Handling
 
-Request handlers are written as `fn handle_xxx(...) -> anyhow::Result<HttpResponse>`. Inside a handler, `?` on a `TmuxError` or `LocatorError` short-circuits to a single error path, where a small `into_response()` helper inspects the chain (via `downcast_ref::<TmuxError>()` etc.) to pick the right HTTP status:
+Request handlers (`handle_sessions`, `handle_session_get`, `handle_session_send`) return `HttpResponse` directly rather than `anyhow::Result<HttpResponse>` — there is no `?`-and-catch step, since a `TmuxError`/`LocatorError` is never a reason to fail the whole process, only to pick a response for this one request. Each handler `match`es the `Result` returned by its injected `locate_pane(s)`/`capture_pane`/`send_keys` call directly, and on `Err` calls `map_tmux_error`/`map_locator_error` (plain functions, not a trait-object `into_response()`/`downcast_ref` step) to pick the status, then builds an `error_response(status, e.to_string())` body:
 
 | Typed error | Status |
 |---|---|
 | `TmuxError::SessionNotFound` | 503 |
 | `TmuxError::PaneNotFound` | 404 |
 | `TmuxError::SendKeysIncomplete` | 502 |
-| `TmuxError::Other` | 500 |
+| `TmuxError::NotInstalled`, `TmuxError::Other` | 500 |
 | `LocatorError::TmuxSession(...)` | unwraps to the inner `TmuxError` mapping above |
-| Anything else (anyhow opaque) | 500 |
 
-`anyhow::Error::context("…")` is used liberally to attach handler-level breadcrumbs (the route, color, and request id). Library modules never return `anyhow::Error` themselves — they return their typed enums and the handler is the conversion point.
+`anyhow` is used only in `orchestration::daemon` (the I/O/wiring layer: `run`, `bootstrap`, and their helpers) via `anyhow::Result<()>`/`anyhow::Result<T>` with `.context(...)` breadcrumbs for startup failures — never inside the request handlers themselves, which are pure functions over their injected dependencies and never fail the process.
 
 ## HTTP Library Choice
 
@@ -206,6 +233,8 @@ JSON serialization uses `serde` + `serde_json`. These are the de-facto standard 
 
 If gbiv later needs SSE streaming (`/events`), revisit: `hyper` + `tokio` becomes a credible move.
 
+Shutdown signal handling uses the `ctrlc` crate (small, ~2 transitive deps) rather than hand-rolled `signal-hook`/raw `libc` calls — it handles SIGINT portably and SIGTERM on unix with one `ctrlc::set_handler` call, which is all the port-file cleanup in § "Shutdown" needs.
+
 ## Decisions & Alternatives
 
 | Decision | Chosen | Alternatives | Rationale |
@@ -216,7 +245,13 @@ If gbiv later needs SSE streaming (`/events`), revisit: `hyper` + `tokio` become
 | Multiple claude panes | Locator auto-picks oldest; HTTP layer returns `ok` plus `other_claude_panes: [...]` | Distinct status (`multiple_claude_panes`); pick first; ignore others silently | Old session is almost always the worktree's primary claude. Surfacing the also-rans keeps it transparent without forcing the caller to handle a separate error path |
 | Send body shape | `{"text": "..."}` | Plain string body, multipart, query param | JSON is consistent with responses; explicit field name leaves room for future fields (`text_only_no_enter`, etc.) |
 | Pane Locator runs per-request | Yes | Cache for short TTL | Trades a few ms per call for zero invalidation logic; revisit if `/sessions` becomes hot |
-| Worker model | Thread per request, capped at 16 | Single-threaded loop, fully async | Threads are simple and adequate; cap prevents pathological clients |
+| Worker model | 16 worker threads looping `Server::recv()` | Thread spawned per accepted connection; single-threaded loop; fully async | Matches tiny_http's documented concurrent-`recv()` pattern; caps concurrency without a thread-spawn-per-request or a separate semaphore |
+| `:color` validation scope | Active palette (base ROYGBIV + configured `.gbiv/config.toml` extras), loaded once at startup | Hard-coded `BASE_COLORS` only | Consistent with every other gbiv surface (status/exec/tmux already treat extras as first-class) |
+| Shutdown signal handling | `ctrlc` crate | Hand-rolled `signal-hook` or raw `libc` | One-call portable SIGINT/SIGTERM handling; workspace's only signal-handling dependency |
+| Single-instance detection | Loopback TCP liveness probe against the existing port file, before binding | Rely on OS bind failure; PID file + `kill -0` | Binding always requests an ephemeral port, so bind can never fail on "port in use by another gbiv daemon" — a probe against the *previous* port is the only way to detect it |
+| POST /send body size | Capped at 64 KiB, checked before the color-validated body is read | No cap; cap after JSON parsing | Bounds per-request memory on a loopback-only surface without touching the common case (real `text` payloads are tiny) |
+| `GET /sessions` capture/per-color failure | New `pane_status: "error"` + `error` field, response still 200 | Fabricate `"no_claude_pane"`; fail the whole request | A resolved-pane-but-failed-capture (or a per-color locator error) is a genuine backend failure, not the normal absence `"no_claude_pane"` represents — conflating the two hid real problems. Failing the whole survey would contradict the "always 200" contract (HTTP-SRV-026) that exists precisely so one bad color doesn't sink the rest |
+| Injected-dependency parameter shape | One shared `Deps` struct (`locate_panes`/`locate_pane`/`capture_pane`/`send_keys`/`clock`) passed to every handler and to `daemon::handle_request` | Each handler takes its own subset of closures as individual parameters (the original shape) | Collapses each handler's parameter list to just its request-specific inputs; gives `daemon::handle_request` one value to construct once (production closures) or fake once (tests) instead of threading 2-4 separate closures through a routing table, and makes the routing table itself unit-testable without a live tmux session |
 
 ## Edge Cases
 
@@ -228,8 +263,9 @@ If gbiv later needs SSE streaming (`/events`), revisit: `hyper` + `tokio` become
 | Body of POST `/send` is not valid JSON | `400` |
 | `text` field present but empty string | `400` (HLD: caller responsible for not sending empty) |
 | Two simultaneous sends to the same color | Both go through; tmux serializes keystrokes per pane |
-| Daemon already running (port file exists, port in use) | New `gbiv start` fails to bind, exits with a clear message; existing daemon untouched |
-| Port file exists but daemon is dead | `gbiv start` succeeds (kernel rejects re-bind only if port still in use); writes a fresh port file |
+| Daemon already running (port file exists and its port answers a loopback connect) | New `gbiv start` refuses to bind or touch the port file, exits with a clear message; existing daemon untouched (Single-Instance Guard, below) |
+| Port file exists but daemon is dead (port doesn't answer) | `gbiv start` proceeds normally, binds a fresh port, and overwrites the port file |
+| `POST /send` body exceeds the size cap (declared `Content-Length` or actual bytes) | `400`, body not treated as complete/parsed even if truncated bytes happen to be valid JSON |
 
 ## Technical Debt & Future Work
 
