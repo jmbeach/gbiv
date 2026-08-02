@@ -52,7 +52,7 @@ Exits non-zero if:
 
 ### gbiv fleet status
 
-Prints the JSON response from `GET /sessions` to stdout — one entry per color with `pane_status`, `claude_pane`, the last N lines of pane output, and the truncation/range fields. gbiv does **not** classify the session ("idle", "waiting", "building"); the consuming Claude reads the raw lines and decides.
+Prints the JSON response from `GET /sessions` to stdout — one entry per color with `pane_status` (`"ok"` | `"no_window"` | `"no_claude_pane"` | `"error"`, the last one added by HTTP-SRV-065 for a per-color capture/resolution failure, distinct from the two structural-absence states), `claude_pane`, the last N lines of pane output, and the truncation/range fields. gbiv does **not** classify the session ("idle", "waiting", "building"); the consuming Claude reads the raw lines and decides. The CLI does not special-case `pane_status: "error"` — it's forwarded verbatim like every other status, per HTTP-SRV-026's "a partial-failure survey is not itself an error."
 
 Flags:
 - `--lines <N>` (default 35): forwarded to the API as the `lines` parameter. 35 is enough to capture an `AskUserQuestion` prompt with its options, a recent tool-use exchange, or the tail of a build, without flooding context for a 7-color survey.
@@ -70,10 +70,11 @@ Flags:
 The skill paginates by reading `range_returned.start_line` from the previous response and re-calling with `--start-line=<previous - chunk_size> --end-line=<previous - 1>`.
 
 Exits:
-- 0 — pane resolved cleanly
-- 2 — daemon not running
+- 0 — pane resolved cleanly (this includes the multi-claude-pane auto-pick case: HTTP-SRV-034 keeps `pane_status: "ok"` and a `200` for that case, so it is not an error state — `other_claude_panes` is surfaced in the JSON for the skill to notice, but the exit code does not change)
+- 1 — a daemon-side error other than the specific cases below (HTTP `500`, or `503` from a killed tmux session — see http-server LLD `map_tmux_error`/`map_locator_error`); or an unparseable/unexpected response body from a process listening on the port file's port that isn't actually gbiv
+- 2 — daemon not running (no port file, corrupt port file, or connection refused/timed out)
 - 3 — color is invalid or has no window (HTTP 404)
-- 4 — color has no claude pane or multiple (HTTP 200 with non-ok status)
+- 4 — color has no claude pane (HTTP 200 with `pane_status: "no_claude_pane"`)
 
 The non-zero-but-not-error codes let the skill branch on the outcome without parsing.
 
@@ -88,9 +89,11 @@ gbiv fleet send red "please run the tests"
 gbiv fleet send red "let me know when you're done"
 ```
 
-The CLI applies the prompt-response guard locally **before** opening a connection — same rule set as the HTTP Server (see http-server LLD § "Prompt-Response Guard"). This gives users (and the skill) immediate feedback without a round trip. The server re-checks the same rule, so a stale CLI cannot bypass the guard.
+The CLI validates `COLOR` against the active palette **before** any other local check, mirroring the server's own fixed validation order (color, then body/text, then guard, then pane resolution, then send — see http-server LLD § "Prompt-Response Guard"'s validation-order note) so a compound-invalid invocation (an unknown color paired with guard-shaped text, e.g. `gbiv fleet send purple yes`) is reported as an unknown color (exit 3), not silently swallowed by the guard rejection (exit 6). This costs one `Palette::load` call from the gbiv root already resolved for port discovery — no extra filesystem or network round trip. `get`/`status` deliberately do *not* duplicate this check (they let the server's `404` be the single source of truth for palette membership); `send` is the one exception because it already does local pre-work for the guard, and the fixed-order mirroring removes an otherwise-confusing edge case at negligible cost.
 
-When the guard fires (locally or via server `409`), the CLI prints the full `explanation` text from the server response (or the equivalent canned text for local rejections) to stderr, not just the short `reason`. The verbose explanation is the whole point — the consumer is typically an LLM, and a terse "rejected: yes/no word" message is exactly the prompt that gets an agent to try `gbiv fleet send red "yes please"` next. The CLI must not summarize or trim it.
+The CLI applies the prompt-response guard locally **before** opening a connection, by calling the same `orchestration::http_server::guard_check` (and, on rejection, `guard_explanation`) that the HTTP Server's `handle_session_send` calls — not a reimplementation. Both the daemon and the client subcommands are compiled into the one `gbiv` binary (see § Context), so there is no reason to duplicate the rule set or its wire-format `reason` strings; a second copy is pure drift risk with zero benefit. This gives users (and the skill) immediate feedback without a round trip, and guarantees the local pre-check and the server's `409` never disagree. The server re-checks the same rule regardless (calling a stale/patched CLI binary cannot bypass it), so the guard is enforced at both layers even though they share one implementation.
+
+When the guard fires (locally or via server `409`), the CLI prints the full `explanation` text — from `guard_explanation` directly for a local rejection, or read back verbatim from the server's JSON body for a `409` — to stderr, not just the short `reason`. The verbose explanation is the whole point — the consumer is typically an LLM, and a terse "rejected: yes/no word" message is exactly the prompt that gets an agent to try `gbiv fleet send red "yes please"` next. The CLI must not summarize or trim it.
 
 Examples that the guard rejects (exit 6):
 ```
@@ -103,13 +106,13 @@ gbiv fleet send red "?"
 There is no `--enter-only` flag in v1 — every send appends Enter. If the commander needs to send a literal Tab or Escape, that's a future flag. There is also no `--force` flag to bypass the guard in v1.
 
 Exits:
-- 0 — `{ok: true}` from server
+- 0 — `{ok: true}` from server (this includes the multi-claude-pane auto-pick case, HTTP-SRV-049 — still `200`, not an error; `other_claude_panes` is surfaced in the JSON)
+- 1 — other error (daemon-side `500`/`503`, or an unparseable/unexpected response)
 - 2 — daemon not running
-- 3 — invalid color / no window
-- 4 — no claude pane / multiple
+- 3 — invalid color (caught locally against the active palette, or — rarely — by the server's `404` if the daemon's palette changed after the local check) / no window
+- 4 — no claude pane
 - 5 — `SendKeysIncomplete` (502 from server)
 - 6 — prompt-response guard rejected the input (local pre-check or server `409 looks_like_prompt_response`)
-- 1 — other error
 
 ### gbiv install-skill
 
@@ -163,9 +166,11 @@ All client subcommands need the daemon's port. The lookup:
 1. Walk up from CWD to find the gbiv root (reuses `core` module's root-discovery utility).
 2. Read `<gbiv-root>/main/<repo>/.gbiv/port`. If missing, exit 2 with `"daemon not running (no port file at <path>); start it with: gbiv start"`.
 3. Parse as a `u16`. If malformed, exit 2 with `"port file at <path> is corrupt"`.
-4. Open a TCP connection to `127.0.0.1:<port>`. If `ECONNREFUSED`, exit 2 with `"port file present but daemon not responding (stale?); restart with: gbiv start"`.
+4. Issue the request to `127.0.0.1:<port>` (each subcommand's one HTTP call — see § HTTP Client). If the connection is refused, or the connect/read timeout (§ HTTP Client) elapses before a response is received, exit 2 with `"port file present but daemon not responding (stale?); restart with: gbiv start"`. This is the same exit code as a missing/corrupt port file — from the caller's perspective a stale port file and no port file both mean "no reachable daemon" — but the message differs so a human reading stderr can tell them apart.
 
 Stale port files are detected lazily — on the next `gbiv start`, the new daemon overwrites the file with its real port.
+
+A response that *is* received but isn't valid JSON, or is JSON that doesn't match the expected shape (e.g. some unrelated local process is listening on that port), is not a "daemon not running" case — connecting worked. It falls through to each subcommand's generic exit 1.
 
 ## HTTP Client
 
@@ -282,6 +287,7 @@ Anything more detailed (request bodies, tmux command lines, process tree visits)
 | Default `--lines` for `gbiv fleet status` | 35 | 5; 50; match `gbiv fleet get` (200) | Big enough to capture a prompt-with-options or tool-use exchange; small enough that a 7-color survey doesn't blow context |
 | Distinct exit codes for daemon-down vs no-pane | Yes (2, 3, 4, 5) | Always 1 with stderr message | Lets the skill branch programmatically without parsing stderr |
 | Send appends Enter implicitly | Yes | Require explicit Enter in text | Most use cases want Enter; explicit flag for "no Enter" can come later if needed |
+| Local guard pre-check implementation | Call `http_server::guard_check`/`guard_explanation` directly | Reimplement the rule set in the CLI module | Same binary, same crate — a second copy of the rule set (or its `reason` strings) is drift risk with no isolation benefit; a real `cargo install`'d user gets one guard, not two that can silently diverge |
 | Port file path | `<main-worktree>/.gbiv/port` | `~/.gbiv/<hash>.port`, `$XDG_STATE_HOME` | HLD decision: in-workspace; `gbiv start` auto-adds `.gbiv/` to `.git/info/exclude` via `core::ensure_gitignore_entry` so the user never edits gitignore |
 | Logging framework | `tracing` + `tracing-subscriber` | `log` + `env_logger`, hand-rolled `eprintln!` | Structured fields and spans available from day one; works for sync now and async later; switching to `log` later would touch every call site |
 | Log destination in v1 | stderr only | File sink, syslog, both | Foreground daemon model — stderr is what the user sees; framework keeps file/syslog a one-liner away |
