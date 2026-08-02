@@ -389,7 +389,8 @@ mod tests {
     #[test]
     // @spec FLEET-CLI-033
     fn handle_get_response_400_is_exit_1() {
-        let outcome = handle_get_response(400, r#"{"error":"start_line must not be after end_line"}"#);
+        let outcome =
+            handle_get_response(400, r#"{"error":"start_line must not be after end_line"}"#);
         assert_eq!(outcome.exit_code, EXIT_OTHER);
     }
 
@@ -446,10 +447,7 @@ mod tests {
         let body = r#"{"ok":false,"error":"looks_like_prompt_response","reason":"yes/no word","color":"red","explanation":"gbiv refused this send...","docs":"docs/high-level-design.md#x"}"#;
         let outcome = handle_send_response(409, body);
         assert_eq!(outcome.exit_code, EXIT_GUARD_REJECTED);
-        assert_eq!(
-            outcome.stderr.as_deref(),
-            Some("gbiv refused this send...")
-        );
+        assert_eq!(outcome.stderr.as_deref(), Some("gbiv refused this send..."));
     }
 
     #[test]
@@ -539,7 +537,11 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_GUARD_REJECTED);
         assert!(outcome.stdout.is_none());
         assert!(
-            outcome.stderr.as_deref().unwrap_or_default().contains("red"),
+            outcome
+                .stderr
+                .as_deref()
+                .unwrap_or_default()
+                .contains("red"),
             "explanation should mention the (normalized) color: {outcome:?}"
         );
     }

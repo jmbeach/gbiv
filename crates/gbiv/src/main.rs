@@ -410,15 +410,28 @@ mod tests {
             .unwrap()
             .subcommand_matches("get")
             .unwrap();
-        assert_eq!(get.get_one::<String>("color").map(String::as_str), Some("red"));
-        assert_eq!(get.get_one::<String>("lines").map(String::as_str), Some("100"));
+        assert_eq!(
+            get.get_one::<String>("color").map(String::as_str),
+            Some("red")
+        );
+        assert_eq!(
+            get.get_one::<String>("lines").map(String::as_str),
+            Some("100")
+        );
     }
 
     // @spec FLEET-CLI-004
     #[test]
     fn fleet_get_parses_start_and_end_line() {
         let m = cli().get_matches_from([
-            "gbiv", "fleet", "get", "red", "--start-line", "top", "--end-line", "20",
+            "gbiv",
+            "fleet",
+            "get",
+            "red",
+            "--start-line",
+            "top",
+            "--end-line",
+            "20",
         ]);
         let get = m
             .subcommand_matches("fleet")
@@ -470,7 +483,10 @@ mod tests {
             .unwrap()
             .subcommand_matches("send")
             .unwrap();
-        assert_eq!(send.get_one::<String>("color").map(String::as_str), Some("red"));
+        assert_eq!(
+            send.get_one::<String>("color").map(String::as_str),
+            Some("red")
+        );
         assert_eq!(
             send.get_one::<String>("text").map(String::as_str),
             Some("please run the tests")

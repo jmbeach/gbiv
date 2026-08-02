@@ -18,9 +18,9 @@ use gbiv_core::palette::Palette;
 use gbiv_core::root::{find_gbiv_root, find_repo_in_worktree};
 
 use super::fleet_client::{
-    self, check_guard_locally, handle_get_response, handle_send_response,
-    handle_status_response, session_url, sessions_url, send_url, validate_color_locally,
-    validate_text_locally, Outcome, EXIT_DAEMON_NOT_RUNNING, EXIT_OTHER,
+    self, check_guard_locally, handle_get_response, handle_send_response, handle_status_response,
+    send_url, session_url, sessions_url, validate_color_locally, validate_text_locally, Outcome,
+    EXIT_DAEMON_NOT_RUNNING, EXIT_OTHER,
 };
 
 /// FLEET-CLI-013: connect timeout for the one HTTP call each subcommand makes.
@@ -82,7 +82,11 @@ pub fn resolve_port(cwd: &Path) -> Result<(PathBuf, u16), Outcome> {
 /// caller's `handle_*_response` decides what "unexpected" means for that
 /// endpoint.
 // @spec FLEET-CLI-013, FLEET-CLI-014, FLEET-CLI-015, FLEET-CLI-052
-pub fn issue_request(method: &str, url: &str, body: Option<&str>) -> Result<(u16, String), Outcome> {
+pub fn issue_request(
+    method: &str,
+    url: &str,
+    body: Option<&str>,
+) -> Result<(u16, String), Outcome> {
     let agent = ureq::AgentBuilder::new()
         .timeout_connect(CONNECT_TIMEOUT)
         .timeout_read(READ_TIMEOUT)
@@ -119,7 +123,10 @@ pub fn issue_request(method: &str, url: &str, body: Option<&str>) -> Result<(u16
 // @spec FLEET-CLI-053
 fn log_and_return(outcome: Outcome) -> Outcome {
     if outcome.exit_code != fleet_client::EXIT_OK {
-        tracing::info!(exit_code = outcome.exit_code, "gbiv fleet: exiting non-zero");
+        tracing::info!(
+            exit_code = outcome.exit_code,
+            "gbiv fleet: exiting non-zero"
+        );
     }
     outcome
 }
@@ -363,7 +370,10 @@ mod tests {
         assert_eq!(outcome.exit_code, fleet_client::EXIT_OK);
         assert_eq!(outcome.stdout.as_deref(), Some(body));
         let request_line = handle.join().unwrap();
-        assert!(request_line.starts_with("GET /sessions"), "got: {request_line}");
+        assert!(
+            request_line.starts_with("GET /sessions"),
+            "got: {request_line}"
+        );
     }
 
     #[test]
