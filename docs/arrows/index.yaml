@@ -1,5 +1,5 @@
 schema_version: 1
-last_updated: 2026-08-01
+last_updated: 2026-08-02
 
 # Taxonomy groups segments by domain within the single gbiv product.
 # Purely organizational.
@@ -113,7 +113,7 @@ arrows:
 
   http-server:
     status: OK
-    sampled: 2026-08-01
+    sampled: 2026-08-02
     audited: null
     audited_sha: null
     blocks: [orchestrate-cli]

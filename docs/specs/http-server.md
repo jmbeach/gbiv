@@ -29,10 +29,14 @@ shared `gbiv_core` primitives (`root`, `tmux`, `gitignore`, `palette`,
 - [x] **HTTP-SRV-060**: Before binding (after HTTP-SRV-005, before HTTP-SRV-006), if an existing `.gbiv/port` file names a port that accepts a loopback TCP connection within a short timeout, the daemon shall exit non-zero without binding a new listener or modifying the port file, reporting that another gbiv daemon is already running for this workspace.
 - [x] **HTTP-SRV-061**: If an existing `.gbiv/port` file names a port that does not accept a connection (stale — the previous daemon is no longer running), the daemon shall proceed with startup normally, binding a fresh port and overwriting the port file (HTTP-SRV-006 through HTTP-SRV-008).
 
+## Observability
+
+- [x] **HTTP-SRV-063**: For every request the daemon handles, it shall log one `info`-level line carrying the method, path, response status, and duration in milliseconds, per the logging conventions in `docs/llds/orchestrate-cli.md` § "What gets logged at `info`".
+
 ## Shutdown
 
-- [x] **HTTP-SRV-012**: On SIGINT or SIGTERM (registered via the `ctrlc` crate), the daemon shall attempt to delete the port file and then exit with status 0, regardless of whether the deletion succeeded.
-- [x] **HTTP-SRV-013**: If port-file deletion fails during shutdown (e.g. permission error, file already gone), the daemon shall log a `warn` and proceed with process exit rather than panicking or hanging.
+- [x] **HTTP-SRV-012**: On SIGINT or SIGTERM (registered via the `ctrlc` crate), the daemon shall log that a shutdown signal was received, attempt to delete the port file, and then exit with status 0, regardless of whether the deletion succeeded.
+- [x] **HTTP-SRV-013**: If port-file deletion during shutdown fails (e.g. permission error, file already gone), the daemon shall log a `warn` and proceed with process exit rather than panicking or hanging; if it succeeds, the daemon shall log an `info` confirming the port file was removed.
 
 ## Concurrency
 
@@ -59,6 +63,7 @@ shared `gbiv_core` primitives (`root`, `tmux`, `gitignore`, `palette`,
 - [x] **HTTP-SRV-025**: When a color's resolution is `Resolution::NoClaudePane`, its entry shall have `pane_status: "no_claude_pane"`, `tmux_window` set to the color name (the window exists), and `claude_pane`, `output`, `captured_at` all `null`.
 - [x] **HTTP-SRV-026**: `GET /sessions` shall respond `200` regardless of individual colors' `pane_status` values — a partial-failure survey is not itself an error.
 - [x] **HTTP-SRV-027**: If the shared tmux session itself does not exist (`locate_panes`'s single window-listing call fails with `LocatorError::TmuxSession(TmuxError::SessionNotFound(_))`, per PANE-LOC-025), `GET /sessions` shall respond `503` for the whole request rather than a per-color status.
+- [x] **HTTP-SRV-065**: When a color's resolution is `Resolution::Ok` but the subsequent tmux Driver capture fails, or when the Pane Locator's batch call returns a per-color `Err`, that color's entry shall have `pane_status: "error"` and an `error` field carrying the failure's message, distinct from the `"no_window"`/`"no_claude_pane"` absence states — and `GET /sessions` shall still respond `200` for the overall request (HTTP-SRV-026).
 
 ## GET /session/:color
 
@@ -67,6 +72,7 @@ shared `gbiv_core` primitives (`root`, `tmux`, `gitignore`, `palette`,
 - [x] **HTTP-SRV-030**: If exactly one of `start_line`/`end_line` is supplied without the other, `GET /session/:color` shall respond `400`.
 - [x] **HTTP-SRV-031**: If `lines` is supplied together with `start_line` or `end_line`, `GET /session/:color` shall respond `400`.
 - [x] **HTTP-SRV-032**: If `lines`, `start_line`, or `end_line` is present and not a valid integer in its expected form, `GET /session/:color` shall respond `400`.
+- [x] **HTTP-SRV-064**: If `start_line` is after `end_line` (both parsed, window mode), `GET /session/:color` shall respond `400` rather than passing the malformed range to the tmux Driver.
 - [x] **HTTP-SRV-033**: On success, `GET /session/:color`'s response body shall include `color`, `claude_pane`, `pane_status`, `captured_at`, `output`, `output_truncated`, `output_original_bytes`, `output_returned_bytes`, and `range_returned: { start_line, end_line }`, sourced from the tmux Driver's `Capture` verbatim (the HTTP layer does not re-truncate).
 - [x] **HTTP-SRV-034**: `GET /session/:color` shall respond `200` when `pane_status` is `"ok"` (including the multi-claude-pane auto-pick case, whose body includes `other_claude_panes`) or `"no_claude_pane"`.
 - [x] **HTTP-SRV-035**: `GET /session/:color` shall respond `404` when `:color` fails active-palette validation (HTTP-SRV-019) or when its resolution is `Resolution::NoWindow`.
@@ -87,10 +93,10 @@ tmux Driver call.
 - [x] **HTTP-SRV-039**: If `text` is missing, or is empty or all-whitespace after trimming, `POST /session/:color/send` shall respond `400` without evaluating any guard rule.
 - [x] **HTTP-SRV-062**: For a `:color` that passes HTTP-SRV-037, the daemon shall read the request body capped at a fixed maximum size; if a declared `Content-Length` exceeds the cap, or an undeclared/chunked body turns out to exceed it, the daemon shall respond `400` without treating the (possibly truncated) bytes as a complete body.
 - [x] **HTTP-SRV-040**: `POST /session/:color/send` shall run the prompt-response guard (HTTP-SRV-041 through HTTP-SRV-045) against the trimmed `text` after route (HTTP-SRV-037) and body (HTTP-SRV-038/039) validation pass, and before any Pane Locator or tmux Driver call.
-- [x] **HTTP-SRV-041**: If the trimmed `text` matches `^[yn]$` (case-insensitive), the guard shall reject with `reason: "single-letter yes/no"`.
-- [x] **HTTP-SRV-042**: If the trimmed `text` matches `^(yes|no)$` (case-insensitive), the guard shall reject with `reason: "yes/no word"`.
-- [x] **HTTP-SRV-043**: If the trimmed `text` matches `^\d{1,3}$`, the guard shall reject with `reason: "numeric choice"`.
-- [x] **HTTP-SRV-044**: If the trimmed `text` is exactly one non-alphanumeric character, the guard shall reject with `reason: "bare punctuation"`.
+- [x] **HTTP-SRV-041**: If the trimmed `text`, with a single trailing punctuation character (`.`, `!`, `?`, `)`, `:`, or `;`) removed, matches `^[yn]$` (case-insensitive), the guard shall reject with `reason: "single-letter yes/no"` (so `"y."`, `"n)"` reject the same as `"y"`, `"n"`).
+- [x] **HTTP-SRV-042**: If the trimmed `text`, with a single trailing punctuation character removed, matches `^(yes|no|yeah|yep|nope|nah)$` (case-insensitive), the guard shall reject with `reason: "yes/no word"` (so `"yes."`, `"Nope!"` reject the same as `"yes"`, `"nope"`).
+- [x] **HTTP-SRV-043**: If the trimmed `text`, with a single trailing punctuation character removed, matches `^\d{1,3}$`, the guard shall reject with `reason: "numeric choice"` (so `"1."`, `"12)"` reject the same as `"1"`, `"12"`).
+- [x] **HTTP-SRV-044**: If the trimmed `text` (not punctuation-stripped) is exactly one non-alphanumeric character, the guard shall reject with `reason: "bare punctuation"`.
 - [x] **HTTP-SRV-045**: When the guard rejects, `POST /session/:color/send` shall respond `409` with a JSON body containing `ok: false`, `error: "looks_like_prompt_response"`, the matching `reason`, `color`, a verbose `explanation` string, and a `docs` pointer, and it shall not call the Pane Locator or tmux Driver.
 - [x] **HTTP-SRV-046**: Multi-word natural-language `text` (e.g. `"yes please run that"`) shall not match any guard rule and shall pass through to pane resolution.
 - [x] **HTTP-SRV-047**: After the guard passes, the daemon shall resolve the pane via the single-color `pane_locator::locate_pane(session, color)`; a `Resolution::NoWindow` result shall respond `404` (covering the case where the color is palette-valid but its tmux window doesn't exist yet).

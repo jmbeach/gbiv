@@ -45,11 +45,20 @@ Response body:
     "output": null,
     "captured_at": null
   },
+  {
+    "color": "yellow",
+    "tmux_window": "yellow",
+    "claude_pane": null,
+    "pane_status": "error",
+    "output": null,
+    "captured_at": null,
+    "error": "tmux: pane not found: %9"
+  },
   ...
 ]
 ```
 
-`pane_status` is one of: `ok`, `no_window`, `no_claude_pane`. When status is anything other than `ok`, `output`, `captured_at`, and `claude_pane` are `null`.
+`pane_status` is one of: `ok`, `no_window`, `no_claude_pane`, `error`. When status is anything other than `ok`, `output` and `captured_at` are `null`. `error` (a short message, present only when `pane_status` is `"error"`) distinguishes a genuine failure — a pane resolved but the subsequent capture failed, or the Pane Locator's batch call returned a per-color error (e.g. the window's panes vanished between the shared window list and this color's lookup) — from `"no_window"`/`"no_claude_pane"`, which are normal absence states rather than errors. `claude_pane` may still be populated on an `"error"` entry when the pane itself was successfully identified before the failure (e.g. capture failed after a successful resolution); it's `null` when the failure occurred before a pane was ever identified.
 
 When the locator finds more than one claude pane in a window it picks the oldest by process start time (see Pane Locator LLD § "Resolve") and the entry's `pane_status` stays `ok`. The remaining claude pane IDs are exposed as `other_claude_panes: ["%17", "%23"]` so the commander can see the ambiguity was resolved automatically. The field is omitted (or empty) when only one claude pane was found.
 
@@ -61,7 +70,7 @@ Returns rows from the named color's claude pane. Used when the commander wants d
 
 Query parameters (mutually exclusive groups):
 - `lines` (optional, default 200, max 5000) — tail mode: last N rows. Maps to driver `CaptureRange::Tail { lines }`.
-- `start_line` + `end_line` (optional pair, both signed integers in tmux row-offset semantics) — window mode for pagination. Maps to driver `CaptureRange::Window`. Use `start_line=top` (literal string) to mean "top of history" (driver `i32::MIN`). If either param is supplied without the other, returns `400`. If both are supplied along with `lines`, returns `400`.
+- `start_line` + `end_line` (optional pair, both signed integers in tmux row-offset semantics) — window mode for pagination. Maps to driver `CaptureRange::Window`. Use `start_line=top` (literal string) to mean "top of history" (driver `i32::MIN`). If either param is supplied without the other, returns `400`. If both are supplied along with `lines`, returns `400`. If `start_line` is after `end_line`, returns `400` — validated at the HTTP layer (`parse_range`) rather than left for the tmux Driver's own `start > end` check (`tmux_driver::capture_args`'s `TmuxError::Other("invalid range")`, which would otherwise surface as a `500`; a malformed client request should never look like a server error).
 
 Response body (success):
 ```json
@@ -137,14 +146,18 @@ Status codes:
 
 Before pane resolution, `text` is trimmed of leading/trailing whitespace and tested against the rule set below. Any match is rejected with `409` and `error: "looks_like_prompt_response"`. The `reason` field names the matching rule (machine-readable). The `explanation` field (see response body above) carries a verbose human/LLM-readable rationale and an explicit "do not try to bypass this" instruction — the consumer is almost always an LLM, and a one-line error invites creative re-attempts.
 
-| Pattern (case-insensitive, on trimmed text) | `reason` value |
+| Pattern (case-insensitive, on trimmed text with one trailing punctuation char `.!?):;` removed) | `reason` value |
 |---|---|
 | `^[yn]$` | `single-letter yes/no` |
-| `^(yes\|no)$` | `yes/no word` |
+| `^(yes\|no\|yeah\|yep\|nope\|nah)$` | `yes/no word` |
 | `^\d{1,3}$` | `numeric choice` |
-| single non-alphanumeric character | `bare punctuation` |
+| single non-alphanumeric character (no punctuation stripped) | `bare punctuation` |
 
-Multi-word natural-language text (e.g., `"yes please run that"`) is **not** rejected — only the trimmed text as a whole is matched against the patterns. Empty text after trim continues to return `400`, not the guard error, since it's malformed rather than dangerous-shaped. Rationale and the path to loosening this in a future version are in the HLD § "Reject prompt-shaped input on send."
+The trailing-punctuation strip exists because a prompt answer is just as likely to arrive as `"yes."` or `"1)"` as bare `"yes"`/`"1"` — matching only the unpunctuated exact string would let a trivially-decorated answer slip through untouched. It only ever strips from the very end of the string, so a genuine sentence like `"no. let's not do that"` is unaffected (its last character isn't punctuation in the stripped set). The `bare punctuation` rule itself is deliberately exempt from the strip — it already targets exactly one punctuation character, so stripping first would make it unreachable.
+
+Multi-word natural-language text (e.g., `"yes please run that"`) is **not** rejected — only the trimmed (and, for the three rules above, punctuation-stripped) text as a whole is matched against the patterns. Empty text after trim continues to return `400`, not the guard error, since it's malformed rather than dangerous-shaped. Rationale and the path to loosening this in a future version are in the HLD § "Reject prompt-shaped input on send."
+
+The word list intentionally stays narrow (six exact colloquial variants of yes/no) rather than attempting exhaustive natural-language intent detection — the guard is deliberately shape-based, not a classifier, and broader coverage risks false positives on legitimate short replies (the existing `"ok"` pass-through case is why `"sure"`/`"kk"`/etc. are not in the list).
 
 ## Lifecycle
 
@@ -196,18 +209,17 @@ The server validates and iterates colors against the **active palette** (base RO
 
 ## Error Handling
 
-Request handlers are written as `fn handle_xxx(...) -> anyhow::Result<HttpResponse>`. Inside a handler, `?` on a `TmuxError` or `LocatorError` short-circuits to a single error path, where a small `into_response()` helper inspects the chain (via `downcast_ref::<TmuxError>()` etc.) to pick the right HTTP status:
+Request handlers (`handle_sessions`, `handle_session_get`, `handle_session_send`) return `HttpResponse` directly rather than `anyhow::Result<HttpResponse>` — there is no `?`-and-catch step, since a `TmuxError`/`LocatorError` is never a reason to fail the whole process, only to pick a response for this one request. Each handler `match`es the `Result` returned by its injected `locate_pane(s)`/`capture_pane`/`send_keys` call directly, and on `Err` calls `map_tmux_error`/`map_locator_error` (plain functions, not a trait-object `into_response()`/`downcast_ref` step) to pick the status, then builds an `error_response(status, e.to_string())` body:
 
 | Typed error | Status |
 |---|---|
 | `TmuxError::SessionNotFound` | 503 |
 | `TmuxError::PaneNotFound` | 404 |
 | `TmuxError::SendKeysIncomplete` | 502 |
-| `TmuxError::Other` | 500 |
+| `TmuxError::NotInstalled`, `TmuxError::Other` | 500 |
 | `LocatorError::TmuxSession(...)` | unwraps to the inner `TmuxError` mapping above |
-| Anything else (anyhow opaque) | 500 |
 
-`anyhow::Error::context("…")` is used liberally to attach handler-level breadcrumbs (the route, color, and request id). Library modules never return `anyhow::Error` themselves — they return their typed enums and the handler is the conversion point.
+`anyhow` is used only in `orchestration::daemon` (the I/O/wiring layer: `run`, `bootstrap`, and their helpers) via `anyhow::Result<()>`/`anyhow::Result<T>` with `.context(...)` breadcrumbs for startup failures — never inside the request handlers themselves, which are pure functions over their injected dependencies and never fail the process.
 
 ## HTTP Library Choice
 
@@ -238,6 +250,8 @@ Shutdown signal handling uses the `ctrlc` crate (small, ~2 transitive deps) rath
 | Shutdown signal handling | `ctrlc` crate | Hand-rolled `signal-hook` or raw `libc` | One-call portable SIGINT/SIGTERM handling; workspace's only signal-handling dependency |
 | Single-instance detection | Loopback TCP liveness probe against the existing port file, before binding | Rely on OS bind failure; PID file + `kill -0` | Binding always requests an ephemeral port, so bind can never fail on "port in use by another gbiv daemon" — a probe against the *previous* port is the only way to detect it |
 | POST /send body size | Capped at 64 KiB, checked before the color-validated body is read | No cap; cap after JSON parsing | Bounds per-request memory on a loopback-only surface without touching the common case (real `text` payloads are tiny) |
+| `GET /sessions` capture/per-color failure | New `pane_status: "error"` + `error` field, response still 200 | Fabricate `"no_claude_pane"`; fail the whole request | A resolved-pane-but-failed-capture (or a per-color locator error) is a genuine backend failure, not the normal absence `"no_claude_pane"` represents — conflating the two hid real problems. Failing the whole survey would contradict the "always 200" contract (HTTP-SRV-026) that exists precisely so one bad color doesn't sink the rest |
+| Injected-dependency parameter shape | One shared `Deps` struct (`locate_panes`/`locate_pane`/`capture_pane`/`send_keys`/`clock`) passed to every handler and to `daemon::handle_request` | Each handler takes its own subset of closures as individual parameters (the original shape) | Collapses each handler's parameter list to just its request-specific inputs; gives `daemon::handle_request` one value to construct once (production closures) or fake once (tests) instead of threading 2-4 separate closures through a routing table, and makes the routing table itself unit-testable without a live tmux session |
 
 ## Edge Cases
 

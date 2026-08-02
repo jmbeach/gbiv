@@ -162,6 +162,17 @@ pub(crate) fn split_exec_args(
     (target, command)
 }
 
+/// Extract `gbiv start`'s flags into `StartOptions`. Factored out of the
+/// dispatch arm so the extraction itself — which field name maps to which
+/// clap arg — is unit-testable without invoking `orchestration::daemon::run`
+/// (which binds a real port and blocks forever).
+fn start_options_from_matches(sub_matches: &clap::ArgMatches) -> orchestration::daemon::StartOptions {
+    orchestration::daemon::StartOptions {
+        session_name: sub_matches.get_one::<String>("session-name").cloned(),
+        bind: sub_matches.get_one::<String>("bind").cloned(),
+    }
+}
+
 // @spec CLI-DISPATCH-003, CLI-DISPATCH-007 through CLI-DISPATCH-010
 fn run() -> Result<()> {
     let matches = cli().get_matches();
@@ -175,9 +186,7 @@ fn run() -> Result<()> {
             status_command()?;
         }
         Some(("start", sub_matches)) => {
-            let session_name = sub_matches.get_one::<String>("session-name").cloned();
-            let bind = sub_matches.get_one::<String>("bind").cloned();
-            orchestration::daemon::run(orchestration::daemon::StartOptions { session_name, bind })?;
+            orchestration::daemon::run(start_options_from_matches(sub_matches))?;
         }
         Some(("tmux", sub_matches)) => {
             tmux::dispatch(sub_matches)?;
@@ -308,6 +317,26 @@ mod tests {
         let m = cli().get_matches_from(["gbiv", "start"]);
         let sub = m.subcommand_matches("start").unwrap();
         assert_eq!(sub.get_one::<String>("session-name"), None);
+    }
+
+    // @spec HTTP-SRV-057, HTTP-SRV-058
+    #[test]
+    fn start_options_from_matches_extracts_both_flags() {
+        let m = cli().get_matches_from(["gbiv", "start", "--session-name", "custom", "--bind", "0.0.0.0"]);
+        let sub = m.subcommand_matches("start").unwrap();
+        let opts = start_options_from_matches(sub);
+        assert_eq!(opts.session_name.as_deref(), Some("custom"));
+        assert_eq!(opts.bind.as_deref(), Some("0.0.0.0"));
+    }
+
+    // @spec HTTP-SRV-057, HTTP-SRV-058
+    #[test]
+    fn start_options_from_matches_defaults_to_none() {
+        let m = cli().get_matches_from(["gbiv", "start"]);
+        let sub = m.subcommand_matches("start").unwrap();
+        let opts = start_options_from_matches(sub);
+        assert!(opts.session_name.is_none());
+        assert!(opts.bind.is_none());
     }
 
     // @spec HTTP-SRV-058
