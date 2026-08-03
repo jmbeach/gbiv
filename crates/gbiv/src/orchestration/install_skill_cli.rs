@@ -40,9 +40,8 @@ const SKILL_FILE_NAME: &str = "SKILL.md";
 pub fn resolve_destination_dir(cwd: &Path, scope: Scope) -> Result<PathBuf, Outcome> {
     match scope {
         Scope::User => {
-            let home = std::env::var("HOME").map_err(|_| {
-                Outcome::err(EXIT_OTHER, "could not resolve HOME for --scope user")
-            })?;
+            let home = std::env::var("HOME")
+                .map_err(|_| Outcome::err(EXIT_OTHER, "could not resolve HOME for --scope user"))?;
             Ok(PathBuf::from(home)
                 .join(".claude")
                 .join("skills")
@@ -173,7 +172,10 @@ mod tests {
         let dir = resolve_destination_dir(home.path(), Scope::User).unwrap();
         assert_eq!(
             dir,
-            home.path().join(".claude").join("skills").join("gbiv-orchestrate")
+            home.path()
+                .join(".claude")
+                .join("skills")
+                .join("gbiv-orchestrate")
         );
     }
 
@@ -213,7 +215,10 @@ mod tests {
         }
 
         assert_eq!(outcome.exit_code, EXIT_OTHER);
-        assert_eq!(outcome.stdout, None, "hard failures print nothing to stdout");
+        assert_eq!(
+            outcome.stdout, None,
+            "hard failures print nothing to stdout"
+        );
         assert!(outcome.stderr.unwrap().contains("HOME"));
     }
 
@@ -268,19 +273,23 @@ mod tests {
         fs::create_dir_all(&dest_dir).unwrap();
         fs::write(
             dest_dir.join("SKILL.md"),
-            format!(
-                "---\nname: gbiv-orchestrate\nversion: {BUNDLED_VERSION}\n---\nhand-edited\n"
-            ),
+            format!("---\nname: gbiv-orchestrate\nversion: {BUNDLED_VERSION}\n---\nhand-edited\n"),
         )
         .unwrap();
 
         let outcome = run_install_skill(&main_repo, Scope::Project, false);
 
-        assert_eq!(outcome.exit_code, super::super::install_skill_client::EXIT_REFUSED);
+        assert_eq!(
+            outcome.exit_code,
+            super::super::install_skill_client::EXIT_REFUSED
+        );
         let stdout = outcome.stdout.unwrap();
         assert!(stdout.contains("\"action\":\"refused\""));
         let on_disk = fs::read_to_string(dest_dir.join("SKILL.md")).unwrap();
-        assert!(on_disk.contains("hand-edited"), "refusal must not overwrite");
+        assert!(
+            on_disk.contains("hand-edited"),
+            "refusal must not overwrite"
+        );
     }
 
     #[test]
@@ -319,7 +328,10 @@ mod tests {
 
         let outcome = run_install_skill(&main_repo, Scope::Project, false);
         assert_eq!(outcome.exit_code, EXIT_OTHER);
-        assert_eq!(outcome.stdout, None, "hard failures print nothing to stdout");
+        assert_eq!(
+            outcome.stdout, None,
+            "hard failures print nothing to stdout"
+        );
         assert!(outcome.stderr.is_some());
     }
 
@@ -338,13 +350,7 @@ mod tests {
             .split("---")
             .nth(1)
             .expect("frontmatter block");
-        for term in [
-            "gbiv",
-            "worktree",
-            "session status",
-            "send input",
-            "fleet",
-        ] {
+        for term in ["gbiv", "worktree", "session status", "send input", "fleet"] {
             assert!(
                 frontmatter.contains(term),
                 "description missing required term: {term}"

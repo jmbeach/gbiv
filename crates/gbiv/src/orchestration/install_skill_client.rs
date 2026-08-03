@@ -211,7 +211,10 @@ mod tests {
 
     #[test]
     fn returns_none_when_no_frontmatter() {
-        assert_eq!(parse_frontmatter_version("just a body, no frontmatter"), None);
+        assert_eq!(
+            parse_frontmatter_version("just a body, no frontmatter"),
+            None
+        );
     }
 
     #[test]
@@ -364,7 +367,10 @@ mod tests {
             action: Action::Refused,
             bundled_version: "0.2.0".to_string(),
             previous_version: Some("0.2.0".to_string()),
-            reason: Some("destination differs from bundled content; re-run with --force to overwrite".to_string()),
+            reason: Some(
+                "destination differs from bundled content; re-run with --force to overwrite"
+                    .to_string(),
+            ),
         };
         let outcome = result.to_outcome();
         assert_eq!(outcome.exit_code, EXIT_REFUSED);
