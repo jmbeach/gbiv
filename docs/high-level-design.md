@@ -241,8 +241,8 @@ messages pass through.
 
 ## Open Questions & Future Decisions
 
-- **Skill packaging.** How `gbiv install-skill` writes the bundled gbiv-orchestrate
-  skill (`~/.claude/skills/gbiv-orchestrate/` vs. project scope).
+None open. Skill packaging (`gbiv install-skill`'s `--scope user|project` split,
+default user) is resolved — see `docs/llds/orchestrate-cli.md` § `gbiv install-skill`.
 
 ## Evolution Vectors
 
