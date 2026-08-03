@@ -52,6 +52,7 @@ pub(crate) fn cli() -> Command {
                 ),
         )
         .subcommand(fleet_command())
+        .subcommand(install_skill_command())
         .subcommand(tmux::tmux_command())
         .subcommand(
             Command::new("rebase-all")
@@ -189,6 +190,47 @@ fn fleet_command() -> Command {
         )
 }
 
+// @spec INSTALL-CLI-001, INSTALL-CLI-002
+fn install_skill_command() -> Command {
+    Command::new("install-skill")
+        .about("Write the bundled gbiv-orchestrate Claude Code skill to disk")
+        .arg(
+            Arg::new("scope")
+                .long("scope")
+                .value_parser(["user", "project"])
+                .default_value("user")
+                .help("Install for the current user (default) or the current gbiv project"),
+        )
+        .arg(
+            Arg::new("force")
+                .long("force")
+                .action(clap::ArgAction::SetTrue)
+                .help("Overwrite an on-disk copy even if it looks hand-edited"),
+        )
+}
+
+/// Dispatch `gbiv install-skill` and exit the process with its resolved exit
+/// code (docs/llds/orchestrate-cli.md exit table for INSTALL-CLI), bypassing
+/// the generic anyhow `Err -> 1` path so refusal (exit 7) is distinguishable
+/// from a hard failure.
+fn dispatch_install_skill(sub_matches: &clap::ArgMatches) -> Result<()> {
+    let cwd = std::env::current_dir()?;
+    let scope = match sub_matches.get_one::<String>("scope").map(String::as_str) {
+        Some("project") => orchestration::install_skill_client::Scope::Project,
+        _ => orchestration::install_skill_client::Scope::User,
+    };
+    let force = sub_matches.get_flag("force");
+    let outcome = orchestration::install_skill_cli::run_install_skill(&cwd, scope, force);
+
+    if let Some(stdout) = &outcome.stdout {
+        println!("{stdout}");
+    }
+    if let Some(stderr) = &outcome.stderr {
+        eprintln!("{stderr}");
+    }
+    std::process::exit(outcome.exit_code);
+}
+
 /// Dispatch a `gbiv fleet` subcommand and exit the process with its resolved
 /// exit code (docs/llds/orchestrate-cli.md exit tables) — bypassing the
 /// generic anyhow `Err -> 1` path, since fleet subcommands need distinct
@@ -276,6 +318,9 @@ fn run() -> Result<()> {
         }
         Some(("fleet", sub_matches)) => {
             dispatch_fleet(sub_matches)?;
+        }
+        Some(("install-skill", sub_matches)) => {
+            dispatch_install_skill(sub_matches)?;
         }
         Some(("tmux", sub_matches)) => {
             tmux::dispatch(sub_matches)?;
