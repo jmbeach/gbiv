@@ -12,8 +12,8 @@ orchestration-only tmux driver operations (implemented in the `gbiv` binary's
 - [x] TMX-DRV-002: `WindowInfo` shall be a struct with public fields `id: String` (tmux window ID, e.g. `@12`) and `name: String` (window name).
 - [x] TMX-DRV-003: When `tmux_available()` is called and the tmux binary is not on PATH, it shall return `Err(TmuxError::NotInstalled)`.
 - [x] TMX-DRV-004: When `tmux_available()` is called and `tmux -V` exits successfully, it shall return `Ok(())`.
-- [x] TMX-DRV-005: When `has_session(session)` is called and the named tmux session exists, it shall return `Ok(true)`.
-- [x] TMX-DRV-006: When `has_session(session)` is called and the named tmux session does not exist, it shall return `Ok(false)`.
+- [x] TMX-DRV-005: When `has_session(session)` is called and a tmux session with that exact name exists, it shall return `Ok(true)`.
+- [x] TMX-DRV-006: When `has_session(session)` is called and no tmux session with that exact name exists (including when it is only a strict prefix of another session's name), it shall return `Ok(false)`.
 - [x] TMX-DRV-007: When `has_session(session)` is called and tmux is not on PATH, it shall return `Err(TmuxError::NotInstalled)`.
 - [x] TMX-DRV-008: When `list_windows(session)` is called for an existing session, it shall return `Ok(Vec<WindowInfo>)` parsed from `tmux list-windows -t <session> -F '#{window_id}\t#{window_name}'`.
 - [x] TMX-DRV-009: When `list_windows(session)` is called for a non-existent session, it shall return `Err(TmuxError::SessionNotFound(session.to_string()))`.

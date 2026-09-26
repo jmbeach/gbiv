@@ -39,8 +39,10 @@ pub fn tmux_available() -> Result<(), TmuxError> {
 
 // @spec TMX-DRV-005, TMX-DRV-006, TMX-DRV-007
 pub fn has_session(session: &str) -> Result<bool, TmuxError> {
+    // tmux's `-t <name>` target resolution matches by prefix unless the target
+    // is anchored with a leading `=`, which forces an exact match.
     match ProcessCommand::new("tmux")
-        .args(["has-session", "-t", session])
+        .args(["has-session", "-t", &format!("={session}")])
         .output()
     {
         Ok(out) => Ok(out.status.success()),
@@ -137,6 +139,41 @@ mod tests {
         unsafe { std::env::set_var("PATH", &original) };
 
         assert_eq!(result, Err(TmuxError::NotInstalled));
+    }
+
+    // @spec TMX-DRV-006
+    #[test]
+    #[serial]
+    fn test_has_session_exact_match_not_prefix() {
+        let tmux_available = ProcessCommand::new("tmux")
+            .arg("-V")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if !tmux_available {
+            eprintln!("Skipping test_has_session_exact_match_not_prefix: tmux not available");
+            return;
+        }
+
+        let session = "gbiv_core_test_has_session_exact-2";
+        let _ = ProcessCommand::new("tmux")
+            .args(["kill-session", "-t", &format!("={session}")])
+            .output();
+        let created = ProcessCommand::new("tmux")
+            .args(["new-session", "-d", "-s", session])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        assert!(created, "failed to create test tmux session");
+
+        let prefix = "gbiv_core_test_has_session_exact";
+        let result = has_session(prefix);
+
+        let _ = ProcessCommand::new("tmux")
+            .args(["kill-session", "-t", &format!("={session}")])
+            .output();
+
+        assert_eq!(result, Ok(false));
     }
 
     // @spec TMX-DRV-010
