@@ -10,5 +10,7 @@ pub mod daemon;
 pub mod fleet_cli;
 pub mod fleet_client;
 pub mod http_server;
+pub mod install_skill_cli;
+pub mod install_skill_client;
 pub mod pane_locator;
 pub mod tmux_driver;

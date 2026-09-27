@@ -78,7 +78,8 @@ arrows:
   # observability + tmux-driver orchestration ops implemented (gbv-9p1)
   # pane-locator implemented (gbv-h5m)
   # http-server + port file + prompt-response guard + gbiv start implemented (gbv-3wb)
-  # orchestrate-cli: gbiv fleet status|get|send client CLI implemented (gbv-d6t); gbiv install-skill still unspecced
+  # orchestrate-cli: gbiv fleet status|get|send client CLI implemented (gbv-d6t); gbiv install-skill implemented (gbv-k0z)
+  # orchestrate-skill: bundled gbiv-orchestrate SKILL.md specced and implemented (gbv-k0z)
   observability:
     status: OK
     sampled: 2026-06-28
@@ -127,22 +128,22 @@ arrows:
     status: OK
     sampled: 2026-05-15
     audited: 2026-08-02
-    audited_sha: null
+    audited_sha: e06701d
     blocks: []
     blockedBy: [http-server]
     detail: orchestrate-cli.md
-    next: "gbiv install-skill remains unspecced and unimplemented (separate backlog item)"
+    next: null
     drift: null
 
   orchestrate-skill:
-    status: UNMAPPED
-    sampled: 2026-05-15
-    audited: null
-    audited_sha: null
+    status: OK
+    sampled: 2026-08-02
+    audited: 2026-08-02
+    audited_sha: e06701d
     blocks: []
     blockedBy: []
     detail: orchestrate-skill.md
-    next: "Author EARS specs in docs/specs/orchestrate-skill.md"
+    next: null
     drift: null
 
 # Items found during mapping that don't yet belong to a segment.

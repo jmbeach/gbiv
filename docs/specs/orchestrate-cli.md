@@ -4,8 +4,11 @@ Specs for the fleet orchestration **client** subcommands — `gbiv fleet status`
 `gbiv fleet get <color>`, and `gbiv fleet send <color> <text>` — thin HTTP
 clients over the `gbiv start` daemon (`docs/specs/http-server.md`). Scoped to
 this slice only: `gbiv start` itself is specced in `docs/specs/http-server.md`
-(HTTP-SRV-057 through HTTP-SRV-059); `gbiv install-skill` is a separate,
-not-yet-specced segment of the same LLD.
+(HTTP-SRV-057 through HTTP-SRV-059). `gbiv install-skill` is a distinct
+segment of the same LLD (a filesystem installer, not an HTTP client) and gets
+its own ID prefix, `INSTALL-CLI-*`, in the section below. The bundled
+`SKILL.md`'s own content/frontmatter requirements are specced separately in
+`docs/specs/orchestrate-skill.md`.
 
 **Component LLD**: `docs/llds/orchestrate-cli.md`
 
@@ -70,7 +73,58 @@ guard-shaped text) the same way the server would.
 - [x] **FLEET-CLI-052**: Each `gbiv fleet` subcommand shall log the outbound HTTP method and target URL at `info` level before issuing its request.
 - [x] **FLEET-CLI-053**: Each `gbiv fleet` subcommand shall log its final exit code at `info` level immediately before exiting with a non-zero code.
 
+## `gbiv install-skill`
+
+Writes the bundled `gbiv-orchestrate` skill to disk. Unlike the `fleet`
+subcommands, this is pure filesystem I/O — no daemon, no port file, no HTTP
+call.
+
+### Command Surface
+
+- [x] **INSTALL-CLI-001**: The system shall provide a top-level `gbiv install-skill` subcommand accepting an optional `--scope <user|project>` flag (default `user`) and an optional `--force` boolean flag.
+- [x] **INSTALL-CLI-002**: The bundled skill content (`SKILL.md`, byte-for-byte) shall be embedded into the `gbiv` binary at compile time via `include_str!`, so a `cargo install`'d binary with no nearby source tree can still install it.
+
+### Destination Resolution
+
+- [x] **INSTALL-CLI-010**: With `--scope user` (or no `--scope` flag), the destination directory shall be `<home>/.claude/skills/gbiv-orchestrate/`, where `<home>` is read from the `HOME` environment variable; if `HOME` is unset or empty, the command shall exit `1` with a message stating `HOME` could not be resolved, without touching the filesystem.
+- [x] **INSTALL-CLI-011**: With `--scope project`, the system shall resolve the gbiv root from the current working directory via `core::find_gbiv_root`; if none is found, the command shall exit `2` with a message stating it is not inside a gbiv workspace, without touching the filesystem.
+- [x] **INSTALL-CLI-012**: With `--scope project`, the destination directory shall be `<gbiv-root>/.claude/skills/gbiv-orchestrate/`.
+- [x] **INSTALL-CLI-013**: The destination file within the resolved directory shall be named `SKILL.md`.
+
+### Idempotency Decision
+
+Applies uniformly to both scopes once the destination directory (INSTALL-CLI-010/012) is resolved.
+
+- [x] **INSTALL-CLI-020**: If the destination `SKILL.md` does not exist, the system shall create the destination directory (including parents) if needed, write the bundled content, and report `action: "installed"` — regardless of whether `--force` was given.
+- [x] **INSTALL-CLI-021**: If the destination `SKILL.md` exists and its content is byte-for-byte identical to the bundled content, and `--force` was not given, the system shall write nothing and report `action: "unchanged"`.
+- [x] **INSTALL-CLI-022**: If the destination `SKILL.md` exists and its content is byte-for-byte identical to the bundled content, and `--force` was given, the system shall overwrite it (a no-op write) and report `action: "updated"`.
+- [x] **INSTALL-CLI-023**: If the destination `SKILL.md` exists, its content differs from the bundled content, and `--force` was given, the system shall overwrite it and report `action: "updated"`, without comparing versions.
+- [x] **INSTALL-CLI-024**: If the destination `SKILL.md` exists, its content differs from the bundled content, and `--force` was not given, the system shall parse the `version:` field from the existing file's YAML frontmatter and compare it against the bundled version (`CARGO_PKG_VERSION`) using dot-separated numeric segment comparison.
+- [x] **INSTALL-CLI-025**: Under INSTALL-CLI-024, if the existing file's version equals the bundled version, the system shall write nothing and report `action: "refused"` with `reason: "destination differs from bundled content; re-run with --force to overwrite"` — the same version with different content means a hand-edit.
+- [x] **INSTALL-CLI-026**: Under INSTALL-CLI-024, if the existing file's version is lower (by INSTALL-CLI-024's comparison) than the bundled version, the system shall overwrite it and report `action: "updated"`.
+- [x] **INSTALL-CLI-027**: Under INSTALL-CLI-024, if the existing file's version is higher than the bundled version, the system shall write nothing and report `action: "refused"` with `reason: "on-disk skill (version <existing>) is newer than this binary ships (version <bundled>); re-run with --force to overwrite"`.
+- [x] **INSTALL-CLI-028**: Under INSTALL-CLI-024, if the existing file has no parseable `version:` field in its frontmatter, the system shall treat it the same as INSTALL-CLI-025 — write nothing and report `action: "refused"` with `reason: "destination has no parseable version; re-run with --force to overwrite"` — since an unversioned or malformed file cannot be distinguished from a hand-edit.
+
+### Output
+
+- [x] **INSTALL-CLI-030**: On `action` values `"installed"`, `"updated"`, or `"unchanged"` (exit `0`), the system shall print a JSON object to stdout with fields `scope`, `destination` (absolute path), `action`, `bundled_version`, `previous_version` (the existing file's parsed version, or `null` if the file did not exist or had no parseable version), and `reason: null`.
+- [x] **INSTALL-CLI-031**: On `action: "refused"` (exit `7`), the system shall print the same JSON object shape as INSTALL-CLI-030 to stdout (not stderr) with `reason` populated — the refusal is an expected decision outcome the caller branches on by parsing `action`/`reason`, not a hard failure.
+- [x] **INSTALL-CLI-032**: A hard failure not covered by the idempotency decision (INSTALL-CLI-010's unresolved `HOME`, INSTALL-CLI-011's "not a gbiv workspace", or a filesystem write error such as permission denied) shall print a plain-text message to stderr, print nothing to stdout, and exit non-zero — no JSON envelope, since the decision logic never ran.
+
+### Exit Codes
+
+- [x] **INSTALL-CLI-040**: The command shall exit `0` for `action` values `"installed"`, `"updated"`, and `"unchanged"`.
+- [x] **INSTALL-CLI-041**: The command shall exit `1` for a generic write failure (permission denied, etc.) or an unresolved `HOME` (INSTALL-CLI-010).
+- [x] **INSTALL-CLI-042**: The command shall exit `2` when `--scope project` is given outside a gbiv workspace (INSTALL-CLI-011).
+- [x] **INSTALL-CLI-043**: The command shall exit `7` for `action: "refused"`.
+
+### Logging
+
+- [x] **INSTALL-CLI-050**: The system shall log the resolved destination path at `info` level before performing the idempotency decision.
+- [x] **INSTALL-CLI-051**: The system shall log the final `action` and exit code at `info` level immediately before exiting.
+
 ## References
 
 - LLD: `docs/llds/orchestrate-cli.md`
 - Companion: `docs/specs/http-server.md` (server side of the HTTP contract; `gbiv start` itself)
+- Companion: `docs/specs/orchestrate-skill.md` (the bundled `SKILL.md`'s own content requirements)

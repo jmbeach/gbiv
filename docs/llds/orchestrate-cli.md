@@ -138,20 +138,26 @@ The command prints a JSON result so the skill (or a script) can branch on it:
 
 #### Idempotency
 
-1. Resolve the destination directory based on `--scope`. For `user`, expand `~`. For `project`, walk up to the gbiv root.
-2. If the destination doesn't exist, create it (including parents) and write the bundled files. `action: "installed"`.
-3. If the destination exists and the on-disk content matches the bundled content byte-for-byte, do nothing. `action: "unchanged"`.
-4. If the destination exists and differs, compare the `version:` line in the existing `SKILL.md` frontmatter against the bundled version:
-   - Same version, different content → user has hand-edited; refuse without `--force`. `action: "refused"`.
-   - Older version → safe upgrade; overwrite. `action: "updated"`.
-   - Newer version → user is on a more recent skill than this binary ships; refuse without `--force`. `action: "refused"`.
-5. With `--force`, always overwrite regardless. `action: "updated"`.
+1. Resolve the destination directory based on `--scope`. For `user`, `<home>/.claude/skills/gbiv-orchestrate/` (`<home>` from the `HOME` env var — no `~`-expansion library needed since gbiv's supported platforms always set `HOME`). For `project`, walk up to the gbiv root via `core::find_gbiv_root`, then `<gbiv-root>/.claude/skills/gbiv-orchestrate/`.
+2. If the destination `SKILL.md` doesn't exist, create the directory (including parents) and write the bundled content. `action: "installed"` — unconditionally, `--force` has no effect here since there's nothing to force over.
+3. If the destination exists and the on-disk content matches the bundled content byte-for-byte:
+   - without `--force`: do nothing. `action: "unchanged"`.
+   - with `--force`: overwrite anyway (a no-op write). `action: "updated"` — `--force` always means "a write happened," even when the bytes end up the same.
+4. If the destination exists and differs:
+   - with `--force`: overwrite immediately, skipping version comparison entirely. `action: "updated"`.
+   - without `--force`, compare the `version:` line in the existing `SKILL.md` frontmatter against the bundled version:
+     - Same version, different content → user has hand-edited; refuse. `action: "refused"`.
+     - Older version → safe upgrade; overwrite. `action: "updated"`.
+     - Newer version → user is on a more recent skill than this binary ships; refuse. `action: "refused"`.
+     - No parseable `version:` field → cannot distinguish a hand-edit from a pre-versioning install; refuse, same as the same-version case. `action: "refused"`.
 
 The `version:` line is added to the skill frontmatter as part of this design (see orchestrate-skill LLD § "Versioning") so install-skill can reason about updates without parsing the body.
 
+Output on refusal: the JSON result (see the shape above) still goes to **stdout**, exit `7` — refusal is an expected decision outcome the caller branches on by parsing `action`, not a hard failure that suppresses the envelope. This differs from the `gbiv fleet` subcommands (FLEET-CLI-050: nothing to stdout on non-zero exit) because those exit codes are transport/validation failures, while `install-skill`'s exit `7` is one of the four possible successful outcomes of running the decision logic. A failure that happens *before* the decision logic runs at all (unresolved `HOME`, not inside a gbiv workspace for `--scope project`, or a filesystem write error) has no JSON to report and falls back to a plain stderr message with empty stdout, like every other gbiv command.
+
 Exits:
 - 0 — `installed`, `updated`, or `unchanged`
-- 1 — generic write failure (permission denied, etc.)
+- 1 — generic write failure (permission denied, etc.), or `HOME` unresolved for `--scope user`
 - 2 — `--scope project` but not inside a gbiv workspace
 - 7 — `refused` (custom code so the skill can recognize "user has local edits" without parsing JSON)
 
