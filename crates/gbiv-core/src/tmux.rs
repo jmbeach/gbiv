@@ -71,12 +71,15 @@ fn parse_windows_output(stdout: &[u8]) -> Result<Vec<WindowInfo>, TmuxError> {
 }
 
 // @spec TMX-DRV-008, TMX-DRV-009, TMX-DRV-010, TMX-DRV-011
+// Callers must verify the session exists via has_session first; the `=` prefix
+// forces an exact name match so a session that is only a prefix of another does
+// not accidentally resolve to the wrong one.
 pub fn list_windows(session: &str) -> Result<Vec<WindowInfo>, TmuxError> {
     let out = ProcessCommand::new("tmux")
         .args([
             "list-windows",
             "-t",
-            session,
+            &format!("={session}"),
             "-F",
             "#{window_id}\t#{window_name}",
         ])

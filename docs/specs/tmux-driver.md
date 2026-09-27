@@ -15,7 +15,7 @@ orchestration-only tmux driver operations (implemented in the `gbiv` binary's
 - [x] TMX-DRV-005: When `has_session(session)` is called and a tmux session with that exact name exists, it shall return `Ok(true)`.
 - [x] TMX-DRV-006: When `has_session(session)` is called and no tmux session with that exact name exists (including when it is only a strict prefix of another session's name), it shall return `Ok(false)`.
 - [x] TMX-DRV-007: When `has_session(session)` is called and tmux is not on PATH, it shall return `Err(TmuxError::NotInstalled)`.
-- [x] TMX-DRV-008: When `list_windows(session)` is called for an existing session, it shall return `Ok(Vec<WindowInfo>)` parsed from `tmux list-windows -t <session> -F '#{window_id}\t#{window_name}'`.
+- [x] TMX-DRV-008: When `list_windows(session)` is called for an existing session, it shall return `Ok(Vec<WindowInfo>)` parsed from `tmux list-windows -t =<session> -F '#{window_id}\t#{window_name}'` (the `=` prefix forces an exact session-name match, preventing prefix-collision with longer session names).
 - [x] TMX-DRV-009: When `list_windows(session)` is called for a non-existent session, it shall return `Err(TmuxError::SessionNotFound(session.to_string()))`.
 - [x] TMX-DRV-010: When `list_windows(session)` is called and tmux is not on PATH, it shall return `Err(TmuxError::NotInstalled)`.
 - [x] TMX-DRV-011: When a line in `list_windows` output is missing a field (no tab separator or empty field), the system shall return `Err(TmuxError::Other(...))` including the malformed line.
