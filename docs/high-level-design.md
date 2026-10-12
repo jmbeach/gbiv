@@ -284,12 +284,14 @@ and `done`.
 ```
 
 - **Veto.** A `before_*` hook can stop the command with a message; gbiv then
-  writes nothing.
+  writes nothing. There is no rollback event: if an earlier hook already acted
+  (say, claimed the task) before a later one vetoed, that action stands.
 - **Naming.** The first `before_start` hook that returns a task ID and title names
   the entry. If none does, the argument is the title and the entry has no task ID,
   so `gbiv start "Fix login bug"` works with no extensions enabled.
 - **After hooks** report failures but never undo the GBIV.md change.
-- **Neither command touches the worktree.**
+- **Neither command touches the worktree.** A color is free when GBIV.md has no
+  entry for it, whatever its worktree holds.
 
 **Sandbox.** Each extension gets Lua's standard library without `io`, `os`
 process and file functions, `debug`, or native module loading. gbiv's host API
@@ -341,14 +343,9 @@ vat-cli and the vat skill, so it is checked against vat's golden test files.
 Skill packaging (`gbiv install-skill`'s `--scope user|project` split, default user)
 is resolved — see `docs/llds/orchestrate-cli.md` § `gbiv install-skill`.
 
-Open, to settle in the LLDs:
-
-1. **Veto after a partial claim.** If one extension's `before_start` claims a task
-   and a later one vetoes, the claim stands. Should a vetoed command fire a
-   rollback event to earlier hooks? (`docs/llds/extension-runtime.md`)
-2. **Dirty free colors.** A color with no GBIV.md entry may still hold an unmerged
-   branch, especially once `gbiv reset` is retired (gbv-tkn). Should `gbiv start`
-   skip such a color? (`docs/llds/feature-ledger.md`)
+None open. Two extension questions are resolved for now: a vetoed command fires
+no rollback event, and `gbiv start` judges a color free by GBIV.md alone, not by
+its worktree's state (see § Extensions domain).
 
 ## Evolution Vectors
 
