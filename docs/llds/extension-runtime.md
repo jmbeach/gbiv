@@ -127,7 +127,8 @@ replaces the global value for the same key, and lists are replaced whole.
 
 ```toml
 [extensions]
-enabled = ["vat"]                 # load order = list order
+enabled = ["vat"]                 # adds to the other layer's list
+disabled = []                     # switches names off, whichever layer enabled them
 
 [extensions.vat]                  # per-extension table, keyed by name
 paths = ["backlog", "~/.config/vat"]   # grants fs + git under these paths
@@ -147,15 +148,18 @@ means "this project's backlog" in every project. A leading `~/` expands to the
 home directory. Paths are canonicalized at load; a grant that doesn't exist yet is
 kept as written and checked again at each call.
 
-**Merging layers.** Within `[extensions]`, `enabled` is replaced whole by the
-project file. Each per-extension table is merged key by key: a project
-`[extensions.vat]` that sets only `user` keeps the global `paths`. A list value
-inside a per-extension table (`paths`, `env`) is replaced whole.
+**Merging layers.** The effective list of extensions is the global `enabled`
+list followed by the project's names not already in it, minus every name in
+either file's `disabled` list. That is also the load and run order. Each
+per-extension table is merged key by key, the project winning on the same key: a
+project `[extensions.vat]` that sets only `backlog` keeps the global `paths`. A
+list value inside a per-extension table (`paths`, `env`) is replaced whole.
 
-**Validation.** `enabled` must be an array of unique strings. Inside
-`[extensions]`, every key other than `enabled` must be a table (a per-extension
-table); a non-table key is a config error, which catches typos like `enabeld`.
-`enabled` is therefore a reserved name no extension can use. A per-extension
+**Validation.** `enabled` and `disabled` must be arrays of strings; a name
+repeated within one list is a config error. Inside `[extensions]`, every other key
+must be a table (a per-extension table); a non-table key is a config error, which
+catches typos like `enabeld`. `enabled` and `disabled` are therefore reserved
+names no extension can use. A per-extension
 table for an extension that isn't enabled is ignored. An enabled extension whose manifest doesn't declare a capability
 the config grants gets a warning, not an error (the grant is just unused).
 
@@ -167,15 +171,16 @@ skipped.
 
 | Event | Fired | Context (`ctx`) | Handler may |
 |---|---|---|---|
-| `before_start` | after `gbiv start` picks a color, before GBIV.md is written | `arg`, `color`, `id`, `title`, `options` | veto; return `{id=, title=}` |
-| `after_start` | after the entry is written | `color`, `id`, `title`, `options` | nothing (notify only) |
-| `before_done` | after `gbiv done` finds the entry, before it is removed | `color`, `id`, `title`, `options` | veto |
-| `after_done` | after the entry is removed | `color`, `id`, `title`, `options` | nothing (notify only) |
+| `before_start` | after `gbiv start` picks a color, before GBIV.md is written | `arg`, `color`, `text`, `options` | veto; return `{text=}` |
+| `after_start` | after the entry is written | `color`, `text`, `options` | nothing (notify only) |
+| `before_done` | after `gbiv done` finds the entry, before it is removed | `color`, `text`, `options` | veto |
+| `after_done` | after the entry is removed | `color`, `text`, `options` | nothing (notify only) |
 
 - `arg` is the `gbiv start` argument exactly as typed.
-- `id` and `title` are `nil` in `before_start` until some handler names the
-  entry; later handlers see the named values. In the other events they are the
-  entry's values (`id` is `nil` for an entry without a task ID).
+- `text` is the entry's text: everything after `- [<color>] ` on its GBIV.md
+  line. It is `nil` in `before_start` until some handler names the entry; later
+  handlers see the named value. gbiv attaches no meaning to it; an extension
+  finds its own tags in it (the vat extension looks for its `[<id>]`).
 
 ### Veto
 
@@ -194,19 +199,17 @@ task system.
 
 ### Naming
 
-A `before_start` handler names the entry by returning `{ id = "...", title = "..." }`.
+A `before_start` handler names the entry by returning `{ text = "..." }`.
 Returning `nil` or `false` names nothing. Any other non-table value, or a table
-missing either field, is a veto by that extension. Extra keys are ignored. The
+without a string `text`, is a veto by that extension. Extra keys are ignored. The
 first handler to return a valid table wins; later tables are ignored (gbiv prints
-a warning naming the extension). Both fields are required strings:
+a warning naming the extension).
 
-- `id` must match `[A-Za-z0-9][A-Za-z0-9._-]*`, must not be a palette name, and
-  must not be `done` or `in-progress` (so it reads back unambiguously from
-  GBIV.md).
-- `title` must be non-empty, single-line, and is trimmed.
-
-An invalid return is a veto by that extension. Returning `nil` names nothing. If
-no handler names the entry, the Feature Ledger uses `arg` as the title with no ID.
+`text` is trimmed and must be non-empty and a single line. It may start with
+bracketed tags (`[gbv-1ht] [blocked-by:gbv-x2v] Title`), but not with `[done]` or
+`[in-progress]`, which GBIV.md would read back as a legacy status. An invalid
+`text` is a veto by that extension. If no handler names the entry, the Feature
+Ledger uses `arg` as the text.
 
 ### After events
 
@@ -335,9 +338,8 @@ skill's `version:` line:
 - An unknown `<name>` (not bundled) exits `1` listing the bundled names.
 - A config file that doesn't parse as TOML, or whose `enabled` isn't an array,
   exits `1` and changes nothing (the extension files aren't copied either).
-- A `--scope user` install into a workspace whose project config sets its own
-  `enabled` list (which replaces the user one) prints a warning that the
-  extension won't be active in this project until it's added there.
+- If the name is in a `disabled` list in either config, the command prints a
+  warning that the extension stays off until it's removed from there.
 
 ## Error Types
 
@@ -389,6 +391,8 @@ The Feature Ledger's `start` and `done` handlers are the only callers.
 | Extension model | Generic hooks on `start`/`done` | A dedicated "task provider" trait with one configured provider | One mechanism; an extension is enabled or not. Anything a provider did is expressible as `before_*` hooks. |
 | Veto signal | Raise a Lua error | A `{veto=...}` return value | Idiomatic Lua, and a bug in a `before_*` hook then fails safe (vetoes) rather than letting the command through. |
 | Rollback on veto | None | A `start_aborted` event to earlier hooks | Kept out for now; a stray claim is fixed in the task system. |
+| Entry naming | Extension returns the entry's whole text | Return a task ID and title for gbiv to format | gbiv stays unaware of task IDs; each extension decides which of its tags to show. |
+| Combining config layers | `enabled` adds up; `disabled` removes | Project `enabled` replaces global | Like Claude Code's settings: a user-level install stays active in every project unless a project switches it off. |
 | One Lua state per extension | Isolated states | One shared state | Extensions can't interfere with each other's globals; cost is negligible at this scale. |
 | Grants by path | `paths` grant enables `fs` and `git` under those paths | Separate fs and git grant lists; unrestricted git | One list is enough for the known extension (vat), and path scoping is what keeps git from touching unrelated repos. |
 | git network ops | Allowed under a granted path | Block fetch/push unless an extra grant | vat's claim loop needs push; the promise "nothing out of the box" holds because no extension is enabled by default. |

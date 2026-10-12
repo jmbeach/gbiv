@@ -28,8 +28,7 @@ Two commands manage an entry's life on a color: `gbiv start` puts a task on the 
 Each entry is a line starting with `- `. After the dash, in this order:
 - Zero or one **color tag**: `[red]`, `[orange]`, etc.
 - Zero or one **status tag**: `[done]` or `[in-progress]`. Legacy: still parsed (so existing files and `gbiv reset`'s `[done]` filter keep working until gbv-tkn retires reset), never written.
-- Zero or one **task ID**: a bracketed token matching `[A-Za-z0-9][A-Za-z0-9._-]*` that follows a color tag (and the status tag, if any). Written by `gbiv start` when an extension named the entry.
-- **Title** (stored as `description`): everything after the tags.
+- **Text** (stored as `description`): everything after those tags. It may itself start with more bracketed tags that an extension wrote (`[gbv-1ht] [blocked-by:gbv-x2v] Title`). gbiv has no notion of a task ID and doesn't interpret them; it only matches them as tags (see Done Command).
 
 Lines that follow an entry and don't start with `- ` are **notes** — they belong to the preceding entry.
 
@@ -43,7 +42,6 @@ The parser in `gbiv_md.rs` processes lines top-to-bottom:
 2. Extract `[bracketed]` tokens at the start, left to right:
    - The first bracket → `tag`
    - Next, if it is `done` / `in-progress` → `status`
-   - Next, if `tag` is set and the token matches the task-ID pattern → `task_id`
    - The first bracket that matches none of these ends tag parsing; it and the rest are the description
 3. Non-feature lines after an entry are collected as `notes: Vec<String>`
 4. Lines before the first `- ` that aren't entries are ignored
@@ -56,17 +54,16 @@ The parser in `gbiv_md.rs` processes lines top-to-bottom:
 pub struct GbivFeature {
     pub tag: Option<String>,        // color name
     pub status: Option<String>,     // legacy "done" / "in-progress"; never written
-    pub task_id: Option<String>,    // e.g. "gbv-1ht"
-    pub description: String,        // title text after the tags
+    pub description: String,        // the entry's text after the tags above
     pub notes: Vec<String>,         // indented lines below
 }
 ```
 
 ## Mutations
 
-### `append_gbiv_entry(path, color, task_id, title)`
+### `append_gbiv_entry(path, color, text)`
 
-Writes `- [<color>] [<task_id>] <title>` (or `- [<color>] <title>` without an ID) as a new entry:
+Writes `- [<color>] <text>` as a new entry:
 
 - After the last entry (and its notes) in the parsed region (above `---`), so new work lands at the end of the list.
 - If there are no entries, after any preamble (non-blank lines before the first entry, such as a `# Tasks` heading), else at the top of the file, before blank lines and the separator.
@@ -74,9 +71,9 @@ Writes `- [<color>] [<task_id>] <title>` (or `- [<color>] <title>` without an ID
 
 Everything else in the file, including the separator and the content below it, is preserved byte for byte. The inserted line uses the file's existing line ending (`\r\n` if the file uses it), and the trailing-newline state is kept.
 
-### `remove_gbiv_entry(path, tag, task_id, description)`
+### `remove_gbiv_entry(path, tag, description)`
 
-Re-reads the file and removes the one entry whose tag, task ID and title all match, with its note lines and the same blank-line cleanup as `remove_gbiv_features_by_tag`. Matching on content rather than position means a hand edit made while extensions ran can't cause the wrong entry to be removed; if the entry is no longer there, it returns an error and changes nothing. Used by `gbiv done`.
+Re-reads the file and removes the one entry whose tag and text both match, with its note lines and the same blank-line cleanup as `remove_gbiv_features_by_tag`. Matching on content rather than position means a hand edit made while extensions ran can't cause the wrong entry to be removed; if the entry is no longer there, it returns an error and changes nothing. Used by `gbiv done`.
 
 ### `remove_gbiv_features_by_tag(path, tag)` (unchanged)
 
@@ -104,7 +101,7 @@ enum GbivMdError {
 
 `gbiv start <task> [--color <color>]`
 
-`<task>` is either a task ID an extension recognizes (`gbv-1ht`) or free text (`"Fix login bug"`). gbiv trims it for its own checks and passes it to extensions exactly as typed. After trimming it must be non-empty and a single line, and must not start with `[` (it would read back as a tag or task ID).
+`<task>` is either something an extension recognizes (a vat ID like `gbv-1ht`) or free text (`"Fix login bug"`, `"[urgent] fix login"`). gbiv trims it for its own checks and passes it to extensions exactly as typed. After trimming it must be non-empty and a single line, and must not start with `[done]` or `[in-progress]` (they would read back as a legacy status).
 
 ### Flow
 
@@ -113,40 +110,43 @@ enum GbivMdError {
    - With `--color`: it must be in the active palette and free, else error.
    - Without: the first free color in palette order (ROYGBIV, then extras).
    - None free → error `no free color (all N colors have GBIV.md entries)`. No extension loads.
-3. **Duplicate check.** If an entry already has `task_id` equal to `<task>` (case-insensitive), error `<task> is already on <color>`. No extension loads.
-   Steps 2–6 run while holding `<main>/.gbiv/ledger.lock` (created exclusively; `.gbiv/` is already git-excluded). If the lock exists, the command fails at once with `another gbiv start/done is running (remove <path> if not)`. `gbiv done` takes the same lock.
+3. **Duplicate check.** If `<task>` is a single token (no whitespace) and some entry *carries the tag* `[<task>]` (see Tag matching), error `<task> is already on <color>`. No extension loads.
 4. Load extensions and fire `before_start(arg, color)`. A veto stops here: nothing is written, exit 1.
-5. **Name the entry.** If a handler returned `{id, title}`, use them; re-run the duplicate check against the returned `id` (error if it's already on a color). Otherwise the title is `<task>` trimmed and there is no ID; if `<task>` matches the task-ID pattern (a single token), print a warning that no extension recognized it and it was added as free text.
+5. **Name the entry.** If a handler returned `{text}`, use it. Otherwise the text is `<task>` trimmed; if `<task>` is a single token, print a warning that no extension recognized it and it was added as free text.
 6. `append_gbiv_entry`. If the write fails, exit 1 with an error that says the extensions already ran (so a claim may need undoing in the task system); no `after_*` event fires.
 7. Fire `after_start`; print any warnings.
-8. Print `started <id> on <color>: <title>` (or `started on <color>: <title>` without an ID).
+8. Print `started on <color>: <text>`.
 
 The worktree is never touched: no branch is created or checked out.
 
 ## Done Command
 
-`gbiv done [<task|color>]`
+`gbiv done [<color|tag>]`
+
+### Tag matching
+
+An entry **carries the tag** `[X]` when its text contains the exact bracketed token `[X]` (compared case-insensitively), anywhere in the text. This is how `gbiv done gbv-1ht` and `start`'s duplicate check find an entry without gbiv knowing what a task ID is: the vat extension writes `[gbv-1ht]` into the text, and a Jira extension could write `[ABC-123]`.
 
 ### Resolution
 1. If the argument is a name in the active palette (exact, case-sensitive match, like every other color argument) → that color.
-2. Otherwise, if it is given → a task ID: the entry whose `task_id` matches it (case-insensitive). None → error `no GBIV.md entry for <task>`; more than one → error listing them.
+2. Otherwise, if it is given → the entry that carries the tag `[<arg>]`. None → error `no GBIV.md entry carries [<arg>]`; more than one → error listing them and asking for the color instead.
 3. If omitted → infer the color from CWD via `infer_color_from_path()`; error if that fails.
 
-A color resolves to the entry tagged with it. No entry → error `no GBIV.md entry for <color>`. More than one entry with that tag (only possible through hand edits) → error listing them and asking for the task ID instead.
+A color resolves to the entry tagged with it. No entry → error `no GBIV.md entry for <color>`. More than one entry with that color tag (only possible through hand edits) → error listing them.
 
 ### Flow
 1. Resolve the entry as above.
-2. Load extensions and fire `before_done(color, id, title)`. A veto stops here: the entry stays, exit 1.
+2. Load extensions and fire `before_done(color, text)`. A veto stops here: the entry stays, exit 1.
 3. `remove_gbiv_entry`.
 4. Fire `after_done`; print any warnings.
-5. Print `done <id> (<color>)` (or `done <color>: <title>` without an ID).
+5. Print `done <color>: <text>`.
 
 The worktree is never touched.
 
 ## Cross-Component Interactions
 
 - **Extension Runtime** — `start` and `done` are the only callers of its events (`docs/llds/extension-runtime.md`).
-- **Status displays what start writes** — `status` shows each entry's color, task ID if any, and title (Observation segment).
+- **Status displays what start writes** — `status` shows each entry's color and text, exactly as today (Observation segment; unchanged).
 - **Tmux sync/clean reads tags** — tmux commands check which colors have entries to decide which windows to create/remove. Unchanged.
 - **Reset reads the legacy `[done]` tag** — `reset` (all-color, soft mode) still filters on `[done]`. Since nothing writes it any more, all-color soft reset finds nothing to reset; `reset <color>` still works. gbv-tkn removes reset.
 
@@ -163,7 +163,7 @@ GBIV.md
 
 - Section only appears if GBIV.md exists and has features
 - Preceded by a blank line and dim `GBIV.md` header
-- Tagged entries show the color name (in ANSI color), then the task ID in brackets if present, then the title; a legacy status tag still displays as today
+- Tagged entries show the color name (in ANSI color), an optional legacy status, and the text (tags an extension wrote are just part of the text)
 - Untagged entries show a dim `backlog` label + description
 
 ## Design Decisions
@@ -176,16 +176,19 @@ GBIV.md
 | Color tag = worktree assignment | `[red]` means "this is red's work" | Separate assignment mapping | Direct and visible. No indirection layer needed. |
 | Lifecycle commands | `gbiv start` / `gbiv done` | Keep `gbiv mark` with status tags | Being on a color already means in progress; done means off the color. Two verbs cover what mark did, and they are where extension events fire. |
 | Status tags | Parsed (legacy), never written | Drop parsing too | Existing files keep reading correctly, and `reset`'s filter keeps compiling until gbv-tkn. |
-| Task ID in GBIV.md | Bracketed token after the color tag | `[task:<id>]` prefix; ID in the title text | Reads naturally (`- [red] [gbv-1ht] …`) and matches how vat bullets look. |
+| Task IDs | gbiv has none; extensions write tags into the entry text, and `done`/`start` match `[X]` tags generically | A parsed `task_id` field | Keeps gbiv unaware of any task system. Tag matching is enough to find an entry by `gbv-1ht` or `ABC-123`. |
+| Concurrency | No lock; one writer at a time is assumed | A lock file around `start`/`done` | One orchestrator or one person runs these; a lock is more machinery than the risk warrants. |
 | Free color | No GBIV.md entry for it | Also require a clean / merged worktree | Simple and predictable; settled in the HLD. |
 | `--color` override | Allowed, must be free | Always automatic | Lets a user keep a task on a color they prefer. |
 | Unrecognized brackets stop tag parsing | Becomes part of the title | Error on unknown, ignore and continue | Allows brackets in titles without breaking. |
 
 ## Technical Debt & Inconsistencies
 
-1. **Task-ID pattern is broad**: any `[A-Za-z0-9…]` token after the color is read as a task ID, so a hand-written `- [red] [WIP] thing` now parses `WIP` as the ID rather than as title text. gbiv itself never writes such a line (`start` refuses a title starting with `[`).
+1. **Tag matching is textual**: `gbiv done foo` matches any entry whose text contains `[foo]`, wherever it appears, including inside a title someone typed.
 
-2. **No validation of tag/description boundary**: a misspelled status (`- [red] [don] x`) is read as task ID `don`.
+2. **No validation of tag/description boundary**: a misspelled status (`- [red] [don] x`) becomes part of the text rather than an error.
+
+3. **No locking**: two `start` runs at the same moment could pick the same color or interleave writes. Accepted: one writer at a time is assumed.
 
 ## Behavioral Quirks
 

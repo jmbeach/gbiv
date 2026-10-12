@@ -73,8 +73,8 @@ ownership can't be decided; non-candidates still pass through.
 | this backlog's ID, `backlog.md` missing or holding the ID twice | vetoes with vat's message |
 | this backlog's ID, present | claims it (below) and names the entry |
 
-IDs are normalized to lowercase before lookup, in the returned `id`, and when
-reading `ctx.id` in `before_done` (so a hand-written `[GBV-1HT]` entry still
+IDs are normalized to lowercase before lookup, in the returned text, and when
+reading the ID from `ctx.text` in `before_done` (so a hand-written `[GBV-1HT]` entry still
 matches). User names in `[by:]` are compared case-sensitively, as vat does.
 
 Like `vat start`, claiming a bullet that has `[blocked-by:...]` is allowed.
@@ -94,20 +94,26 @@ user already holds:
    `<id> already claimed by <other>` (or `<id> already in progress`). Otherwise
    insert `[in-progress]` and `[by:<user>]` in canonical marker position and write
    the file (or run the claim loop; see Nested-repo backlogs).
-5. Return `{ id = <id>, title = <title> }`, where `title` is the bullet's title
-   with any trailing ` (see ./items/<id>.md)` pointer removed.
+5. Return `{ text = <text> }`: the bullet line after `- `, as written after the
+   claim, with `[in-progress]` and `[by:...]` removed (redundant once the task is
+   on a color) and the pointer ` (see ./items/<id>.md)` rewritten relative to the
+   main repo (` (see backlog/items/<id>.md)`), the same way the `gbiv-sync` skill
+   copies bullets. Every other tag stays: `[gbv-1ht] [blocked-by:gbv-x2v] Title`.
+   The leading `[<id>]` is what lets `gbiv done <id>` find the entry later.
 
 ## `before_done` — complete
 
 Mirrors `vat done`:
 
-1. If `ctx.id` is `nil` or not this backlog's ID, do nothing. Like `vat done`,
-   this completes the task whoever claimed it, or if nobody did.
-2. Locate the bullet (a missing `backlog.md` counts as absent; an ID on two
-   bullets warns and does nothing). If it's absent and the ID is in `.used-ids`,
-   the task is already done: do nothing. If it's absent and not in `.used-ids`, warn
-   (`<id> not found in backlog; removing the GBIV.md entry anyway`) and do
-   nothing. Neither case vetoes: the user asked to take the entry off its color.
+1. Find this backlog's ID in `ctx.text`: the first bracketed tag that is a
+   candidate ID with this backlog's prefix. None → do nothing (the entry isn't a
+   vat task). Like `vat done`, this completes the task whoever claimed it, or if
+   nobody did.
+2. Locate the bullet. If it's absent and the ID is in `.used-ids`, the task was
+   already completed outside gbiv: do nothing, so the entry can still come off
+   its color. If it's absent and not in `.used-ids` (or `backlog.md` is missing),
+   veto with `unknown id: <id>`, as `vat done` does. An ID on two bullets vetoes
+   with vat's message.
 3. Remove the bullet line (dropping one adjacent blank line if removal would leave
    a double blank), delete `items/<id>.md` if present, append `<id>` to
    `.used-ids` if absent, and strip `[blocked-by:<id>]` from every remaining
@@ -168,9 +174,9 @@ The extension then follows the vat skill's atomic claim loop exactly, using
      git's raw error.
 3. **Terminal preconditions on fresh state:** for `start`, already claimed by
    someone else → veto (`lost claim: <id> already claimed by <name>`); already
-   claimed by this user → success with no commit. For `done`, absent → success
-   with no commit, warning first if the ID isn't in `.used-ids` (the same rule as
-   a non-nested backlog; the vat skill errors here instead).
+   claimed by this user → success with no commit. For `done`, absent and in
+   `.used-ids` → success with no commit; absent and not in `.used-ids` → veto
+   `unknown id: <id>`. Both match the vat skill.
 
 A non-nested backlog (no `.git` inside it) is edited in place with no git at all,
 exactly like `vat` itself: committing is left to the user.
@@ -191,7 +197,8 @@ exactly like `vat` itself: committing is left to the user.
 | Implementation | Lua on vat's files | Call the `vat` binary; depend on a vat Rust crate | Extensions are Lua (HLD); vat's logic is small. Calling `vat` would need process exec in the sandbox, and vat-cli has no library target or JSON output. |
 | Format coverage | Only what `start`/`done` touch | Full vat (sync, block, init…) | Smallest possible third copy of the format; less drift. |
 | Already claimed by this user | Accept, no change | Refuse like `vat start` | A task claimed earlier with `vat start` should still go on a color. |
-| `done` on an ID missing from the backlog | Warn, don't veto | Veto | The user wants the entry off the color; a missing bullet shouldn't stop that. |
+| `done` on an ID missing from the backlog | Veto `unknown id`, unless the ID is in `.used-ids` (already done) | Always warn and proceed | Match vat. The `.used-ids` case keeps a task completed outside gbiv from getting stuck on its color. |
+| Entry text | The bullet's tags and title, minus `[in-progress]` / `[by:]` | Title only | Keeps vat's other tags (`[blocked-by:]`, `[parent:]`) visible on the color, as `gbiv-sync` does. |
 | Claim loop | Copy of the vat skill's first-push-wins loop | Plain commit + push; no git | Matches the skill exactly, so concurrent agents claiming through gbiv and through the skill behave the same. |
 | Default grants | `backlog` and `~/.config/vat` | Ask on install | Covers the common layout and the user name; editable in config. |
 

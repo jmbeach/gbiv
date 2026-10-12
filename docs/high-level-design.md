@@ -55,7 +55,7 @@ whatever task system the team uses.
   color. An entry on a color is in progress; `gbiv done` removes it. Human-editable,
   committed to git. No database, no JSON state file.
 - **Two verbs for a task's life on a color.** `gbiv start <task>` puts a task on
-  the next free color in palette order (ROYGBIV first); `gbiv done <task|color>`
+  the next free color in palette order (ROYGBIV first); `gbiv done <color|tag>`
   takes it off. Neither touches the worktree itself. With no extensions enabled,
   the argument to `start` is simply the entry's title.
 - **Task systems plug in as Lua extensions.** gbiv embeds Lua 5.4 (via `mlua`) and
@@ -196,8 +196,9 @@ so `cd red/repo && gbiv done` works without naming `red`.
 **Layered configuration.** gbiv reads a global config
 (`$XDG_CONFIG_HOME/gbiv/config.toml`, else `~/.config/gbiv/config.toml`) and then
 the project's `<root>/.gbiv/config.toml`; a key set in the project file overrides
-the same key in the global one. A list value, such as `[extensions] enabled`, is
-replaced as a whole, not merged. Neither file is required.
+the same key in the global one. Extensions are the exception: `[extensions] enabled`
+adds up across both files, and a `disabled` list in either file switches a name off
+(see `docs/llds/extension-runtime.md`). Neither file is required.
 
 **Canonical ordering.** Output and iteration always follow the active palette's
 order — ROYGBIV first, then any configured extras. Status, exec, tmux window
@@ -275,20 +276,24 @@ role: an extension that talks to a task system is just one that hooks `start`
 and `done`.
 
 ```
- gbiv start <arg>                        gbiv done <task-id | color>
+ gbiv start <arg>                        gbiv done <color | tag>
    pick next free color (else error)       find the GBIV.md entry (else error)
    before_start ─ any hook may veto;       before_done ─ any hook may veto
-                  first title wins
-   write  - [<color>] [<task-id>] <title>  remove the entry
+                  first text wins
+   write  - [<color>] <text>               remove the entry
    after_start ─ notify only               after_done ─ notify only
 ```
 
 - **Veto.** A `before_*` hook can stop the command with a message; gbiv then
   writes nothing. There is no rollback event: if an earlier hook already acted
   (say, claimed the task) before a later one vetoed, that action stands.
-- **Naming.** The first `before_start` hook that returns a task ID and title names
-  the entry. If none does, the argument is the title and the entry has no task ID,
-  so `gbiv start "Fix login bug"` works with no extensions enabled.
+- **Naming.** The first `before_start` hook that returns text names the entry. If
+  none does, the argument is the text, so `gbiv start "Fix login bug"` works with
+  no extensions enabled. gbiv has no notion of a task ID: an extension writes its
+  own tags into the text (vat: `[gbv-1ht] Title`), and `gbiv done gbv-1ht` finds
+  the entry whose text carries the tag `[gbv-1ht]`.
+- **One writer at a time.** gbiv assumes one person or one orchestrator runs
+  `start`/`done` at a time, and takes no lock.
 - **After hooks** report failures but never undo the GBIV.md change.
 - **Neither command touches the worktree.** A color is free when GBIV.md has no
   entry for it, whatever its worktree holds.
