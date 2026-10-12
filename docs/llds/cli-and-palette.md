@@ -1,7 +1,7 @@
 # CLI & Palette
 
 **Created**: 2026-04-23
-**Status**: Complete (brownfield mapping)
+**Status**: Complete (brownfield mapping); gbv-1ht adds layered config and the `start`/`done`/`install-extension` commands
 
 ## Context and Current State
 
@@ -17,16 +17,27 @@ This is the thinnest component by line count (~290 lines total) but it defines t
 gbiv
 ├── init <folder>
 ├── status
-├── mark (--done | --in-progress | --unset) [<color>]
+├── start <task> [--color <color>]
+├── done [<color>|<tag>]
 ├── reset [<color>] [--hard/--force] [--yes/-y]
 ├── rebase-all
+├── repair
 ├── tidy
 ├── exec [<color>|all] -- <command...>
+├── install-skill [--scope user|project] [--force]
+├── install-extension <name> [--scope user|project] [--force]
+├── fleet
+│   ├── start [--session-name <NAME>] [--bind <ADDR>]
+│   ├── status [--lines <N>]
+│   ├── get <color> [--lines <N> | --start-line <N> --end-line <N>]
+│   └── send <color> <text>
 └── tmux
     ├── new-session [--session-name <NAME>]
     ├── sync [--session-name <NAME>]
     └── clean
 ```
+
+`start` and `done` are owned by the Feature Ledger (`docs/llds/feature-ledger.md`); `install-extension` by the Extension Runtime (`docs/llds/extension-runtime.md`); `fleet` and `install-skill` by Orchestrate Commands (`docs/llds/orchestrate-cli.md`). `mark` is removed (replaced by `start`/`done`), and the daemon moves from top-level `start` to `fleet start`.
 
 ### Argument Parsing
 
@@ -55,7 +66,7 @@ This logic lives in `main.rs` rather than `exec.rs` because clap's `num_args(0..
 
 ### Color Validation
 
-Several subcommands accept an optional `<color>` argument. Validation happens at the command handler level (checking the argument against the loaded active palette via `Palette::contains`), not at the clap level. clap accepts any string and the handler returns a descriptive error like `"'purple' is not a valid color"`. This applies uniformly to `mark`, `reset`, and `exec`: color validity depends on the active palette, which is only known after root discovery, so it cannot be enforced by a clap `PossibleValuesParser` (which runs during argument parsing, before the root is found). The `all` keyword accepted by `exec` is checked alongside palette membership.
+Several subcommands accept an optional `<color>` argument. Validation happens at the command handler level (checking the argument against the loaded active palette via `Palette::contains`), not at the clap level. clap accepts any string and the handler returns a descriptive error like `"'purple' is not a valid color"`. This applies uniformly to `start --color`, `done`, `reset`, and `exec`: color validity depends on the active palette, which is only known after root discovery, so it cannot be enforced by a clap `PossibleValuesParser` (which runs during argument parsing, before the root is found). The `all` keyword accepted by `exec` is checked alongside palette membership.
 
 ## Palette
 
@@ -91,7 +102,7 @@ impl Palette {
 
 `Palette` is the single source of truth, at runtime, for:
 - Which worktrees the active project has (base seven + configured extras)
-- Valid color arguments (mark, reset, exec) — via `contains`
+- Valid color arguments (`start --color`, `done`, `reset`, `exec`) — via `contains`
 - Iteration order (status, exec-all, rebase-all, repair iterate `names()` in order)
 - Tmux window names and sort order
 
@@ -126,6 +137,23 @@ pub enum ConfigError {
 ```
 
 TOML parsing uses the `toml` + `serde` crates (added to `gbiv-core`). This is the project's only structured-config dependency; it is justified by a sectioned config that other domains can extend, while the default, no-config experience carries no runtime cost.
+
+### Layered configuration — `core::config`
+
+gbiv reads two optional config files and combines them:
+
+| Layer | Path |
+|---|---|
+| global | `$XDG_CONFIG_HOME/gbiv/config.toml`, else `~/.config/gbiv/config.toml` |
+| project | `<gbiv-root>/.gbiv/config.toml` |
+
+Both are optional; neither is created by gbiv except through `gbiv install-extension`. Each top-level table follows its own owner's rule:
+
+- **`[palette]` is project-only.** Extra worktree slots belong to one repository, so `Palette::load` reads only the project file, as today. A `[palette]` table in the global file is ignored with a warning naming the file.
+- **`[extensions]`** combines as the Extension Runtime defines: `enabled` adds up across both files, `disabled` in either file switches a name off, and per-extension tables merge key by key with the project winning (`docs/llds/extension-runtime.md` § Configuration).
+- **Any other top-level table** is ignored, so the files can host future domains, as today.
+
+A global file that fails to parse, or fails its owners' validation, is a hard error naming the file, just like the project file. Commands that don't use extensions (`status`, `exec`, `fleet …`) still read the project `[palette]` but never parse `[extensions]`, so an extensions config error can't break them.
 
 ### ANSI Codes — worktree-only (`src/colors.rs`)
 
@@ -184,7 +212,9 @@ The palette encodes a consistent visual language across all commands:
 | Runtime active palette | `Palette` loaded per-command from the root | Compile-time `COLORS` const | Lets a project extend the worktree set without recompiling. ROYGBIV remains the compile-time `BASE_COLORS` default and prefix, so the no-config path is unchanged. |
 | Config as `.gbiv/config.toml` | Sectioned TOML (`toml`+`serde`) | Plain-text name list; hand-rolled parser | A general, sectioned config file other domains can extend. Cost is a structured-config dependency; users without the file are unaffected. |
 | Hard-fail on bad config | `ConfigError` aborts the command | Silent fallback to ROYGBIV | A malformed power-user config should be loud; the fix is to correct or delete one file. |
-| Palette-dependent validation in handlers | `mark`/`reset`/`exec` validate post-load | clap `PossibleValuesParser` | The valid set is only known after root discovery loads the palette; clap parses earlier. |
+| Layered config | Global `~/.config/gbiv/config.toml` under the project `.gbiv/config.toml` | Project file only | Lets a user enable an extension once for every project, while each project can still override (gbv-1ht). |
+| Palette scope | Project file only | Merge palette extras from the global file too | Extra worktree slots are a property of one repository; a global extra would create worktrees in every project. |
+| Palette-dependent validation in handlers | `start --color`/`done`/`reset`/`exec` validate post-load | clap `PossibleValuesParser` | The valid set is only known after root discovery loads the palette; clap parses earlier. |
 | Exit code 1 for all errors | Single non-zero code | Per-error exit codes | Simple. gbiv is interactive, not heavily scripted. One non-zero code is sufficient. |
 
 ## Technical Debt & Inconsistencies

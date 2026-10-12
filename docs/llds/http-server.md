@@ -263,8 +263,8 @@ Shutdown signal handling uses the `ctrlc` crate (small, ~2 transitive deps) rath
 | Body of POST `/send` is not valid JSON | `400` |
 | `text` field present but empty string | `400` (HLD: caller responsible for not sending empty) |
 | Two simultaneous sends to the same color | Both go through; tmux serializes keystrokes per pane |
-| Daemon already running (port file exists and its port answers a loopback connect) | New `gbiv start` refuses to bind or touch the port file, exits with a clear message; existing daemon untouched (Single-Instance Guard, below) |
-| Port file exists but daemon is dead (port doesn't answer) | `gbiv start` proceeds normally, binds a fresh port, and overwrites the port file |
+| Daemon already running (port file exists and its port answers a loopback connect) | New `gbiv fleet start` refuses to bind or touch the port file, exits with a clear message; existing daemon untouched (Single-Instance Guard, below) |
+| Port file exists but daemon is dead (port doesn't answer) | `gbiv fleet start` proceeds normally, binds a fresh port, and overwrites the port file |
 | `POST /send` body exceeds the size cap (declared `Content-Length` or actual bytes) | `400`, body not treated as complete/parsed even if truncated bytes happen to be valid JSON |
 
 ## Technical Debt & Future Work

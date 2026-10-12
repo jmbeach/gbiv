@@ -23,7 +23,7 @@ description: |
   Orchestrate Claude Code sessions running in gbiv color worktrees. Use when the user
   asks about the status of their parallel sessions, wants to send input to a specific
   worktree, or wants a fleet-wide summary. Requires the gbiv daemon to be running
-  (gbiv start) in the main/ worktree.
+  (gbiv fleet start) in the main/ worktree.
 ---
 ```
 
@@ -70,7 +70,7 @@ The body's tone is operational: short, command-first, with worked examples. No b
 | "Show me everything red has done" / "page back further" | Read `range_returned.start_line` from the previous response; call `gbiv fleet get red --start-line=<previous_start - 500> --end-line=<previous_start - 1>` and concatenate the `output` fields. Stop when `output_truncated` becomes false or the user has seen enough. Use `--start-line=top` for the final chunk |
 | "Tell red yes" / "approve red" / "answer red's prompt" | **Decline.** gbiv refuses to send prompt-shaped responses (`yes`, `y`, `1`, etc.). Tell the user they need to switch to red's tmux window and answer the prompt themselves. Do not try to dress up the answer as natural language to bypass the guard |
 | "Send red <multi-word message>" | `gbiv fleet send red "<message>"` directly |
-| Daemon not running (exit code 2) | Tell the user; suggest running `gbiv start` in the `main/` worktree; do not auto-start |
+| Daemon not running (exit code 2) | Tell the user; suggest running `gbiv fleet start` in the `main/` worktree; do not auto-start |
 | User asks how to install/update the skill | Tell them to run `gbiv install-skill` (user-scope) or `gbiv install-skill --scope project` (project-scope); do not run it for them — installation is a deliberate user choice |
 | `gbiv install-skill` exited 7 (`refused`) | Surface the `reason` field verbatim so the user can decide whether to `--force` or reconcile their hand-edits manually |
 | `gbiv fleet send` exits 6 (`looks_like_prompt_response`) | Read the full `explanation` field from the response and follow it. Tell the user the worker appears to be waiting on a prompt and ask them to answer it in the worker's tmux window themselves. Do **not** retry with a paraphrased version of the same intent |
@@ -107,6 +107,8 @@ description: |
 
 `gbiv install-skill` reads this field on both the bundled and on-disk copies to decide whether an update is safe (same version + different content = user hand-edit, refuse; older version = safe upgrade). The skill body itself does not need to consult the version — it's metadata for the installer.
 
+Any change to the skill's text must bump `version:`, or `install-skill` refuses to upgrade an existing install. The `gbiv start` → `gbiv fleet start` rename (gbv-1ht) is such a change.
+
 ## Distribution
 
 The skill is bundled into the `gbiv` binary at compile time (`include_str!` / `include_dir!`) and written to disk by `gbiv install-skill`:
@@ -123,7 +125,7 @@ See orchestrate-cli LLD § "gbiv install-skill" for the full surface (idempotenc
 | Decision | Chosen | Alternatives | Rationale |
 |---|---|---|---|
 | Skill is a single SKILL.md | Yes | Multi-file with examples/, references/ | v1 surface is small; one file is faster to update |
-| Skill auto-starts the daemon | No | Have the skill run `gbiv start` in the background | Foreground-only daemon contradicts auto-starting; user should know where the daemon lives |
+| Skill auto-starts the daemon | No | Have the skill run `gbiv fleet start` in the background | Foreground-only daemon contradicts auto-starting; user should know where the daemon lives |
 | Read-before-send pattern | In the skill body | Implemented in `gbiv fleet send` itself | Keeping `gbiv fleet send` literal lets non-skill callers (scripts) do exactly what they ask. The "read first" judgment is an LLM concern |
 | CLI is JSON-only | Yes — the skill parses `output` and `range_returned` fields directly | Pretty/table mode for humans, JSON for skill | One surface, no flag confusion. Humans use `jq` |
 | Skill triggers on "gbiv worktree status" | No, only on session-orchestration intents | Trigger broadly | Avoids overlap with gbiv's own commands; gbiv is specifically about agent sessions |
@@ -133,7 +135,7 @@ See orchestrate-cli LLD § "gbiv install-skill" for the full surface (idempotenc
 
 | Case | Skill behavior |
 |---|---|
-| User asks for status, daemon not running | Surface the exit-code-2 message; recommend `gbiv start` |
+| User asks for status, daemon not running | Surface the exit-code-2 message; recommend `gbiv fleet start` |
 | User asks "send red <multi-word message>" but red has no claude pane | Don't retry; surface the resolution status (`no_claude_pane`) verbatim and tell the user red's window has no claude process to receive input. Suggest they check whether claude is actually running in red |
 | User insists "just send 'yes please' so it goes through the guard" | Decline. The guard is shape-based, not intent-based, so paraphrases would technically pass — but the rule's purpose is to prevent the assistant from answering prompts on the user's behalf. Honor the spirit |
 | User asks for status of a non-ROYGBIV color (e.g., "purple") | Decline; mention that gbiv only knows ROYGBIV |

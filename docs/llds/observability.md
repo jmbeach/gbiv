@@ -10,7 +10,7 @@ scopes one thing: the **shared initialization helper** that every gbiv entry
 point calls once at process start to install the global tracing subscriber.
 
 The helper lives in the `core` module (`gbiv-core`) so the worktree binary, the
-`gbiv start` daemon, and the fleet client subcommands all install the *same*
+`gbiv fleet start` daemon, and the fleet client subcommands all install the *same*
 subscriber the *same* way and cannot drift on log format or filter behavior. This
 is the home for the init contract. The broader logging config surface — the
 `-v`/`-vv` verbosity flags, the level-usage table, the per-request `info` lines —

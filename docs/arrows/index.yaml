@@ -1,5 +1,5 @@
 schema_version: 1
-last_updated: 2026-08-02
+last_updated: 2026-10-12
 
 # Taxonomy groups segments by domain within the single gbiv product.
 # Purely organizational.
@@ -10,6 +10,9 @@ taxonomy:
     - feature-ledger
     - observation
     - tmux-mirror
+  extensions:
+    - extension-runtime
+    - vat-extension
   orchestration:
     - observability
     - tmux-driver
@@ -47,10 +50,10 @@ arrows:
     audited: 2026-05-15
     audited_sha: 1638fe0
     blocks: [worktree-lifecycle, observation, tmux-mirror]
-    blockedBy: [cli-and-palette, worktree-lifecycle]
+    blockedBy: [cli-and-palette, worktree-lifecycle, extension-runtime]
     detail: feature-ledger.md
-    next: null
-    drift: null
+    next: "gbv-1ht: EARS for start/done (replacing FL-MARK-*), then tests and code"
+    drift: "LLD revised for gbv-1ht (start/done replace mark); specs and code not yet updated"
 
   observation:
     status: OK
@@ -144,6 +147,29 @@ arrows:
     blockedBy: []
     detail: orchestrate-skill.md
     next: null
+    drift: null
+
+  # extensions domain — gbv-1ht: LLDs drafted 2026-10-12; EARS, tests and code pending
+  extension-runtime:
+    status: MAPPED
+    sampled: 2026-10-12
+    audited: null
+    audited_sha: null
+    blocks: [feature-ledger, vat-extension]
+    blockedBy: [cli-and-palette]
+    detail: null
+    next: "gbv-1ht: EARS specs"
+    drift: null
+
+  vat-extension:
+    status: MAPPED
+    sampled: 2026-10-12
+    audited: null
+    audited_sha: null
+    blocks: []
+    blockedBy: [extension-runtime]
+    detail: null
+    next: "gbv-1ht: EARS specs"
     drift: null
 
 # Items found during mapping that don't yet belong to a segment.

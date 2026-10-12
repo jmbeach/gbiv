@@ -3,18 +3,19 @@
 **Created**: 2026-04-28
 **Status**: Draft
 
-> **Decision: `gbiv fleet` command group.** The orchestration client commands live
-> under a `gbiv fleet` subcommand group — `gbiv fleet status` / `gbiv fleet get
-> <color>` / `gbiv fleet send <color>` — so they don't collide with the worktree
-> `gbiv status` (observation domain). The daemon launcher (`gbiv start`) and
-> `gbiv install-skill` stay top-level.
+> **Decision: `gbiv fleet` command group.** The daemon launcher and the
+> orchestration client commands live under a `gbiv fleet` subcommand group —
+> `gbiv fleet start` / `gbiv fleet status` / `gbiv fleet get <color>` /
+> `gbiv fleet send <color>` — so they don't collide with the worktree commands
+> `gbiv status` (observation) and `gbiv fleet start` (feature ledger: put a task on a
+> color). `gbiv install-skill` stays top-level.
 
 ## Context
 
 This LLD covers the **orchestration** slice of the single `gbiv` binary — the
-`gbiv start` daemon and its HTTP client subcommands. It serves two roles:
+`gbiv fleet start` daemon and its HTTP client subcommands. It serves two roles:
 
-1. **Daemon mode** (`gbiv start`): runs the HTTP Server in the foreground.
+1. **Daemon mode** (`gbiv fleet start`): runs the HTTP Server in the foreground.
 2. **Client mode** (the orchestration client subcommands): thin HTTP clients that talk to a running daemon.
 
 Splitting these into two binaries was considered and rejected — sharing one binary keeps installation simple (`cargo install gbiv`) and lets the skill teach a single command name. clap's subcommand groups handle the dispatch.
@@ -26,7 +27,7 @@ Splitting these into two binaries was considered and rejected — sharing one bi
 ## Subcommands
 
 ```
-gbiv start         [--session-name <NAME>] [--bind <ADDR>]
+gbiv fleet start         [--session-name <NAME>] [--bind <ADDR>]
 gbiv fleet status        [--lines <N>]
 gbiv fleet get <COLOR>   [--lines <N> | --start-line <N> --end-line <N>]
 gbiv fleet send <COLOR> <TEXT>
@@ -36,9 +37,9 @@ gbiv install-skill [--scope user|project] [--force]
 `gbiv fleet status` and `gbiv fleet get` always print JSON to stdout — there is no human-pretty mode. See "Output Format" below for the rationale.
 
 No `gbiv stop` — Ctrl+C in the daemon's terminal is the only stop mechanism in v1 (HLD).
-No `gbiv restart` — that's `Ctrl+C` then `gbiv start` again.
+No `gbiv restart` — that's `Ctrl+C` then `gbiv fleet start` again.
 
-### gbiv start
+### gbiv fleet start
 
 Runs the HTTP Server. Foreground only. See HTTP Server LLD for lifecycle details. Flags:
 
@@ -170,11 +171,11 @@ Every subcommand emits JSON to stdout. There is no `--json` flag because there i
 All client subcommands need the daemon's port. The lookup:
 
 1. Walk up from CWD to find the gbiv root (reuses `core` module's root-discovery utility).
-2. Read `<gbiv-root>/main/<repo>/.gbiv/port`. If missing, exit 2 with `"daemon not running (no port file at <path>); start it with: gbiv start"`.
+2. Read `<gbiv-root>/main/<repo>/.gbiv/port`. If missing, exit 2 with `"daemon not running (no port file at <path>); start it with: gbiv fleet start"`.
 3. Parse as a `u16`. If malformed, exit 2 with `"port file at <path> is corrupt"`.
-4. Issue the request to `127.0.0.1:<port>` (each subcommand's one HTTP call — see § HTTP Client). If the connection is refused, or the connect/read timeout (§ HTTP Client) elapses before a response is received, exit 2 with `"port file present but daemon not responding (stale?); restart with: gbiv start"`. This is the same exit code as a missing/corrupt port file — from the caller's perspective a stale port file and no port file both mean "no reachable daemon" — but the message differs so a human reading stderr can tell them apart.
+4. Issue the request to `127.0.0.1:<port>` (each subcommand's one HTTP call — see § HTTP Client). If the connection is refused, or the connect/read timeout (§ HTTP Client) elapses before a response is received, exit 2 with `"port file present but daemon not responding (stale?); restart with: gbiv fleet start"`. This is the same exit code as a missing/corrupt port file — from the caller's perspective a stale port file and no port file both mean "no reachable daemon" — but the message differs so a human reading stderr can tell them apart.
 
-Stale port files are detected lazily — on the next `gbiv start`, the new daemon overwrites the file with its real port.
+Stale port files are detected lazily — on the next `gbiv fleet start`, the new daemon overwrites the file with its real port.
 
 A response that *is* received but isn't valid JSON, or is JSON that doesn't match the expected shape (e.g. some unrelated local process is listening on that port), is not a "daemon not running" case — connecting worked. It falls through to each subcommand's generic exit 1.
 
@@ -267,7 +268,7 @@ Timestamps are UTC, ISO 8601. Module path included so users can target `RUST_LOG
 
 ### Initialization
 
-Both `gbiv start` (daemon) and the client subcommands install the same subscriber at process start, before any other work. The init helper lives in the `core` module so the daemon and the client subcommands cannot drift on log format.
+Both `gbiv fleet start` (daemon) and the client subcommands install the same subscriber at process start, before any other work. The init helper lives in the `core` module so the daemon and the client subcommands cannot drift on log format.
 
 ### What gets logged at `info` (v1 baseline)
 
@@ -288,13 +289,14 @@ Anything more detailed (request bodies, tmux command lines, process tree visits)
 | Decision | Chosen | Alternatives | Rationale |
 |---|---|---|---|
 | Single binary, multiple subcommands | Yes | Separate `gbivd` daemon binary | One install, one command for the skill to teach |
+| Daemon command name | `gbiv fleet start` | Top-level `gbiv start` (the original name) | `gbiv start` now belongs to the feature ledger (put a task on a color, gbv-1ht). Grouping the daemon with the other `fleet` commands keeps the two from colliding. A breaking rename; no alias is kept. |
 | HTTP client | `ureq` | `reqwest` (with sync), raw `std::net` + manual parsing | `ureq` is sync, light, JSON-ready; `reqwest` pulls async dep graph |
 | `gbiv fleet status` output format | JSON only | Pretty table; header + raw lines; heuristic-classified state ("idle"/"waiting"/etc.) | LLM-first audience (see § Context > Audience). Classification belongs in the LLM, not in gbiv |
 | Default `--lines` for `gbiv fleet status` | 35 | 5; 50; match `gbiv fleet get` (200) | Big enough to capture a prompt-with-options or tool-use exchange; small enough that a 7-color survey doesn't blow context |
 | Distinct exit codes for daemon-down vs no-pane | Yes (2, 3, 4, 5) | Always 1 with stderr message | Lets the skill branch programmatically without parsing stderr |
 | Send appends Enter implicitly | Yes | Require explicit Enter in text | Most use cases want Enter; explicit flag for "no Enter" can come later if needed |
 | Local guard pre-check implementation | Call `http_server::guard_check`/`guard_explanation` directly | Reimplement the rule set in the CLI module | Same binary, same crate — a second copy of the rule set (or its `reason` strings) is drift risk with no isolation benefit; a real `cargo install`'d user gets one guard, not two that can silently diverge |
-| Port file path | `<main-worktree>/.gbiv/port` | `~/.gbiv/<hash>.port`, `$XDG_STATE_HOME` | HLD decision: in-workspace; `gbiv start` auto-adds `.gbiv/` to `.git/info/exclude` via `core::ensure_gitignore_entry` so the user never edits gitignore |
+| Port file path | `<main-worktree>/.gbiv/port` | `~/.gbiv/<hash>.port`, `$XDG_STATE_HOME` | HLD decision: in-workspace; `gbiv fleet start` auto-adds `.gbiv/` to `.git/info/exclude` via `core::ensure_gitignore_entry` so the user never edits gitignore |
 | Logging framework | `tracing` + `tracing-subscriber` | `log` + `env_logger`, hand-rolled `eprintln!` | Structured fields and spans available from day one; works for sync now and async later; switching to `log` later would touch every call site |
 | Log destination in v1 | stderr only | File sink, syslog, both | Foreground daemon model — stderr is what the user sees; framework keeps file/syslog a one-liner away |
 | Skill bundling | `include_str!`/`include_dir!` at compile time; written by `gbiv install-skill` | Manual `cp -r`; downloader that fetches from GitHub at install time; separate package | A `cargo install`'d binary with no source tree must still work. Bundling guarantees the skill matches the binary's CLI surface byte-for-byte |
@@ -311,7 +313,7 @@ Anything more detailed (request bodies, tmux command lines, process tree visits)
 | `gbiv fleet send red <very long text>` | Forwarded as-is; HTTP server enforces any size limits, not the CLI |
 | Two `gbiv fleet send red` racing | Both fire HTTP requests; daemon serializes (HTTP Server: thread-per-request, tmux serializes keys per-pane) |
 | `--lines` combined with `--start-line`/`--end-line` on `gbiv fleet get` | clap rejects with a usage error before any HTTP call |
-| User invokes `gbiv start` while a daemon is already running | TCP bind fails; exit 1 with "another gbiv daemon may be running on port <N>; check the port file or run `lsof -i:<N>`" |
+| User invokes `gbiv fleet start` while a daemon is already running | TCP bind fails; exit 1 with "another gbiv daemon may be running on port <N>; check the port file or run `lsof -i:<N>`" |
 
 ## Technical Debt & Future Work
 

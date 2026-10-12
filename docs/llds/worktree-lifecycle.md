@@ -132,7 +132,7 @@ On rebase conflict, `rebase_onto()` automatically runs `git rebase --abort` to l
 9. Remove the color's entries from GBIV.md in main repo
 
 ### All-Color Reset Flow (no color arg)
-- **Soft mode**: parse GBIV.md, only reset colors with `[done]` status
+- **Soft mode**: parse GBIV.md, only reset colors with `[done]` status. Since gbv-1ht nothing writes `[done]` (`gbiv done` removes the entry instead), so this finds nothing to reset unless a file still carries the legacy tag. gbv-tkn removes `reset` altogether.
 - **Hard mode**: reset all colors regardless of status; prompt for confirmation unless `--yes`
 
 ### Reset Decision Table
