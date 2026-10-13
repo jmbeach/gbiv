@@ -15,8 +15,9 @@ Specs for command dispatch, argument parsing, and terminal color formatting.
 - [x] CLI-DISPATCH-007: When the `exec` handler receives Ok with non-empty output, the system shall print the output to stdout without a trailing newline added.
 - [x] CLI-DISPATCH-008: When the `exec` handler receives Ok with empty output, the system shall produce no stdout.
 - [x] CLI-DISPATCH-009: When the `exec` handler receives Err, the system shall print the error to stderr without the "Error: " prefix and exit with code 1.
-- [x] CLI-DISPATCH-010: When the `mark` handler receives Ok, the system shall print the success message to stdout via println.
+- [ ] CLI-DISPATCH-010: When the `start` or `done` handler receives Ok, the system shall print the success message to stdout via println.
 - [x] CLI-DISPATCH-011: When the top-level error handler prints a handler's Err to stderr, it shall print the full `anyhow` cause chain (the `{:#}` format) when `core::observability::debug_enabled()` is true, and only the top-level message otherwise.
+- [ ] CLI-DISPATCH-012: The system shall provide the top-level subcommands `init`, `status`, `start`, `done`, `reset`, `rebase-all`, `repair`, `tidy`, `exec`, `install-skill`, `install-extension`, `fleet` and `tmux`, and shall not provide `mark`.
 
 ## Exec Argument Parsing
 
@@ -59,5 +60,14 @@ Specs for command dispatch, argument parsing, and terminal color formatting.
 - [x] CLI-COLOR-024: An extra name equal case-insensitively to a reserved word ("main" or "all") shall cause `Palette::load` to fail with a `ConfigError`.
 - [x] CLI-COLOR-025: When `.gbiv/config.toml` exists but cannot be parsed as TOML, `Palette::load` shall fail with a `ConfigError` naming the file.
 - [x] CLI-COLOR-026: When palette loading fails, the invoking command shall abort with that error rather than falling back to BASE_COLORS.
-- [x] CLI-COLOR-027: Color-argument validation for `mark`, `reset`, and `exec` shall check the argument against the active palette at the command-handler level (not via a clap `PossibleValuesParser`), because the valid set is known only after root discovery loads the palette.
+- [ ] CLI-COLOR-027: Color-argument validation for `start --color`, `done`, `reset`, and `exec` shall check the argument against the active palette at the command-handler level (not via a clap `PossibleValuesParser`), because the valid set is known only after root discovery loads the palette.
 - [x] CLI-COLOR-028: When the `[palette]` table contains an unrecognized key (e.g. a misspelled `extra`), `Palette::load` shall fail with a `ConfigError::Parse` naming the file, so a typo fails loudly instead of silently yielding a base-only palette. Unrecognized *top-level* tables remain ignored (per CLI-COLOR-020) so the shared config file may host other sections.
+
+## Layered Configuration
+
+- [ ] CLI-CFG-001: The system shall read an optional global config file at `$XDG_CONFIG_HOME/gbiv/config.toml`, or `~/.config/gbiv/config.toml` when `XDG_CONFIG_HOME` is unset, in addition to the optional project config at `<gbiv-root>/.gbiv/config.toml`.
+- [ ] CLI-CFG-002: When either config file is absent, the system shall behave as if that file were empty.
+- [ ] CLI-CFG-003: The active palette's extras shall come from the project config's `[palette]` table only (CLI-COLOR-019); when the global config contains a `[palette]` table, the system shall ignore it and print a warning naming the global file.
+- [ ] CLI-CFG-004: When combining the two files' `[extensions]` tables, the system shall follow the Extension Runtime's merge rules (EXT-CFG-001, EXT-CFG-002).
+- [ ] CLI-CFG-005: If the global config file exists but cannot be parsed as TOML, then a command that reads it shall exit `1` with an error naming the file, as for the project file (CLI-COLOR-025, CLI-COLOR-026).
+- [ ] CLI-CFG-006: Commands other than `gbiv start`, `gbiv done` and `gbiv install-extension` shall not parse the `[extensions]` tables, so an invalid `[extensions]` configuration cannot cause them to fail.

@@ -1,9 +1,9 @@
 # HTTP Server
 
-Specs for the orchestration HTTP Server — the `gbiv start` daemon's inbound
+Specs for the orchestration HTTP Server — the `gbiv fleet start` daemon's inbound
 surface, its port-file discovery convention, and the prompt-response guard on
 sends. Implemented in the `gbiv` binary's `orchestration::http_server` module
-(daemon lifecycle + routing) plus the `start` CLI subcommand, built on the
+(daemon lifecycle + routing) plus the `fleet start` CLI subcommand, built on the
 `orchestration::pane_locator` and `orchestration::tmux_driver` modules and the
 shared `gbiv_core` primitives (`root`, `tmux`, `gitignore`, `palette`,
 `observability`).
@@ -12,7 +12,7 @@ shared `gbiv_core` primitives (`root`, `tmux`, `gitignore`, `palette`,
 
 ## Startup & Discovery
 
-- [x] **HTTP-SRV-001**: When `gbiv start` runs, the daemon shall discover the gbiv root from the current working directory via `core::find_gbiv_root`; if none is found, the process shall exit non-zero with a message stating it is not inside a gbiv project.
+- [ ] **HTTP-SRV-001**: When `gbiv fleet start` runs, the daemon shall discover the gbiv root from the current working directory via `core::find_gbiv_root`; if none is found, the process shall exit non-zero with a message stating it is not inside a gbiv project.
 - [x] **HTTP-SRV-002**: The daemon shall resolve the main worktree's repo directory via `core::find_repo_in_worktree(<gbiv-root>/main)`.
 - [x] **HTTP-SRV-003**: The daemon shall resolve the tmux session name via `core::tmux::session_name_for_root(folder_name)` unless a `--session-name` value was supplied, in which case the supplied value is used verbatim (identical resolution order to `gbiv tmux new-session`/`gbiv tmux sync`).
 - [x] **HTTP-SRV-004**: The daemon shall load the active palette once at startup via `gbiv_core::palette::Palette::load(&gbiv_root)` and hold it for the process lifetime; a malformed `.gbiv/config.toml` shall cause the process to exit non-zero with the underlying `ConfigError`.
@@ -20,7 +20,7 @@ shared `gbiv_core` primitives (`root`, `tmux`, `gitignore`, `palette`,
 - [x] **HTTP-SRV-006**: The daemon shall bind a TCP listener on `127.0.0.1:0` (kernel-assigned ephemeral port); since this always requests a fresh port from the kernel, a bind failure here reflects a genuine OS-level problem (resource exhaustion, permission), not a port already in use by another gbiv daemon (see HTTP-SRV-060 for that case) — the process shall exit non-zero with a message naming the likely cause.
 - [x] **HTTP-SRV-007**: The daemon shall create `<gbiv-root>/main/<repo>/.gbiv/` if it does not already exist.
 - [x] **HTTP-SRV-008**: The daemon shall write the bound port to `<gbiv-root>/main/<repo>/.gbiv/port` as plain ASCII decimal followed by a newline (e.g. `54321\n`), overwriting any existing content.
-- [x] **HTTP-SRV-009**: The daemon shall ensure `.gbiv/` is present in `.git/info/exclude` via `core::gitignore::ensure_gitignore_entry`, idempotently (a second `gbiv start` does not duplicate the entry).
+- [ ] **HTTP-SRV-009**: The daemon shall ensure `.gbiv/` is present in `.git/info/exclude` via `core::gitignore::ensure_gitignore_entry`, idempotently (a second `gbiv fleet start` does not duplicate the entry).
 - [x] **HTTP-SRV-010**: On successful bind, the daemon shall print `gbiv listening on http://127.0.0.1:<port>` to stdout and log an equivalent `info`-level line (host, port, tmux session name, gbiv root path).
 - [x] **HTTP-SRV-011**: After startup, the daemon shall block in a request-accept loop until a shutdown signal is received.
 
@@ -113,11 +113,11 @@ tmux Driver call.
 - [x] **HTTP-SRV-055**: A handler-level `TmuxError::SendKeysIncomplete` shall map to HTTP `502`.
 - [x] **HTTP-SRV-056**: A handler-level `TmuxError::Other`, or any other unclassified error, shall map to HTTP `500`.
 
-## `gbiv start` CLI
+## `gbiv fleet start` CLI
 
-- [x] **HTTP-SRV-057**: `gbiv start` shall accept an optional `--session-name <NAME>` flag with identical resolution semantics to `gbiv tmux new-session --session-name` / `gbiv tmux sync --session-name` (HTTP-SRV-003).
-- [x] **HTTP-SRV-058**: `gbiv start` shall accept an optional `--bind <ADDR>` flag which is parsed but ignored in v1 — the daemon always binds `127.0.0.1` regardless of its value (HTTP-SRV-015).
-- [x] **HTTP-SRV-059**: `gbiv start` shall run in the foreground and never daemonize or fork into the background.
+- [ ] **HTTP-SRV-057**: `gbiv fleet start` shall accept an optional `--session-name <NAME>` flag with identical resolution semantics to `gbiv tmux new-session --session-name` / `gbiv tmux sync --session-name` (HTTP-SRV-003).
+- [ ] **HTTP-SRV-058**: `gbiv fleet start` shall accept an optional `--bind <ADDR>` flag which is parsed but ignored in v1 — the daemon always binds `127.0.0.1` regardless of its value (HTTP-SRV-015).
+- [ ] **HTTP-SRV-059**: `gbiv fleet start` shall run in the foreground and never daemonize or fork into the background.
 
 ## References
 

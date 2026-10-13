@@ -1,8 +1,8 @@
 # Arrow: Feature Ledger
 
-GBIV.md parsing, mutation, and the mark command.
+GBIV.md parsing and mutation, and the `gbiv start` / `gbiv done` commands (replacing `gbiv mark`, gbv-1ht).
 
-**Status**: OK (audited 2026-05-15, git `1638fe0`) — All 36 specs implemented.
+**Status**: OK (audited 2026-05-15, git `1638fe0`); gbv-1ht in progress — LLD and specs revised 2026-10-13, 28 new specs not yet implemented.
 
 ## References
 
@@ -11,7 +11,7 @@ GBIV.md parsing, mutation, and the mark command.
 | HLD sections | `docs/high-level-design.md` § The Feature Lifecycle |
 | LLD | `docs/llds/feature-ledger.md` |
 | EARS specs | `docs/specs/feature-ledger.md` |
-| Source | `crates/gbiv/src/gbiv_md.rs`, `crates/gbiv/src/commands/mark.rs` |
+| Source | `crates/gbiv/src/gbiv_md.rs`, `crates/gbiv/src/commands/start.rs`, `crates/gbiv/src/commands/done.rs` (planned; `mark.rs` to be deleted) |
 | Tests | `crates/gbiv/src/gbiv_md.rs` (inline tests) |
 
 ## Spec Coverage
@@ -19,9 +19,11 @@ GBIV.md parsing, mutation, and the mark command.
 | Category | Spec IDs | Implemented | Deferred | Gaps |
 |---|---|---|---|---|
 | Parsing | FL-PARSE-001..014 | 14 | 0 | 0 |
-| Mutations | FL-MUTATE-001..011 | 11 | 0 | 0 |
-| Mark Command | FL-MARK-001..011 | 11 | 0 | 0 |
-| **Total** | | **36** | **0** | **0** |
+| Mutations | FL-MUTATE-007..017 | 5 | 0 | 6 |
+| Tag Matching | FL-TAG-001 | 0 | 0 | 1 |
+| Start Command | FL-START-001..012 | 0 | 0 | 12 |
+| Done Command | FL-DONE-001..009 | 0 | 0 | 9 |
+| **Total** | | **19** | **0** | **28** |
 
 ## Key Findings
 

@@ -2,8 +2,8 @@
 
 Specs for the fleet orchestration **client** subcommands — `gbiv fleet status`,
 `gbiv fleet get <color>`, and `gbiv fleet send <color> <text>` — thin HTTP
-clients over the `gbiv start` daemon (`docs/specs/http-server.md`). Scoped to
-this slice only: `gbiv start` itself is specced in `docs/specs/http-server.md`
+clients over the `gbiv fleet start` daemon (`docs/specs/http-server.md`). Scoped to
+this slice only: `gbiv fleet start` itself is specced in `docs/specs/http-server.md`
 (HTTP-SRV-057 through HTTP-SRV-059). `gbiv install-skill` is a distinct
 segment of the same LLD (a filesystem installer, not an HTTP client) and gets
 its own ID prefix, `INSTALL-CLI-*`, in the section below. The bundled
@@ -14,7 +14,7 @@ its own ID prefix, `INSTALL-CLI-*`, in the section below. The bundled
 
 ## Command Surface
 
-- [x] **FLEET-CLI-001**: The system shall provide a `gbiv fleet` subcommand group containing `status`, `get`, and `send` subcommands.
+- [ ] **FLEET-CLI-001**: The system shall provide a `gbiv fleet` subcommand group containing `start` (the daemon; HTTP-SRV-057 through HTTP-SRV-059), `status`, `get`, and `send` subcommands, and shall not provide a top-level daemon `start` (`gbiv start` belongs to the feature ledger, FL-START-001).
 - [x] **FLEET-CLI-002**: `gbiv fleet status` shall accept an optional `--lines <N>` flag (default `35`), forwarded verbatim as the `lines` query parameter on `GET /sessions`.
 - [x] **FLEET-CLI-003**: `gbiv fleet get <COLOR>` shall accept an optional `--lines <N>` flag in tail mode, forwarded verbatim as the `lines` query parameter on `GET /session/:color`; when omitted, no `lines` parameter is sent and the server's own default (HTTP-SRV-028) applies.
 - [x] **FLEET-CLI-004**: `gbiv fleet get <COLOR>` shall accept optional `--start-line <N>` and `--end-line <N>` flags for window mode, forwarded verbatim as the `start_line`/`end_line` query parameters; the literal value `top` for `--start-line` shall be forwarded as the literal string `top` (HTTP-SRV-029 maps it to `i32::MIN` server-side).
@@ -25,10 +25,10 @@ its own ID prefix, `INSTALL-CLI-*`, in the section below. The bundled
 ## Port Discovery & HTTP Client
 
 - [x] **FLEET-CLI-010**: Before issuing any HTTP request, every `gbiv fleet` subcommand shall resolve the gbiv root from the current working directory via `core::find_gbiv_root`; if none is found, the command shall exit `2` with a message stating it is not inside a gbiv project.
-- [x] **FLEET-CLI-011**: The system shall resolve the daemon's port by reading `<gbiv-root>/main/<repo>/.gbiv/port` (`<repo>` located via `core::find_repo_in_worktree`); if the file does not exist, the command shall exit `2` with a message naming the expected path and suggesting `gbiv start`.
+- [ ] **FLEET-CLI-011**: The system shall resolve the daemon's port by reading `<gbiv-root>/main/<repo>/.gbiv/port` (`<repo>` located via `core::find_repo_in_worktree`); if the file does not exist, the command shall exit `2` with a message naming the expected path and suggesting `gbiv fleet start`.
 - [x] **FLEET-CLI-012**: If the port file's trimmed content does not parse as a `u16`, the command shall exit `2` with a message stating the port file is corrupt.
 - [x] **FLEET-CLI-013**: The system shall issue exactly one HTTP request per subcommand invocation to `127.0.0.1:<port>`, with a 1-second connect timeout and a 30-second read timeout.
-- [x] **FLEET-CLI-014**: If the connection is refused, or the connect/read timeout elapses before a response is received, the command shall exit `2` with a message stating the daemon is not responding and suggesting `gbiv start` — the same exit code as FLEET-CLI-011/012 (a stale port file and a missing one both mean "no reachable daemon" to the caller), with a message that distinguishes the two cases for a human reading stderr.
+- [ ] **FLEET-CLI-014**: If the connection is refused, or the connect/read timeout elapses before a response is received, the command shall exit `2` with a message stating the daemon is not responding and suggesting `gbiv fleet start` — the same exit code as FLEET-CLI-011/012 (a stale port file and a missing one both mean "no reachable daemon" to the caller), with a message that distinguishes the two cases for a human reading stderr.
 - [x] **FLEET-CLI-015**: If a response is received but is not valid JSON, or does not match the expected shape for that endpoint (e.g. an unrelated local process is listening on the recorded port), the command shall exit `1` with a message describing the unexpected response — distinct from FLEET-CLI-014, since a response was in fact received.
 
 ## `gbiv fleet status`
@@ -126,5 +126,5 @@ Applies uniformly to both scopes once the destination directory (INSTALL-CLI-010
 ## References
 
 - LLD: `docs/llds/orchestrate-cli.md`
-- Companion: `docs/specs/http-server.md` (server side of the HTTP contract; `gbiv start` itself)
+- Companion: `docs/specs/http-server.md` (server side of the HTTP contract; `gbiv fleet start` itself)
 - Companion: `docs/specs/orchestrate-skill.md` (the bundled `SKILL.md`'s own content requirements)

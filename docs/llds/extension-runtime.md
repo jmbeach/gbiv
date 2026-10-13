@@ -122,8 +122,8 @@ extension can never block `gbiv status` or `gbiv fleet start`.
 ## Configuration
 
 The `[extensions]` table lives in the layered config (global, then project; see
-`docs/llds/cli-and-palette.md` § Layered configuration). A project-level value
-replaces the global value for the same key, and lists are replaced whole.
+`docs/llds/cli-and-palette.md` § Layered configuration); how its two layers
+combine is defined under Merging layers below.
 
 ```toml
 [extensions]

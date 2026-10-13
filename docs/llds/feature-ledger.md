@@ -106,7 +106,7 @@ enum GbivMdError {
 ### Flow
 
 1. Find the gbiv root, the main repo and its GBIV.md; load the palette and config.
-2. **Pick a color.** A color is *free* when no GBIV.md entry carries its tag (whatever its worktree holds).
+2. **Pick a color.** A color is *free* when no GBIV.md entry has it as its color tag (whatever its worktree holds).
    - With `--color`: it must be in the active palette and free, else error.
    - Without: the first free color in palette order (ROYGBIV, then extras).
    - None free → error `no free color (all N colors have GBIV.md entries)`. No extension loads.

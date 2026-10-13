@@ -52,8 +52,8 @@ arrows:
     blocks: [worktree-lifecycle, observation, tmux-mirror]
     blockedBy: [cli-and-palette, worktree-lifecycle, extension-runtime]
     detail: feature-ledger.md
-    next: "gbv-1ht: EARS for start/done (replacing FL-MARK-*), then tests and code"
-    drift: "LLD revised for gbv-1ht (start/done replace mark); specs and code not yet updated"
+    next: "gbv-1ht: tests and code for FL-START-*, FL-DONE-*, FL-TAG-001, FL-MUTATE-012..017"
+    drift: "LLD and specs revised for gbv-1ht (start/done replace mark); code not yet updated"
 
   observation:
     status: OK
@@ -149,7 +149,7 @@ arrows:
     next: null
     drift: null
 
-  # extensions domain — gbv-1ht: LLDs drafted 2026-10-12; EARS, tests and code pending
+  # extensions domain — gbv-1ht: LLDs + EARS drafted (2026-10-12/13); tests and code pending
   extension-runtime:
     status: MAPPED
     sampled: 2026-10-12
@@ -158,7 +158,7 @@ arrows:
     blocks: [feature-ledger, vat-extension]
     blockedBy: [cli-and-palette]
     detail: null
-    next: "gbv-1ht: EARS specs"
+    next: "gbv-1ht: tests and code"
     drift: null
 
   vat-extension:
@@ -169,7 +169,7 @@ arrows:
     blocks: []
     blockedBy: [extension-runtime]
     detail: null
-    next: "gbv-1ht: EARS specs"
+    next: "gbv-1ht: tests and code"
     drift: null
 
 # Items found during mapping that don't yet belong to a segment.
