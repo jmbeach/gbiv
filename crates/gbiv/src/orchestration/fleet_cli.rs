@@ -391,6 +391,64 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_DAEMON_NOT_RUNNING);
     }
 
+    #[test]
+    // @spec FLEET-CLI-011
+    fn missing_port_file_message_names_path_and_suggests_fleet_start() {
+        let tmp = TempDir::new().unwrap();
+        let (_root, main_repo) = setup_gbiv_layout(tmp.path(), "proj");
+        let outcome = locate_port_file(&main_repo).unwrap_err();
+        assert_eq!(outcome.exit_code, EXIT_DAEMON_NOT_RUNNING);
+        let stderr = outcome.stderr.unwrap_or_default();
+        let expected_path = main_repo.join(".gbiv").join("port");
+        assert!(
+            stderr.contains(&expected_path.display().to_string()),
+            "message must name the expected path: {stderr}"
+        );
+        assert!(
+            stderr.contains("gbiv fleet start"),
+            "message must suggest `gbiv fleet start`: {stderr}"
+        );
+    }
+
+    #[test]
+    // @spec FLEET-CLI-014
+    fn daemon_not_responding_message_suggests_fleet_start() {
+        let tmp = TempDir::new().unwrap();
+        let (_root, main_repo) = setup_gbiv_layout(tmp.path(), "proj");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let dead_port = listener.local_addr().unwrap().port();
+        drop(listener);
+        write_port_file(&main_repo, dead_port);
+
+        let outcome = run_status(&main_repo, None);
+        assert_eq!(outcome.exit_code, EXIT_DAEMON_NOT_RUNNING);
+        let stderr = outcome.stderr.unwrap_or_default();
+        assert!(
+            stderr.contains("not responding"),
+            "message must say the daemon is not responding: {stderr}"
+        );
+        assert!(
+            stderr.contains("gbiv fleet start"),
+            "message must suggest `gbiv fleet start`: {stderr}"
+        );
+    }
+
+    #[test]
+    // @spec FLEET-CLI-011, FLEET-CLI-014
+    fn missing_and_stale_port_file_messages_are_distinguishable() {
+        let tmp = TempDir::new().unwrap();
+        let (_root, main_repo) = setup_gbiv_layout(tmp.path(), "proj");
+        let missing = locate_port_file(&main_repo).unwrap_err().stderr.unwrap();
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let dead_port = listener.local_addr().unwrap().port();
+        drop(listener);
+        write_port_file(&main_repo, dead_port);
+        let stale = run_status(&main_repo, None).stderr.unwrap();
+
+        assert_ne!(missing, stale);
+    }
+
     // ---- run_get (FLEET-CLI-030 through -034, end-to-end) --------------------
 
     #[test]

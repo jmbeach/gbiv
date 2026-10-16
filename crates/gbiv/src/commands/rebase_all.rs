@@ -362,4 +362,123 @@ mod tests {
             );
         }
     }
+
+    fn git_ok(args: &[&str], dir: &Path) -> String {
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .output()
+            .expect("spawn git");
+        assert!(
+            out.status.success(),
+            "git {args:?} in {} failed: {}",
+            dir.display(),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    fn configure_ident(dir: &Path) {
+        git_ok(&["config", "user.email", "t@t.com"], dir);
+        git_ok(&["config", "user.name", "T"], dir);
+    }
+
+    // @spec WTL-REBASE-004, WTL-REBASE-005
+    #[test]
+    #[serial_test::serial]
+    fn rebase_all_pulls_main_with_autostash_over_uncommitted_edits() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let base = tmp.path();
+        let project = "proj";
+        let ten_lines: String = (1..=10).map(|i| format!("line {i}\n")).collect();
+
+        // origin (bare) seeded with notes.txt
+        let seed = base.join("seed");
+        fs::create_dir_all(&seed).unwrap();
+        git_ok(&["init", "-q", "-b", "main"], &seed);
+        configure_ident(&seed);
+        fs::write(seed.join("notes.txt"), &ten_lines).unwrap();
+        git_ok(&["add", "."], &seed);
+        git_ok(&["commit", "-q", "-m", "init"], &seed);
+        let origin = base.join("origin.git");
+        git_ok(
+            &[
+                "clone",
+                "-q",
+                "--bare",
+                seed.to_str().unwrap(),
+                origin.to_str().unwrap(),
+            ],
+            base,
+        );
+
+        // gbiv workspace: main/<proj> is a clone; an empty red/ dir marks the root.
+        let root = base.join(project);
+        fs::create_dir_all(root.join("main")).unwrap();
+        fs::create_dir_all(root.join("red")).unwrap();
+        let main_repo = root.join("main").join(project);
+        git_ok(
+            &[
+                "clone",
+                "-q",
+                origin.to_str().unwrap(),
+                main_repo.to_str().unwrap(),
+            ],
+            base,
+        );
+        configure_ident(&main_repo);
+
+        // Upstream changes line 1 of notes.txt.
+        let other = base.join("other");
+        git_ok(
+            &[
+                "clone",
+                "-q",
+                origin.to_str().unwrap(),
+                other.to_str().unwrap(),
+            ],
+            base,
+        );
+        configure_ident(&other);
+        fs::write(
+            other.join("notes.txt"),
+            ten_lines.replacen("line 1\n", "line 1 upstream\n", 1),
+        )
+        .unwrap();
+        git_ok(&["commit", "-q", "-am", "upstream edit"], &other);
+        git_ok(&["push", "-q", "origin", "main"], &other);
+        let upstream_head = git_ok(&["rev-parse", "HEAD"], &other);
+
+        // Main has an uncommitted edit to the same file (line 10): a plain
+        // `git pull` refuses ("local changes would be overwritten").
+        fs::write(
+            main_repo.join("notes.txt"),
+            ten_lines.replacen("line 10\n", "line 10 local\n", 1),
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap_or_else(|_| std::env::temp_dir());
+        std::env::set_current_dir(&root).unwrap();
+        let result = super::rebase_all_command();
+        let _ = std::env::set_current_dir(&original_dir);
+
+        assert!(
+            result.is_ok(),
+            "rebase-all must pull past the dirty main: {result:?}"
+        );
+        assert_eq!(
+            git_ok(&["rev-parse", "HEAD"], &main_repo),
+            upstream_head,
+            "main must be at the pulled commit"
+        );
+        let notes = fs::read_to_string(main_repo.join("notes.txt")).unwrap();
+        assert!(
+            notes.contains("line 1 upstream"),
+            "upstream change pulled:\n{notes}"
+        );
+        assert!(
+            notes.contains("line 10 local"),
+            "local edit survives:\n{notes}"
+        );
+    }
 }

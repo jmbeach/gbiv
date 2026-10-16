@@ -410,9 +410,29 @@ mod tests {
     #[test]
     // @spec ORCH-SKILL-014
     fn bundled_skill_instructs_not_auto_starting_daemon_on_exit_2() {
-        assert!(BUNDLED_SKILL_MD.contains("exit code 2"));
-        assert!(BUNDLED_SKILL_MD.contains("gbiv start"));
-        assert!(BUNDLED_SKILL_MD.contains("do not auto-start"));
+        let row = BUNDLED_SKILL_MD
+            .lines()
+            .find(|l| l.contains("exit code 2"))
+            .expect("a decision-table row for exit code 2");
+        assert!(
+            row.contains("gbiv fleet start"),
+            "exit-2 row must suggest `gbiv fleet start`: {row}"
+        );
+        assert!(row.contains("do not auto-start"), "{row}");
+    }
+
+    #[test]
+    // @spec ORCH-SKILL-014
+    fn bundled_skill_never_names_bare_gbiv_start_as_the_daemon() {
+        // `gbiv start` is now the feature-ledger command; every daemon
+        // reference in the skill must use `gbiv fleet start`.
+        for (i, line) in BUNDLED_SKILL_MD.lines().enumerate() {
+            assert!(
+                !line.contains("gbiv start"),
+                "SKILL.md line {} still says `gbiv start`: {line}",
+                i + 1
+            );
+        }
     }
 
     #[test]

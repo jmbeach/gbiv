@@ -279,6 +279,217 @@ mod tests {
             Err(ConfigError::InvalidName { .. })
         ));
     }
+
+    // ---- Layered configuration (gbv-1ht) ------------------------------------
+
+    fn write_file(path: &Path, body: &str) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, body).unwrap();
+    }
+
+    // @spec CLI-CFG-001
+    #[test]
+    fn global_config_path_prefers_xdg_config_home() {
+        let xdg = Path::new("/x/cfg");
+        let home = Path::new("/h/me");
+        assert_eq!(
+            global_config_path(Some(xdg), Some(home)),
+            Some(PathBuf::from("/x/cfg/gbiv/config.toml"))
+        );
+        assert_eq!(
+            global_config_path(Some(xdg), None),
+            Some(PathBuf::from("/x/cfg/gbiv/config.toml"))
+        );
+    }
+
+    // @spec CLI-CFG-001
+    #[test]
+    fn global_config_path_falls_back_to_home_dot_config() {
+        assert_eq!(
+            global_config_path(None, Some(Path::new("/h/me"))),
+            Some(PathBuf::from("/h/me/.config/gbiv/config.toml"))
+        );
+    }
+
+    // @spec CLI-CFG-001
+    #[test]
+    fn global_config_path_is_none_without_xdg_or_home() {
+        assert_eq!(global_config_path(None, None), None);
+    }
+
+    // @spec CLI-CFG-001
+    #[test]
+    fn read_layers_reads_both_files() {
+        let root = TempDir::new().unwrap();
+        let cfg = TempDir::new().unwrap();
+        write_config(root.path(), "[extensions]\nenabled = [\"proj\"]\n");
+        let global = cfg.path().join("gbiv").join("config.toml");
+        write_file(&global, "[extensions]\nenabled = [\"glob\"]\n");
+
+        let layers = read_layers(root.path(), Some(&global)).unwrap();
+        let project = layers.project.expect("project layer read");
+        let global = layers.global.expect("global layer read");
+        assert_eq!(
+            project["extensions"]["enabled"].as_array().unwrap()[0].as_str(),
+            Some("proj")
+        );
+        assert_eq!(
+            global["extensions"]["enabled"].as_array().unwrap()[0].as_str(),
+            Some("glob")
+        );
+    }
+
+    // @spec CLI-CFG-001
+    #[test]
+    fn read_layers_keeps_unknown_top_level_tables_raw() {
+        // The layer reader is a plain TOML parse; owners of each table apply
+        // their own rules later, so nothing is dropped or validated here.
+        let root = TempDir::new().unwrap();
+        write_config(
+            root.path(),
+            "[future]\nx = 1\n[palette]\nextra = [\"amber\"]\n",
+        );
+        let layers = read_layers(root.path(), None).unwrap();
+        let project = layers.project.unwrap();
+        assert!(project.contains_key("future"));
+        assert!(project.contains_key("palette"));
+    }
+
+    // @spec CLI-CFG-002
+    #[test]
+    fn read_layers_treats_missing_files_as_absent() {
+        let root = TempDir::new().unwrap();
+        let cfg = TempDir::new().unwrap();
+        let missing_global = cfg.path().join("gbiv").join("config.toml");
+
+        let layers = read_layers(root.path(), Some(&missing_global)).unwrap();
+        assert!(layers.project.is_none(), "no project file -> None");
+        assert!(layers.global.is_none(), "no global file -> None");
+    }
+
+    // @spec CLI-CFG-002
+    #[test]
+    fn read_layers_without_a_global_path_reads_only_the_project() {
+        let root = TempDir::new().unwrap();
+        write_config(root.path(), "[extensions]\nenabled = []\n");
+        let layers = read_layers(root.path(), None).unwrap();
+        assert!(layers.global.is_none());
+        assert!(layers.project.is_some());
+    }
+
+    // @spec CLI-CFG-002
+    #[test]
+    fn read_layers_global_only() {
+        let root = TempDir::new().unwrap();
+        let cfg = TempDir::new().unwrap();
+        let global = cfg.path().join("config.toml");
+        write_file(&global, "[extensions]\nenabled = [\"vat\"]\n");
+        let layers = read_layers(root.path(), Some(&global)).unwrap();
+        assert!(layers.project.is_none());
+        assert!(layers.global.is_some());
+    }
+
+    // @spec CLI-CFG-005
+    #[test]
+    fn unparseable_global_file_is_a_parse_error_naming_it() {
+        let root = TempDir::new().unwrap();
+        let cfg = TempDir::new().unwrap();
+        let global = cfg.path().join("gbiv").join("config.toml");
+        write_file(&global, "[extensions\nenabled = [\n");
+
+        let err = read_layers(root.path(), Some(&global)).unwrap_err();
+        match &err {
+            ConfigError::Parse { path, .. } => assert_eq!(path, &global),
+            other => panic!("expected ConfigError::Parse, got {other:?}"),
+        }
+        assert!(
+            err.to_string().contains(&global.display().to_string()),
+            "message must name the file: {err}"
+        );
+    }
+
+    // @spec CLI-CFG-005
+    #[test]
+    fn unparseable_project_file_is_a_parse_error_naming_it() {
+        let root = TempDir::new().unwrap();
+        write_config(root.path(), "not = = toml");
+        let err = read_layers(root.path(), None).unwrap_err();
+        match &err {
+            ConfigError::Parse { path, .. } => assert_eq!(path, &config_path(root.path())),
+            other => panic!("expected ConfigError::Parse, got {other:?}"),
+        }
+    }
+
+    /// Point `XDG_CONFIG_HOME` and `HOME` at `dir` for the duration of `f`,
+    /// so any global-config read would land in a temp dir (never the real
+    /// `~/.config`). Callers are `#[serial]`.
+    fn with_config_home<T>(dir: &Path, f: impl FnOnce() -> T) -> T {
+        let old_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        let old_home = std::env::var_os("HOME");
+        std::env::set_var("XDG_CONFIG_HOME", dir);
+        std::env::set_var("HOME", dir);
+        let out = f();
+        match old_xdg {
+            Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
+        }
+        match old_home {
+            Some(v) => std::env::set_var("HOME", v),
+            None => std::env::remove_var("HOME"),
+        }
+        out
+    }
+
+    // @spec CLI-CFG-003
+    #[test]
+    #[serial_test::serial]
+    fn palette_ignores_global_palette_table() {
+        let root = TempDir::new().unwrap();
+        let cfg = TempDir::new().unwrap();
+        write_file(
+            &cfg.path().join("gbiv").join("config.toml"),
+            "[palette]\nextra = [\"cobalt\"]\n",
+        );
+        write_file(
+            &cfg.path().join(".config").join("gbiv").join("config.toml"),
+            "[palette]\nextra = [\"cobalt\"]\n",
+        );
+        write_config(root.path(), "[palette]\nextra = [\"amber\"]\n");
+
+        let palette = with_config_home(cfg.path(), || {
+            crate::palette::Palette::load(root.path()).unwrap()
+        });
+        assert!(palette.contains("amber"), "project extras apply");
+        assert!(
+            !palette.contains("cobalt"),
+            "global [palette] must be ignored"
+        );
+    }
+
+    // @spec CLI-CFG-006
+    #[test]
+    #[serial_test::serial]
+    fn palette_load_survives_malformed_global_and_extensions_tables() {
+        let root = TempDir::new().unwrap();
+        let cfg = TempDir::new().unwrap();
+        write_file(
+            &cfg.path().join("gbiv").join("config.toml"),
+            "this is [[[ not toml",
+        );
+        write_file(
+            &cfg.path().join(".config").join("gbiv").join("config.toml"),
+            "this is [[[ not toml",
+        );
+        // `[extensions]` content that the extension runtime would reject.
+        write_config(
+            root.path(),
+            "[palette]\nextra = [\"amber\"]\n\n[extensions]\nenabled = 5\n\n[extensions.vat]\npaths = \"not-a-list\"\n",
+        );
+
+        let palette = with_config_home(cfg.path(), || crate::palette::Palette::load(root.path()));
+        let palette = palette.expect("palette load must not read global or [extensions]");
+        assert!(palette.contains("amber"));
+    }
 }
 
 // ---- Layered configuration (gbv-1ht) ----------------------------------------

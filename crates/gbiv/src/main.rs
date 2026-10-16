@@ -539,13 +539,263 @@ mod tests {
         );
     }
 
-    // ---- `gbiv start` flag parsing (HTTP-SRV-057, HTTP-SRV-058) -----------
+    // ---- helpers for clap-surface tests (gbv-1ht) ---------------------------
 
-    // @spec HTTP-SRV-057
+    /// Parse `argv`, panicking (not exiting the process) on a usage error.
+    fn parse(argv: &[&str]) -> clap::ArgMatches {
+        cli()
+            .try_get_matches_from(argv)
+            .unwrap_or_else(|e| panic!("{argv:?} should parse, got: {e}"))
+    }
+
+    /// The registered definition of the subcommand at `path` (e.g. `["fleet", "start"]`).
+    fn subcommand_def(path: &[&str]) -> Command {
+        let mut cmd = cli();
+        for name in path {
+            cmd = cmd
+                .find_subcommand(name)
+                .unwrap_or_else(|| panic!("subcommand {name:?} (in {path:?}) is not registered"))
+                .clone();
+        }
+        cmd
+    }
+
+    /// The sub-matches at `path`.
+    fn sub_matches<'a>(m: &'a clap::ArgMatches, path: &[&str]) -> &'a clap::ArgMatches {
+        let mut cur = m;
+        for name in path {
+            cur = cur
+                .subcommand_matches(name)
+                .unwrap_or_else(|| panic!("expected subcommand {name:?} in {path:?}"));
+        }
+        cur
+    }
+
+    /// The arg id behind `--<long>` on the subcommand at `path`, so tests don't
+    /// depend on internal arg ids.
+    fn long_arg_id(path: &[&str], long: &str) -> String {
+        subcommand_def(path)
+            .get_arguments()
+            .find(|a| a.get_long() == Some(long))
+            .unwrap_or_else(|| panic!("{path:?} has no --{long} flag"))
+            .get_id()
+            .as_str()
+            .to_string()
+    }
+
+    /// The ids of the positional args of the subcommand at `path`, in order.
+    fn positional_ids(path: &[&str]) -> Vec<String> {
+        subcommand_def(path)
+            .get_positionals()
+            .map(|a| a.get_id().as_str().to_string())
+            .collect()
+    }
+
+    fn top_level_names() -> Vec<String> {
+        let mut names: Vec<String> = cli()
+            .get_subcommands()
+            .map(|c| c.get_name().to_string())
+            .collect();
+        names.sort();
+        names
+    }
+
+    // ---- top-level command surface (CLI-DISPATCH-012) ------------------------
+
+    // @spec CLI-DISPATCH-012
     #[test]
-    fn start_parses_session_name_flag() {
-        let m = cli().get_matches_from(["gbiv", "start", "--session-name", "custom"]);
-        let sub = m.subcommand_matches("start").unwrap();
+    fn top_level_subcommands_are_exactly_the_specified_set() {
+        let mut expected: Vec<String> = [
+            "init",
+            "status",
+            "start",
+            "done",
+            "reset",
+            "rebase-all",
+            "repair",
+            "tidy",
+            "exec",
+            "install-skill",
+            "install-extension",
+            "fleet",
+            "tmux",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        expected.sort();
+        assert_eq!(top_level_names(), expected);
+    }
+
+    // @spec CLI-DISPATCH-012
+    #[test]
+    fn mark_subcommand_is_gone() {
+        assert!(
+            !top_level_names().iter().any(|n| n == "mark"),
+            "`gbiv mark` must not be registered"
+        );
+        let result = cli().try_get_matches_from(["gbiv", "mark", "--done", "red"]);
+        assert!(result.is_err(), "`gbiv mark` must be a usage error");
+    }
+
+    // ---- `gbiv start <task> [--color <color>]` (FL-START-001) ---------------
+
+    // @spec FL-START-001
+    #[test]
+    fn start_takes_one_required_task_positional() {
+        let positionals = positional_ids(&["start"]);
+        assert_eq!(positionals.len(), 1, "start takes exactly one positional");
+        let def = subcommand_def(&["start"]);
+        let task = def.get_positionals().next().unwrap();
+        assert!(task.is_required_set(), "<task> is required");
+        assert!(
+            cli().try_get_matches_from(["gbiv", "start"]).is_err(),
+            "`gbiv start` without a task must be a usage error"
+        );
+    }
+
+    // @spec FL-START-001
+    #[test]
+    fn start_parses_task_and_color() {
+        let m = parse(&["gbiv", "start", "fix the login bug", "--color", "red"]);
+        let sub = sub_matches(&m, &["start"]);
+        let task_id = positional_ids(&["start"]).remove(0);
+        assert_eq!(
+            sub.get_one::<String>(&task_id).map(String::as_str),
+            Some("fix the login bug")
+        );
+        let color_id = long_arg_id(&["start"], "color");
+        assert_eq!(
+            sub.get_one::<String>(&color_id).map(String::as_str),
+            Some("red")
+        );
+    }
+
+    // @spec FL-START-001
+    #[test]
+    fn start_color_is_optional() {
+        let m = parse(&["gbiv", "start", "gbv-1ht"]);
+        let sub = sub_matches(&m, &["start"]);
+        let color_id = long_arg_id(&["start"], "color");
+        assert_eq!(sub.get_one::<String>(&color_id), None);
+    }
+
+    // @spec FL-START-001, FLEET-CLI-001
+    #[test]
+    fn top_level_start_is_not_the_daemon() {
+        let def = subcommand_def(&["start"]);
+        for daemon_flag in ["session-name", "bind"] {
+            assert!(
+                def.get_arguments()
+                    .all(|a| a.get_long() != Some(daemon_flag)),
+                "top-level `start` must not carry the daemon's --{daemon_flag}"
+            );
+        }
+        assert!(cli()
+            .try_get_matches_from(["gbiv", "start", "--session-name", "custom"])
+            .is_err());
+    }
+
+    // ---- `gbiv done [<color|tag>]` (FL-DONE-001) -----------------------------
+
+    // @spec FL-DONE-001
+    #[test]
+    fn done_argument_is_optional() {
+        let m = parse(&["gbiv", "done"]);
+        let sub = sub_matches(&m, &["done"]);
+        let positionals = positional_ids(&["done"]);
+        assert_eq!(positionals.len(), 1, "done takes one optional positional");
+        assert_eq!(sub.get_one::<String>(&positionals[0]), None);
+    }
+
+    // @spec FL-DONE-001
+    #[test]
+    fn done_parses_a_color_or_tag() {
+        for arg in ["red", "gbv-1ht", "[gbv-1ht]"] {
+            let m = parse(&["gbiv", "done", arg]);
+            let sub = sub_matches(&m, &["done"]);
+            let id = positional_ids(&["done"]).remove(0);
+            assert_eq!(sub.get_one::<String>(&id).map(String::as_str), Some(arg));
+        }
+    }
+
+    // ---- `gbiv install-extension` (EXT-INST-001) ------------------------------
+
+    // @spec EXT-INST-001
+    #[test]
+    fn install_extension_parses_name_with_defaults() {
+        let m = parse(&["gbiv", "install-extension", "vat"]);
+        let sub = sub_matches(&m, &["install-extension"]);
+        let name_id = positional_ids(&["install-extension"]).remove(0);
+        assert_eq!(
+            sub.get_one::<String>(&name_id).map(String::as_str),
+            Some("vat")
+        );
+        let scope_id = long_arg_id(&["install-extension"], "scope");
+        assert_eq!(
+            sub.get_one::<String>(&scope_id).map(String::as_str),
+            Some("user"),
+            "--scope defaults to user"
+        );
+        let force_id = long_arg_id(&["install-extension"], "force");
+        assert!(!sub.get_flag(&force_id));
+    }
+
+    // @spec EXT-INST-001
+    #[test]
+    fn install_extension_parses_scope_project_and_force() {
+        let m = parse(&[
+            "gbiv",
+            "install-extension",
+            "vat",
+            "--scope",
+            "project",
+            "--force",
+        ]);
+        let sub = sub_matches(&m, &["install-extension"]);
+        let scope_id = long_arg_id(&["install-extension"], "scope");
+        assert_eq!(
+            sub.get_one::<String>(&scope_id).map(String::as_str),
+            Some("project")
+        );
+        let force_id = long_arg_id(&["install-extension"], "force");
+        assert!(sub.get_flag(&force_id));
+    }
+
+    // @spec EXT-INST-001
+    #[test]
+    fn install_extension_requires_a_name_and_a_known_scope() {
+        assert!(cli()
+            .try_get_matches_from(["gbiv", "install-extension"])
+            .is_err());
+        // Make sure the subcommand exists, so the error above isn't just
+        // "unrecognized subcommand".
+        let _ = subcommand_def(&["install-extension"]);
+        assert!(cli()
+            .try_get_matches_from(["gbiv", "install-extension", "vat", "--scope", "global"])
+            .is_err());
+    }
+
+    // ---- `gbiv fleet` group (FLEET-CLI-001) -----------------------------------
+
+    // @spec FLEET-CLI-001
+    #[test]
+    fn fleet_group_has_start_status_get_send() {
+        let mut names: Vec<String> = subcommand_def(&["fleet"])
+            .get_subcommands()
+            .map(|c| c.get_name().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, vec!["get", "send", "start", "status"]);
+    }
+
+    // ---- `gbiv fleet start` flag parsing (HTTP-SRV-057, HTTP-SRV-058) -------
+
+    // @spec HTTP-SRV-057, FLEET-CLI-001
+    #[test]
+    fn fleet_start_parses_session_name_flag() {
+        let m = parse(&["gbiv", "fleet", "start", "--session-name", "custom"]);
+        let sub = sub_matches(&m, &["fleet", "start"]);
         assert_eq!(
             sub.get_one::<String>("session-name").map(String::as_str),
             Some("custom")
@@ -554,24 +804,25 @@ mod tests {
 
     // @spec HTTP-SRV-057
     #[test]
-    fn start_session_name_is_optional() {
-        let m = cli().get_matches_from(["gbiv", "start"]);
-        let sub = m.subcommand_matches("start").unwrap();
+    fn fleet_start_session_name_is_optional() {
+        let m = parse(&["gbiv", "fleet", "start"]);
+        let sub = sub_matches(&m, &["fleet", "start"]);
         assert_eq!(sub.get_one::<String>("session-name"), None);
     }
 
     // @spec HTTP-SRV-057, HTTP-SRV-058
     #[test]
     fn start_options_from_matches_extracts_both_flags() {
-        let m = cli().get_matches_from([
+        let m = parse(&[
             "gbiv",
+            "fleet",
             "start",
             "--session-name",
             "custom",
             "--bind",
             "0.0.0.0",
         ]);
-        let sub = m.subcommand_matches("start").unwrap();
+        let sub = sub_matches(&m, &["fleet", "start"]);
         let opts = start_options_from_matches(sub);
         assert_eq!(opts.session_name.as_deref(), Some("custom"));
         assert_eq!(opts.bind.as_deref(), Some("0.0.0.0"));
@@ -580,8 +831,8 @@ mod tests {
     // @spec HTTP-SRV-057, HTTP-SRV-058
     #[test]
     fn start_options_from_matches_defaults_to_none() {
-        let m = cli().get_matches_from(["gbiv", "start"]);
-        let sub = m.subcommand_matches("start").unwrap();
+        let m = parse(&["gbiv", "fleet", "start"]);
+        let sub = sub_matches(&m, &["fleet", "start"]);
         let opts = start_options_from_matches(sub);
         assert!(opts.session_name.is_none());
         assert!(opts.bind.is_none());
@@ -589,13 +840,183 @@ mod tests {
 
     // @spec HTTP-SRV-058
     #[test]
-    fn start_parses_bind_flag_but_it_is_only_stored_not_acted_on() {
-        let m = cli().get_matches_from(["gbiv", "start", "--bind", "0.0.0.0"]);
-        let sub = m.subcommand_matches("start").unwrap();
+    fn fleet_start_parses_bind_flag_but_it_is_only_stored_not_acted_on() {
+        let m = parse(&["gbiv", "fleet", "start", "--bind", "0.0.0.0"]);
+        let sub = sub_matches(&m, &["fleet", "start"]);
         assert_eq!(
             sub.get_one::<String>("bind").map(String::as_str),
             Some("0.0.0.0")
         );
+    }
+
+    // ---- palette-dependent color args validate in handlers (CLI-COLOR-027) ---
+
+    // @spec CLI-COLOR-027
+    #[test]
+    fn color_args_accept_non_base_names_at_parse_time() {
+        // `amber` is not a base color; only the handler (after loading the
+        // active palette) may decide whether it's valid.
+        for argv in [
+            &["gbiv", "start", "a task", "--color", "amber"][..],
+            &["gbiv", "done", "amber"][..],
+            &["gbiv", "reset", "amber"][..],
+            &["gbiv", "exec", "amber", "--", "ls"][..],
+        ] {
+            assert!(
+                cli().try_get_matches_from(argv).is_ok(),
+                "{argv:?} must parse; color validation belongs to the handler"
+            );
+        }
+    }
+
+    // @spec CLI-COLOR-027
+    #[test]
+    fn color_args_declare_no_clap_possible_values() {
+        let start_color = long_arg_id(&["start"], "color");
+        let start = subcommand_def(&["start"]);
+        let arg = start
+            .get_arguments()
+            .find(|a| a.get_id().as_str() == start_color)
+            .unwrap();
+        assert!(arg.get_possible_values().is_empty());
+
+        for path in [&["done"][..], &["reset"][..]] {
+            let def = subcommand_def(path);
+            for arg in def.get_positionals() {
+                assert!(
+                    arg.get_possible_values().is_empty(),
+                    "{path:?} positional {:?} must not use a PossibleValuesParser",
+                    arg.get_id()
+                );
+            }
+        }
+    }
+
+    // ---- layered config wiring (CLI-CFG-004, CLI-CFG-006) ---------------------
+
+    // @spec CLI-CFG-004
+    #[test]
+    fn layered_extensions_tables_merge_by_extension_runtime_rules() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path().join("proj");
+        let main_repo = root.join("main").join("proj");
+        std::fs::create_dir_all(&main_repo).unwrap();
+        std::fs::create_dir_all(root.join(".gbiv")).unwrap();
+        std::fs::write(
+            gbiv_core::config::config_path(&root),
+            "[extensions]\nenabled = [\"b\", \"c\"]\ndisabled = [\"b\"]\n\n[extensions.a]\ny = [3]\n",
+        )
+        .unwrap();
+        let global = tmp.path().join("xdg").join("gbiv").join("config.toml");
+        std::fs::create_dir_all(global.parent().unwrap()).unwrap();
+        std::fs::write(
+            &global,
+            "[extensions]\nenabled = [\"a\", \"b\"]\n\n[extensions.a]\nx = 1\ny = [1, 2]\n",
+        )
+        .unwrap();
+
+        let layers = gbiv_core::config::read_layers(&root, Some(&global)).unwrap();
+        let cfg = extensions::ExtensionsConfig::from_layers(
+            layers.global.as_ref(),
+            layers.project.as_ref(),
+            &main_repo,
+            tmp.path(),
+        )
+        .unwrap();
+        assert_eq!(cfg.enabled, vec!["a".to_string(), "c".to_string()]);
+        let a = &cfg.settings["a"].options;
+        assert_eq!(a["x"].as_integer(), Some(1));
+        assert_eq!(
+            a["y"].as_array().unwrap(),
+            &vec![toml::Value::Integer(3)],
+            "project wins per key and lists replace whole"
+        );
+    }
+
+    /// A gbiv workspace whose global config (via `XDG_CONFIG_HOME`/`HOME`, both
+    /// pointed at a temp dir) is not TOML and whose project `[extensions]`
+    /// tables are invalid for the extension runtime. Returns (tmp, root, main_repo).
+    fn workspace_with_broken_extension_config(
+    ) -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path().join("proj");
+        let main_repo = root.join("main").join("proj");
+        let red_repo = root.join("red").join("proj");
+        for repo in [&main_repo, &red_repo] {
+            std::fs::create_dir_all(repo).unwrap();
+            std::process::Command::new("git")
+                .args(["init", "-q"])
+                .current_dir(repo)
+                .output()
+                .unwrap();
+        }
+        std::fs::create_dir_all(root.join(".gbiv")).unwrap();
+        std::fs::write(
+            gbiv_core::config::config_path(&root),
+            "[extensions]\nenabled = 5\n\n[extensions.vat]\npaths = \"not-a-list\"\n",
+        )
+        .unwrap();
+        let cfg_home = tmp.path().join("cfg");
+        for global in [
+            cfg_home.join("gbiv").join("config.toml"),
+            cfg_home.join(".config").join("gbiv").join("config.toml"),
+        ] {
+            std::fs::create_dir_all(global.parent().unwrap()).unwrap();
+            std::fs::write(&global, "this is [[[ not toml").unwrap();
+        }
+        (tmp, root, main_repo)
+    }
+
+    /// Run `f` with `XDG_CONFIG_HOME` and `HOME` pointed at `dir`; restores both.
+    fn with_config_home<T>(dir: &std::path::Path, f: impl FnOnce() -> T) -> T {
+        let old_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        let old_home = std::env::var_os("HOME");
+        std::env::set_var("XDG_CONFIG_HOME", dir);
+        std::env::set_var("HOME", dir);
+        let out = f();
+        match old_xdg {
+            Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
+        }
+        match old_home {
+            Some(v) => std::env::set_var("HOME", v),
+            None => std::env::remove_var("HOME"),
+        }
+        out
+    }
+
+    // @spec CLI-CFG-006
+    #[test]
+    #[serial_test::serial]
+    fn exec_ignores_broken_global_config_and_extensions_tables() {
+        let (tmp, root, main_repo) = workspace_with_broken_extension_config();
+        let out = with_config_home(&tmp.path().join("cfg"), || {
+            let palette = Palette::load(&root)?;
+            commands::exec::exec_command(
+                Some("red"),
+                &["echo".to_string(), "hi".to_string()],
+                Some(&main_repo),
+                &palette,
+            )
+        });
+        assert_eq!(
+            out.expect("exec must not read [extensions] or the global file"),
+            "hi\n"
+        );
+    }
+
+    // @spec CLI-CFG-006
+    #[test]
+    #[serial_test::serial]
+    fn fleet_client_ignores_broken_global_config_and_extensions_tables() {
+        let (tmp, _root, main_repo) = workspace_with_broken_extension_config();
+        let outcome = with_config_home(&tmp.path().join("cfg"), || {
+            orchestration::fleet_cli::run_status(&main_repo, None)
+        });
+        // No daemon is running: the only acceptable failure is "no port file".
+        assert_eq!(outcome.exit_code, 2, "{outcome:?}");
+        let stderr = outcome.stderr.unwrap_or_default();
+        assert!(stderr.contains("port file"), "got: {stderr}");
     }
 
     // @spec CLI-DISPATCH-003
