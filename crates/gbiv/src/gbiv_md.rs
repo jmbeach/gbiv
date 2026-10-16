@@ -2,6 +2,8 @@
 pub enum GbivMdError {
     #[error("no GBIV.md entry tagged [{0}]")]
     NotFound(String),
+    #[error("no GBIV.md entry [{tag}] {description}")]
+    EntryNotFound { tag: String, description: String },
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -196,6 +198,32 @@ pub fn set_gbiv_feature_status(
 
     std::fs::write(path, result)?;
     Ok(())
+}
+
+/// Whether `feature`'s text carries the text tag `[tag]` (case-insensitive,
+/// anywhere in the text).
+// @spec FL-TAG-001
+pub fn carries_text_tag(feature: &GbivFeature, tag: &str) -> bool {
+    let _ = (feature, tag);
+    todo!("gbv-1ht: carries_text_tag")
+}
+
+/// Append `- [<color>] <text>` as a new entry.
+// @spec FL-MUTATE-012, FL-MUTATE-013, FL-MUTATE-014, FL-MUTATE-015
+pub fn append_gbiv_entry(path: &std::path::Path, color: &str, text: &str) -> Result<(), GbivMdError> {
+    let _ = (path, color, text);
+    todo!("gbv-1ht: append_gbiv_entry")
+}
+
+/// Re-read GBIV.md and remove the one entry whose color tag and text match.
+// @spec FL-MUTATE-016, FL-MUTATE-017
+pub fn remove_gbiv_entry(
+    path: &std::path::Path,
+    tag: &str,
+    description: &str,
+) -> Result<(), GbivMdError> {
+    let _ = (path, tag, description);
+    todo!("gbv-1ht: remove_gbiv_entry")
 }
 
 #[cfg(test)]

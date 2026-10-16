@@ -13,6 +13,7 @@ use gbiv_core::root::find_gbiv_root;
 
 mod colors;
 mod commands;
+mod extensions;
 mod gbiv_md;
 mod git_utils;
 mod orchestration;

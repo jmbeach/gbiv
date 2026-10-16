@@ -280,3 +280,29 @@ mod tests {
         ));
     }
 }
+
+// ---- Layered configuration (gbv-1ht) ----------------------------------------
+
+/// The two optional config layers, parsed as raw TOML tables. Owners of each
+/// top-level table (`[palette]`, `[extensions]`) apply their own rules on top.
+#[derive(Debug, Default, Clone)]
+pub struct Layers {
+    pub global: Option<toml::Table>,
+    pub project: Option<toml::Table>,
+}
+
+/// Path of the global config file: `$XDG_CONFIG_HOME/gbiv/config.toml`, else
+/// `<home>/.config/gbiv/config.toml`. `None` when neither is known.
+// @spec CLI-CFG-001
+pub fn global_config_path(xdg_config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
+    let _ = (xdg_config_home, home);
+    todo!("gbv-1ht: global_config_path")
+}
+
+/// Read both layers (TOML parse only). A missing file yields `None` for that
+/// layer; an unparseable file is a `ConfigError::Parse` naming it.
+// @spec CLI-CFG-001, CLI-CFG-002, CLI-CFG-005
+pub fn read_layers(gbiv_root: &Path, global_path: Option<&Path>) -> Result<Layers, ConfigError> {
+    let _ = (gbiv_root, global_path);
+    todo!("gbv-1ht: read_layers")
+}

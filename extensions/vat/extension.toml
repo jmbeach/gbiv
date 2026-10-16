@@ -1,0 +1,5 @@
+name = "vat"
+version = "0.1.0"
+api_version = 1
+description = "Claim vat backlog tasks on gbiv start and complete them on gbiv done"
+capabilities = ["fs", "git", "env"]

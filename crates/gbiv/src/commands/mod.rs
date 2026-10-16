@@ -1,9 +1,12 @@
+pub mod done;
 pub mod exec;
 pub mod init;
+pub mod lifecycle;
 pub mod mark;
 pub mod rebase_all;
 pub mod repair;
 pub mod reset;
+pub mod start;
 pub mod status;
 pub mod tidy;
 pub mod tmux;
@@ -18,3 +21,5 @@ mod reset_hard_stash_tests;
 mod reset_tests;
 #[cfg(test)]
 mod tidy_tests;
+#[cfg(test)]
+mod lifecycle_tests;
