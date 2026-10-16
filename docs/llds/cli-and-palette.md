@@ -149,11 +149,11 @@ gbiv reads two optional config files and combines them:
 
 Both are optional; neither is created by gbiv except through `gbiv install-extension`. Each top-level table follows its own owner's rule:
 
-- **`[palette]` is project-only.** Extra worktree slots belong to one repository, so `Palette::load` reads only the project file, as today. A `[palette]` table in the global file is ignored with a warning naming the file.
+- **`[palette]` is project-only.** Extra worktree slots belong to one repository, so `Palette::load` reads only the project file, as today. A `[palette]` table in the global file is ignored.
 - **`[extensions]`** combines as the Extension Runtime defines: `enabled` adds up across both files, `disabled` in either file switches a name off, and per-extension tables merge key by key with the project winning (`docs/llds/extension-runtime.md` § Configuration).
 - **Any other top-level table** is ignored, so the files can host future domains, as today.
 
-A global file that fails to parse, or fails its owners' validation, is a hard error naming the file, just like the project file. Commands that don't use extensions (`status`, `exec`, `fleet …`) still read the project `[palette]` but never parse `[extensions]`, so an extensions config error can't break them.
+Only `gbiv start`, `gbiv done` and `gbiv install-extension` read the global file at all, since `[extensions]` is the only thing in it gbiv uses. For them, a global file that fails to parse or validate is a hard error naming the file. Every other command (`status`, `exec`, `fleet …`) never opens the global file and never parses `[extensions]`, so a typo there can't break them.
 
 ### ANSI Codes — worktree-only (`src/colors.rs`)
 

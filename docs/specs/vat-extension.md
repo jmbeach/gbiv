@@ -32,7 +32,7 @@ the extension does with them.
 - [ ] **VATX-START-003**: When the bullet has neither `[in-progress]` nor `[by:...]`, `before_start` shall insert `[in-progress]` and `[by:<user>]` in vat's canonical marker position and write the backlog, including when the bullet has `[blocked-by:...]`.
 - [ ] **VATX-START-004**: When the bullet already has `[by:<user>]` naming the claiming user (compared case-sensitively), `before_start` shall leave the backlog unchanged and still name the entry.
 - [ ] **VATX-START-005**: If the bullet has `[by:<other>]` naming a different user, or `[in-progress]` without any `[by:...]`, then `before_start` shall veto with `<id> already claimed by <other>` or `<id> already in progress`.
-- [ ] **VATX-START-006**: After a successful claim (or VATX-START-004), `before_start` shall return `{ text = ... }` where the text is the bullet line after `- `, with `[in-progress]` and `[by:...]` removed and a trailing ` (see ./items/<id>.md)` rewritten to ` (see <backlog>/items/<id>.md)`, keeping every other tag and the `[<id>]` tag.
+- [ ] **VATX-START-006**: After a successful claim (or VATX-START-004), `before_start` shall return `{ text = ... }` where the text is the bullet line after `- `, starting with the `[<id>]` tag, with `[in-progress]` and `[by:...]` removed and a trailing ` (see ./items/<id>.md)` rewritten to ` (see <backlog>/items/<id>.md)`, keeping every other tag and the `[<id>]` tag.
 
 ## `before_done` (complete)
 
@@ -42,6 +42,7 @@ the extension does with them.
 - [ ] **VATX-DONE-004**: When the task's bullet is absent and its ID is in `.used-ids`, `before_done` shall change nothing and not veto.
 - [ ] **VATX-DONE-005**: If the task's bullet is absent and its ID is not in `.used-ids`, or `backlog.md` is missing, then `before_done` shall veto with `unknown id: <id>`.
 - [ ] **VATX-DONE-006**: If the task's ID is on more than one bullet, then `before_done` shall veto with vat's duplicate-ID message.
+- [ ] **VATX-DONE-007**: If `<backlog>/vat.toml` is missing or has no valid `project.id`, then `before_done` shall veto with vat's init-pointer message when `ctx.text` contains a bracketed tag matching the vat ID shape, and otherwise return and change nothing.
 
 ## Backlog File Handling
 

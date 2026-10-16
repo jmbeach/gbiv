@@ -28,7 +28,9 @@ Two commands manage an entry's life on a color: `gbiv start` puts a task on the 
 Each entry is a line starting with `- `. After the dash, in this order:
 - Zero or one **color tag**: `[red]`, `[orange]`, etc.
 - Zero or one **status tag**: `[done]` or `[in-progress]`. Legacy: still parsed (so existing files and `gbiv reset`'s `[done]` filter keep working until gbv-tkn retires reset), never written.
-- **Text** (stored as `description`): everything after those tags. It may itself start with more bracketed tags that an extension wrote (`[gbv-1ht] [blocked-by:gbv-x2v] Title`). gbiv has no notion of a task ID and doesn't interpret them; it only matches them as tags (see Done Command).
+- **Text** (stored as `description`): everything after those tags. It may itself start with more bracketed tags that an extension wrote (`[gbv-1ht] [blocked-by:gbv-x2v] Title`). gbiv has no notion of a task ID and doesn't interpret them; it only matches them as tags (see Done Command). By convention an extension puts its own ID tag first in the text, right after the color tag.
+
+The first bracket on an entry line is always read as its color tag, whatever it says. The `gbiv-sync` and `gbiv-colorize` skills, which wrote lines whose first bracket was a vat ID into `gbiv.md`, are retired by gbv-1ht: `gbiv start <vat-id>` replaces them, and on case-insensitive filesystems their `gbiv.md` was the same file as `GBIV.md`.
 
 Lines that follow an entry and don't start with `- ` are **notes** — they belong to the preceding entry.
 
@@ -105,17 +107,20 @@ enum GbivMdError {
 
 ### Flow
 
-1. Find the gbiv root, the main repo and its GBIV.md; load the palette and config.
+Steps run in this fixed order, so when several things are wrong the first failing check decides the error.
+
+1. Find the gbiv root, the main repo and its GBIV.md; read the palette and config files (TOML parse only), then check `<task>` (above).
 2. **Pick a color.** A color is *free* when no GBIV.md entry has it as its color tag (whatever its worktree holds).
    - With `--color`: it must be in the active palette and free, else error.
    - Without: the first free color in palette order (ROYGBIV, then extras).
    - None free → error `no free color (all N colors have GBIV.md entries)`. No extension loads.
 3. **Duplicate check.** If `<task>` is a single token (no whitespace) and some entry *carries the tag* `[<task>]` (see Tag matching), error `<task> is already on <color>`. No extension loads.
-4. Load extensions and fire `before_start(arg, color)`. A veto stops here: nothing is written, exit 1.
-5. **Name the entry.** If a handler returned `{text}`, use it. Otherwise the text is `<task>` trimmed; if `<task>` is a single token, print a warning that no extension recognized it and it was added as free text.
-6. `append_gbiv_entry`. If the write fails, exit 1 with an error that says the extensions already ran (so a claim may need undoing in the task system); no `after_*` event fires.
-7. Fire `after_start`; print any warnings.
-8. Print `started on <color>: <text>`.
+4. Validate `[extensions]`, load extensions, and fire `before_start(arg, color)`. A veto stops here: nothing is written, exit 1.
+5. **Name the entry.** If a handler returned `{text}`, use it. Otherwise the text is `<task>` trimmed; if at least one extension is enabled and `<task>` is a single token, print a warning that no extension recognized it and it was added as free text.
+6. **Second duplicate check.** If the named text starts with a bracketed tag (an extension's ID, which by convention comes first) and an existing entry carries that tag, or an existing entry's text equals the named text (case-insensitive), error `<tag or text> is already on <color>` and write nothing. This catches a task named differently from what was typed (or re-claimed by its owner) that is already on a color.
+7. `append_gbiv_entry`. If the write fails, exit 1 with an error that says the extensions already ran (so a claim may need undoing in the task system); no `after_*` event fires.
+8. Print `started on <color>: <text>`, so the user sees the change landed before any slow `after_*` handler runs.
+9. Fire `after_start`; print any warnings.
 
 The worktree is never touched: no branch is created or checked out.
 
@@ -125,11 +130,15 @@ The worktree is never touched: no branch is created or checked out.
 
 ### Tag matching
 
-An entry **carries the tag** `[X]` when its text contains the exact bracketed token `[X]` (compared case-insensitively), anywhere in the text. This is how `gbiv done gbv-1ht` and `start`'s duplicate check find an entry without gbiv knowing what a task ID is: the vat extension writes `[gbv-1ht]` into the text, and a Jira extension could write `[ABC-123]`.
+Two kinds of bracket appear on a GBIV.md line, and these docs keep them apart. The **color tag** is the first bracket (`[red]`); it says which color the entry is on. **Text tags** are brackets inside the text that follows (`[gbv-1ht]`, `[blocked-by:gbv-x2v]`), written by extensions or by hand.
+
+An entry **carries the (text) tag** `[X]` when its text contains the exact bracketed token `[X]` (compared case-insensitively), anywhere in the text. This is how `gbiv done gbv-1ht` and `start`'s duplicate check find an entry without gbiv knowing what a task ID is: the vat extension writes `[gbv-1ht]` into the text, and a Jira extension could write `[ABC-123]`.
 
 ### Resolution
-1. If the argument is a name in the active palette (exact, case-sensitive match, like every other color argument) → that color.
-2. Otherwise, if it is given → the entry that carries the tag `[<arg>]`. None → error `no GBIV.md entry carries [<arg>]`; more than one → error listing them and asking for the color instead.
+One pair of surrounding brackets is stripped from the argument first, so `gbiv done [gbv-1ht]` works like `gbiv done gbv-1ht`.
+
+1. If the argument is a name in the active palette (exact, case-sensitive match, like every other color argument) → that color. Color names are checked first, so a palette name always means the color even if some entry's text also carries it as a tag.
+2. Otherwise, if it is given → the entry that carries the text tag `[<arg>]`, or whose whole text equals the argument (case-insensitive; this finds a one-word free-text entry like `refactor`). None → error `no GBIV.md entry carries [<arg>]`; more than one → error listing them and asking for the color instead.
 3. If omitted → infer the color from CWD via `infer_color_from_path()`; error if that fails.
 
 A color resolves to the entry tagged with it. No entry → error `no GBIV.md entry for <color>`. More than one entry with that color tag (only possible through hand edits) → error listing them.
@@ -138,8 +147,8 @@ A color resolves to the entry tagged with it. No entry → error `no GBIV.md ent
 1. Resolve the entry as above.
 2. Load extensions and fire `before_done(color, text)`. A veto stops here: the entry stays, exit 1.
 3. `remove_gbiv_entry`.
-4. Fire `after_done`; print any warnings.
-5. Print `done <color>: <text>`.
+4. Print `done <color>: <text>`.
+5. Fire `after_done`; print any warnings.
 
 The worktree is never touched.
 

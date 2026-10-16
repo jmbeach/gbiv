@@ -23,7 +23,7 @@ Specs for worktree creation, upstream sync, reset, and maintenance.
 - [x] WTL-REBASE-001: When the user runs `gbiv rebase-all`, the system shall locate the gbiv root by walking up from the current directory.
 - [x] WTL-REBASE-002: When the gbiv root is found, the system shall locate the main repo inside the `main/` worktree directory.
 - [x] WTL-REBASE-003: When the main repo is found, the system shall detect the remote main branch by trying `origin/main`, `origin/master`, and `origin/develop` in order.
-- [x] WTL-REBASE-004: When the remote main branch is detected, the system shall pull the main worktree first before rebasing color worktrees.
+- [ ] WTL-REBASE-004: When the remote main branch is detected, the system shall pull the main worktree with `git pull --autostash` before rebasing color worktrees, so uncommitted edits in main (such as a vat backlog changed by `gbiv start`/`gbiv done`) do not block the pull.
 - [x] WTL-REBASE-005: If the pull on the main worktree fails, the system shall abort the entire rebase-all operation and return an error.
 - [x] WTL-REBASE-006: When the main worktree pull succeeds, the system shall register `.last-branch` in `info/exclude` of the common git directory for each active-palette worktree (base colors plus configured extras), before spawning rebase threads.
 - [x] WTL-REBASE-007: When gitignore registration is complete, the system shall spawn one thread per active-palette worktree to perform rebases in parallel, in active-palette order.
@@ -78,8 +78,7 @@ Specs for worktree creation, upstream sync, reset, and maintenance.
 ## Tidy
 
 - [x] WTL-TIDY-001: When the user runs `gbiv tidy`, the system shall first run `rebase-all`.
-- [x] WTL-TIDY-002: When rebase-all completes (regardless of success or failure), the system shall run a soft all-color reset.
-- [x] WTL-TIDY-003: When reset completes, the system shall check if tmux is installed by running `which tmux`.
+- [ ] WTL-TIDY-003: When rebase-all completes (regardless of success or failure), the system shall check if tmux is installed by running `which tmux`, without running any reset step.
 - [x] WTL-TIDY-004: If tmux is installed, the system shall run `tmux clean` to remove stale tmux windows.
 - [x] WTL-TIDY-005: If tmux is not installed, the system shall skip the tmux clean step without error.
 - [x] WTL-TIDY-006: If any step (rebase-all or tmux clean) fails, the system shall continue executing subsequent steps and collect errors.

@@ -65,9 +65,9 @@ Specs for command dispatch, argument parsing, and terminal color formatting.
 
 ## Layered Configuration
 
-- [ ] CLI-CFG-001: The system shall read an optional global config file at `$XDG_CONFIG_HOME/gbiv/config.toml`, or `~/.config/gbiv/config.toml` when `XDG_CONFIG_HOME` is unset, in addition to the optional project config at `<gbiv-root>/.gbiv/config.toml`.
+- [ ] CLI-CFG-001: When running `gbiv start`, `gbiv done` or `gbiv install-extension`, the system shall read an optional global config file at `$XDG_CONFIG_HOME/gbiv/config.toml`, or `~/.config/gbiv/config.toml` when `XDG_CONFIG_HOME` is unset, in addition to the optional project config at `<gbiv-root>/.gbiv/config.toml`.
 - [ ] CLI-CFG-002: When either config file is absent, the system shall behave as if that file were empty.
-- [ ] CLI-CFG-003: The active palette's extras shall come from the project config's `[palette]` table only (CLI-COLOR-019); when the global config contains a `[palette]` table, the system shall ignore it and print a warning naming the global file.
+- [ ] CLI-CFG-003: The active palette's extras shall come from the project config's `[palette]` table only (CLI-COLOR-019); the system shall ignore any `[palette]` table in the global config.
 - [ ] CLI-CFG-004: When combining the two files' `[extensions]` tables, the system shall follow the Extension Runtime's merge rules (EXT-CFG-001, EXT-CFG-002).
-- [ ] CLI-CFG-005: If the global config file exists but cannot be parsed as TOML, then a command that reads it shall exit `1` with an error naming the file, as for the project file (CLI-COLOR-025, CLI-COLOR-026).
-- [ ] CLI-CFG-006: Commands other than `gbiv start`, `gbiv done` and `gbiv install-extension` shall not parse the `[extensions]` tables, so an invalid `[extensions]` configuration cannot cause them to fail.
+- [ ] CLI-CFG-005: If the global config file exists but cannot be parsed as TOML, then `gbiv start`, `gbiv done` and `gbiv install-extension` shall exit `1` with an error naming the file, as for the project file (CLI-COLOR-025, CLI-COLOR-026).
+- [ ] CLI-CFG-006: Commands other than `gbiv start`, `gbiv done` and `gbiv install-extension` shall neither read the global config file nor parse the project config's `[extensions]` tables, so a malformed global file or `[extensions]` table cannot cause them to fail.

@@ -205,6 +205,10 @@ without a string `text`, is a veto by that extension. Extra keys are ignored. Th
 first handler to return a valid table wins; later tables are ignored (gbiv prints
 a warning naming the extension).
 
+By convention an extension puts its own ID tag first in `text`, right after the
+color tag gbiv adds (`[gbv-1ht] [blocked-by:gbv-x2v] Title`); `gbiv start` uses
+that leading tag for its duplicate check, and `gbiv done <id>` finds it.
+
 `text` is trimmed and must be non-empty and a single line. It may start with
 bracketed tags (`[gbv-1ht] [blocked-by:gbv-x2v] Title`), but not with `[done]` or
 `[in-progress]`, which GBIV.md would read back as a legacy status. An invalid
@@ -213,9 +217,11 @@ Ledger uses `arg` as the text.
 
 ### After events
 
-An error in an `after_*` handler is printed as a warning (`<extension>: <message>`)
-and the remaining handlers still run. The command still exits `0`: the GBIV.md
-change has been made and is not undone.
+`after_*` handlers run after the command has printed its success line, so a slow
+handler never hides the fact that the change landed. An error in an `after_*`
+handler is printed as a warning (`<extension>: <message>`) and the remaining
+handlers still run. The command still exits `0`: the GBIV.md change has been made
+and is not undone.
 
 ## Sandbox
 

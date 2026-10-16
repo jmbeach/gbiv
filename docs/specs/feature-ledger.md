@@ -8,8 +8,8 @@ Specs for GBIV.md parsing and mutation, and the `gbiv start` / `gbiv done` comma
 
 - [x] FL-PARSE-001: When a GBIV.md file contains a line starting with `- `, the system shall treat that line as a feature entry.
 - [x] FL-PARSE-002: When a feature line starts with `- [`, the system shall extract the content between the first `[` and `]` as the feature's tag.
-- [x] FL-PARSE-003: When a feature line has a tag and is followed by a second bracketed token containing `done`, the system shall set the feature's status to `"done"`.
-- [x] FL-PARSE-004: When a feature line has a tag and is followed by a second bracketed token containing `in-progress`, the system shall set the feature's status to `"in-progress"`.
+- [x] FL-PARSE-003: When a feature line has a tag and is followed by a second bracketed token that is exactly `done`, the system shall set the feature's status to `"done"`.
+- [x] FL-PARSE-004: When a feature line has a tag and is followed by a second bracketed token that is exactly `in-progress`, the system shall set the feature's status to `"in-progress"`.
 - [x] FL-PARSE-005: When a feature line has a tag and is followed by a second bracketed token that is neither `done` nor `in-progress`, the system shall leave status as None and include the bracketed token as part of the description.
 - [x] FL-PARSE-006: When a feature line has no bracketed prefix, the system shall set both tag and status to None and use the full text after `- ` as the description.
 - [x] FL-PARSE-007: When non-feature, non-empty lines appear after a feature entry, the system shall attach them to the preceding feature's notes vector.
@@ -37,7 +37,7 @@ Specs for GBIV.md parsing and mutation, and the `gbiv start` / `gbiv done` comma
 
 ## Tag Matching
 
-- [ ] FL-TAG-001: An entry shall be considered to carry the tag `[X]` when its text (the part after its color and legacy status tags) contains the exact bracketed token `[X]`, compared case-insensitively, at any position.
+- [ ] FL-TAG-001: An entry shall be considered to carry the text tag `[X]` when its text (the part after its color and legacy status tags) contains the exact bracketed token `[X]`, compared case-insensitively, at any position.
 
 ## Start Command
 
@@ -49,19 +49,23 @@ Specs for GBIV.md parsing and mutation, and the `gbiv start` / `gbiv done` comma
 - [ ] FL-START-006: If `<task>` (trimmed) contains no whitespace and some GBIV.md entry carries the tag `[<task>]` (FL-TAG-001), then `gbiv start` shall exit `1` with `<task> is already on <color>` before loading any extension.
 - [ ] FL-START-007: After choosing a color, `gbiv start` shall load extensions and fire `before_start` with the untrimmed argument and the chosen color, and if any handler vetoes, exit `1` without writing GBIV.md (EXT-EVT-004).
 - [ ] FL-START-008: When a `before_start` handler names the entry (EXT-EVT-008), `gbiv start` shall write that text as the entry's text; otherwise it shall write `<task>` trimmed.
-- [ ] FL-START-009: When no handler names the entry and `<task>` (trimmed) contains no whitespace, `gbiv start` shall print a warning that no extension recognized it and it was added as free text.
-- [ ] FL-START-010: When the entry's text is determined (FL-START-008), `gbiv start` shall append it with `append_gbiv_entry` (FL-MUTATE-012), then fire `after_start`, then print `started on <color>: <text>` to stdout and exit `0`.
+- [ ] FL-START-009: When at least one extension is enabled, no handler names the entry, and `<task>` (trimmed) contains no whitespace, `gbiv start` shall print a warning that no extension recognized it and it was added as free text.
+- [ ] FL-START-010: When the entry's text is determined (FL-START-008) and passes FL-START-013, `gbiv start` shall append it with `append_gbiv_entry` (FL-MUTATE-012), then print `started on <color>: <text>` to stdout, then fire `after_start`, and exit `0`.
 - [ ] FL-START-011: If writing GBIV.md fails after `before_start` handlers ran, then `gbiv start` shall exit `1` with an error stating that extensions already ran and their changes may need undoing, and shall fire no `after_start` event.
 - [ ] FL-START-012: `gbiv start` shall not create, check out, reset or otherwise modify any worktree or branch.
+- [ ] FL-START-013: If the entry's text, once named, starts with a bracketed text tag that an existing entry carries (FL-TAG-001), or equals an existing entry's text case-insensitively, then `gbiv start` shall exit `1` with `<tag or text> is already on <color>` and write nothing.
+- [ ] FL-START-014: `gbiv start` shall perform its checks in this order: parse config files, validate `<task>` (FL-START-002), choose the color (FL-START-003 to FL-START-005), check for a duplicate argument (FL-START-006), validate `[extensions]` and load extensions, fire `before_start` (FL-START-007), check the named text (FL-START-013), write GBIV.md.
 
 ## Done Command
 
 - [ ] FL-DONE-001: The system shall provide a top-level `gbiv done [<color|tag>]` command.
 - [ ] FL-DONE-002: When the `gbiv done` argument exactly matches (case-sensitively) a name in the active palette, the system shall resolve it to the entry with that color tag.
-- [ ] FL-DONE-003: When the `gbiv done` argument is not a palette name, the system shall resolve it to the entry that carries the tag `[<argument>]` (FL-TAG-001).
+- [ ] FL-DONE-003: When the `gbiv done` argument is not a palette name, the system shall resolve it to the entry that carries the text tag `[<argument>]` (FL-TAG-001) or whose whole text equals the argument case-insensitively.
 - [ ] FL-DONE-004: When `gbiv done` is invoked without an argument, the system shall infer the color from the current working directory via `infer_color_from_path` and resolve it as in FL-DONE-002, exiting `1` with an error if inference fails.
 - [ ] FL-DONE-005: If no entry matches the resolved color or tag, then `gbiv done` shall exit `1` with `no GBIV.md entry for <color>` or `no GBIV.md entry carries [<tag>]` and change nothing.
 - [ ] FL-DONE-006: If more than one entry matches the resolved color or tag, then `gbiv done` shall exit `1` with an error listing the matching entries and change nothing.
 - [ ] FL-DONE-007: When the entry is resolved, `gbiv done` shall load extensions and fire `before_done` with the entry's color and text, and if any handler vetoes, exit `1` leaving the entry in place (EXT-EVT-004).
-- [ ] FL-DONE-008: When no handler vetoes, `gbiv done` shall remove the entry with `remove_gbiv_entry` (FL-MUTATE-016), fire `after_done`, print `done <color>: <text>` to stdout and exit `0`.
+- [ ] FL-DONE-008: When no handler vetoes, `gbiv done` shall remove the entry with `remove_gbiv_entry` (FL-MUTATE-016), then print `done <color>: <text>` to stdout, then fire `after_done`, and exit `0`.
 - [ ] FL-DONE-009: `gbiv done` shall not reset, check out or otherwise modify any worktree or branch.
+- [ ] FL-DONE-010: Before resolving the `gbiv done` argument, the system shall remove one pair of surrounding square brackets if present, so `gbiv done [gbv-1ht]` behaves like `gbiv done gbv-1ht`.
+- [ ] FL-DONE-011: When the `gbiv done` argument is both a palette name and a text tag carried by some entry, the system shall resolve it as the color (FL-DONE-002).

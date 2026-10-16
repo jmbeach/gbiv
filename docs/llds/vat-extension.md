@@ -99,13 +99,17 @@ user already holds:
    on a color) and the pointer ` (see ./items/<id>.md)` rewritten relative to the
    main repo (` (see backlog/items/<id>.md)`), the same way the `gbiv-sync` skill
    copies bullets. Every other tag stays: `[gbv-1ht] [blocked-by:gbv-x2v] Title`.
-   The leading `[<id>]` is what lets `gbiv done <id>` find the entry later.
+   `[<id>]` always comes first (vat's canonical marker order already puts it
+   there); it is what `gbiv start`'s duplicate check and `gbiv done <id>` key on.
 
 ## `before_done` — complete
 
 Mirrors `vat done`:
 
-1. Find this backlog's ID in `ctx.text`: the first bracketed tag that is a
+1. If `vat.toml` is missing or invalid and `ctx.text` contains a bracketed tag
+   shaped like a vat ID, veto with vat's init-pointer message (as `vat done`
+   would); with no such tag, do nothing.
+   Otherwise find this backlog's ID in `ctx.text`: the first bracketed tag that is a
    candidate ID with this backlog's prefix. None → do nothing (the entry isn't a
    vat task). Like `vat done`, this completes the task whoever claimed it, or if
    nobody did.

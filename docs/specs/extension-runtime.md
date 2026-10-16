@@ -52,6 +52,7 @@ own file, `docs/specs/vat-extension.md`.
 - [ ] **EXT-EVT-008**: When a `before_start` handler returns a table with a string `text` field, and no earlier handler named the entry, the system shall use the trimmed `text` as the entry's text, ignoring any other fields.
 - [ ] **EXT-EVT-009**: When a `before_start` handler returns a valid naming table after an earlier handler already named the entry, the system shall ignore it and print a warning naming the extension.
 - [ ] **EXT-EVT-010**: If a `before_start` handler returns any other value, a table without a string `text`, or a `text` that is empty after trimming, spans more than one line, or starts with `[done]` or `[in-progress]`, then the system shall treat it as a veto by that extension (EXT-EVT-004).
+- [ ] **EXT-EVT-012**: The system shall fire `after_start` and `after_done` only after the command has printed its success line (FL-START-010, FL-DONE-008).
 - [ ] **EXT-EVT-011**: If an `after_start` or `after_done` handler raises an error, then the system shall print `<extension>: <message>` as a warning, continue with the remaining handlers, and keep the command's exit code `0`.
 
 ## Sandbox

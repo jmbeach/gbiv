@@ -103,7 +103,7 @@ The shared helper `classify_worktree(root, name) -> WorktreePresence` returns `P
 ### Steps
 1. Find gbiv root and main repo
 2. Determine remote main branch (tries `origin/main`, `origin/master`, `origin/develop` in order)
-3. Pull main worktree: `git pull origin {remote_main}`
+3. Pull main worktree: `git pull --autostash origin {remote_main}`. `--autostash` lets the pull succeed while main has uncommitted edits, such as a vat backlog folder that `gbiv start`/`gbiv done` changed (gbv-1ht); the edits are stashed and re-applied around the pull.
 4. Register `.last-branch` in each worktree's `info/exclude` (gbiv state file, avoid dirty detection)
 5. Spawn one thread per color; each thread:
    - Skips if worktree dir missing
@@ -133,6 +133,8 @@ On rebase conflict, `rebase_onto()` automatically runs `git rebase --abort` to l
 
 ### All-Color Reset Flow (no color arg)
 - **Soft mode**: parse GBIV.md, only reset colors with `[done]` status. Since gbv-1ht nothing writes `[done]` (`gbiv done` removes the entry instead), so this finds nothing to reset unless a file still carries the legacy tag. gbv-tkn removes `reset` altogether.
+
+`reset` removes GBIV.md entries directly and fires no extension events, so resetting a color whose entry came from a vat task leaves that task claimed in the backlog. Use `gbiv done` to complete the task first. Accepted until gbv-tkn removes `reset`.
 - **Hard mode**: reset all colors regardless of status; prompt for confirmation unless `--yes`
 
 ### Reset Decision Table
@@ -146,13 +148,14 @@ On rebase conflict, `rebase_onto()` automatically runs `git rebase --abort` to l
 
 ## Tidy (Maintenance Composite)
 
-`gbiv tidy` runs three steps in sequence:
+`gbiv tidy` runs two steps in sequence:
 
 1. `rebase-all` — sync all worktrees with upstream
-2. `reset` (soft, all colors) — reclaim `[done]` worktrees
-3. `tmux clean` — remove orphaned tmux windows (skipped if tmux not installed)
+2. `tmux clean` — remove orphaned tmux windows (skipped if tmux not installed)
 
-Errors from individual steps are collected but don't short-circuit — all three steps are attempted. Returns error if any step failed.
+Errors from individual steps are collected but don't short-circuit — both steps are attempted. Returns error if any step failed.
+
+Tidy used to run a soft all-color `reset` between these steps to reclaim `[done]` worktrees. gbv-1ht removed it: nothing writes `[done]` any more (`gbiv done` removes the entry instead), so the step could never do anything. `reset` itself is slated for removal (gbv-tkn).
 
 ## Git Utilities
 
