@@ -479,4 +479,331 @@ mod tests {
             "- [red] [done] Fix bug\n  Note line one\n  Note line two\n"
         );
     }
+
+    // ---- gbv-1ht: exact legacy status tokens ----------------------------------
+
+    // @spec FL-PARSE-003, FL-PARSE-004, FL-PARSE-005
+    #[test]
+    fn parse_status_requires_exact_done_or_in_progress_token() {
+        for second in [
+            "[DONE-12]",
+            "[undone]",
+            "[Done]",
+            "[done-ish]",
+            "[in-progress-2]",
+            "[In-Progress]",
+        ] {
+            let f = write_temp(&format!("- [red] {second} Fix bug\n"));
+            let result = parse_gbiv_md(f.path());
+            assert_eq!(result.len(), 1);
+            assert_eq!(result[0].tag, Some("red".to_string()));
+            assert_eq!(result[0].status, None, "{second} must not become a status");
+            assert_eq!(result[0].description, format!("{second} Fix bug"));
+        }
+    }
+
+    // ---- gbv-1ht: carries_text_tag ---------------------------------------------
+
+    fn feature(tag: Option<&str>, status: Option<&str>, description: &str) -> GbivFeature {
+        GbivFeature {
+            tag: tag.map(str::to_string),
+            status: status.map(str::to_string),
+            description: description.to_string(),
+            notes: vec![],
+        }
+    }
+
+    // @spec FL-TAG-001
+    #[test]
+    fn carries_text_tag_matches_leading_tag() {
+        let f = feature(Some("red"), None, "[gbv-1ht] Pluggable integrations");
+        assert!(carries_text_tag(&f, "gbv-1ht"));
+    }
+
+    // @spec FL-TAG-001
+    #[test]
+    fn carries_text_tag_is_case_insensitive() {
+        let f = feature(Some("red"), None, "[GBV-1HT] Pluggable integrations");
+        assert!(carries_text_tag(&f, "gbv-1ht"));
+        let f = feature(Some("red"), None, "[gbv-1ht] Pluggable integrations");
+        assert!(carries_text_tag(&f, "GBV-1ht"));
+    }
+
+    // @spec FL-TAG-001
+    #[test]
+    fn carries_text_tag_matches_at_any_position() {
+        let f = feature(Some("red"), None, "[gbv-1ht] [blocked-by:gbv-x2v] Title");
+        assert!(carries_text_tag(&f, "blocked-by:gbv-x2v"));
+        let f = feature(Some("red"), None, "Title mentioning [later] at the end [x]");
+        assert!(carries_text_tag(&f, "later"));
+        assert!(carries_text_tag(&f, "x"));
+        let f = feature(None, None, "untagged [abc-1] backlog item");
+        assert!(carries_text_tag(&f, "abc-1"));
+    }
+
+    // @spec FL-TAG-001
+    #[test]
+    fn carries_text_tag_requires_the_exact_bracketed_token() {
+        let f = feature(
+            Some("red"),
+            None,
+            "[gbv-1ht2] other and gbv-1ht unbracketed",
+        );
+        assert!(!carries_text_tag(&f, "gbv-1ht"));
+        let f = feature(Some("red"), None, "[xgbv-1ht] [gbv-1ht-b]");
+        assert!(!carries_text_tag(&f, "gbv-1ht"));
+        let f = feature(Some("red"), None, "[gbv 1ht]");
+        assert!(!carries_text_tag(&f, "gbv-1ht"));
+    }
+
+    // @spec FL-TAG-001
+    #[test]
+    fn carries_text_tag_ignores_color_and_status_tags() {
+        let f = feature(Some("red"), Some("done"), "Fix bug");
+        assert!(!carries_text_tag(&f, "red"));
+        assert!(!carries_text_tag(&f, "done"));
+        let f = feature(Some("red"), Some("in-progress"), "Fix bug");
+        assert!(!carries_text_tag(&f, "in-progress"));
+    }
+
+    // @spec FL-TAG-001
+    #[test]
+    fn carries_text_tag_on_parsed_entries() {
+        let f = write_temp("- [red] [done] [gbv-7] Old\n- [blue] Plain\n");
+        let result = parse_gbiv_md(f.path());
+        assert!(carries_text_tag(&result[0], "GBV-7"));
+        assert!(!carries_text_tag(&result[0], "done"));
+        assert!(!carries_text_tag(&result[1], "blue"));
+    }
+
+    // ---- gbv-1ht: append_gbiv_entry --------------------------------------------
+
+    // @spec FL-MUTATE-012
+    #[test]
+    fn append_inserts_after_last_entry_and_its_notes() {
+        let f = write_temp("- [red] A\n  note a\n- [blue] B\n  note b\n\n---\nfooter\n");
+        append_gbiv_entry(f.path(), "orange", "C").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(
+            on_disk,
+            "- [red] A\n  note a\n- [blue] B\n  note b\n- [orange] C\n\n---\nfooter\n"
+        );
+    }
+
+    // @spec FL-MUTATE-012
+    #[test]
+    fn append_ignores_entries_below_separator() {
+        let f = write_temp("- [red] A\n---\n- [blue] example below\n");
+        append_gbiv_entry(f.path(), "orange", "C").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(
+            on_disk,
+            "- [red] A\n- [orange] C\n---\n- [blue] example below\n"
+        );
+    }
+
+    // @spec FL-MUTATE-012
+    #[test]
+    fn append_goes_before_trailing_blank_lines() {
+        let f = write_temp("- [red] A\n\n- [blue] B\n\n\n---\n");
+        append_gbiv_entry(f.path(), "orange", "C").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [red] A\n\n- [blue] B\n- [orange] C\n\n\n---\n");
+    }
+
+    // @spec FL-MUTATE-012
+    #[test]
+    fn append_goes_after_a_note_separated_by_a_blank_line() {
+        // The parser attaches "  late note" to A (FL-PARSE-007, FL-PARSE-014).
+        let f = write_temp("- [red] A\n\n  late note\n");
+        append_gbiv_entry(f.path(), "orange", "C").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [red] A\n\n  late note\n- [orange] C\n");
+    }
+
+    // @spec FL-MUTATE-012
+    #[test]
+    fn append_without_separator_goes_at_end() {
+        let f = write_temp("- [red] A\n- backlog\n");
+        append_gbiv_entry(f.path(), "orange", "[gbv-1] Title").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [red] A\n- backlog\n- [orange] [gbv-1] Title\n");
+        let parsed = parse_gbiv_md(f.path());
+        assert_eq!(parsed.len(), 3);
+        assert_eq!(parsed[2].tag.as_deref(), Some("orange"));
+        assert_eq!(parsed[2].description, "[gbv-1] Title");
+    }
+
+    // @spec FL-MUTATE-013
+    #[test]
+    fn append_with_no_entries_goes_after_preamble() {
+        let f = write_temp("# Tasks\nSome intro\n\n---\nfooter\n");
+        append_gbiv_entry(f.path(), "red", "C").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "# Tasks\nSome intro\n- [red] C\n\n---\nfooter\n");
+    }
+
+    // @spec FL-MUTATE-013
+    #[test]
+    fn append_with_no_entries_goes_after_last_non_blank_preamble_line() {
+        let f = write_temp("# Tasks\n\nIntro paragraph\n\n---\n");
+        append_gbiv_entry(f.path(), "red", "C").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "# Tasks\n\nIntro paragraph\n- [red] C\n\n---\n");
+    }
+
+    // @spec FL-MUTATE-013
+    #[test]
+    fn append_with_no_entries_and_no_preamble_goes_at_top() {
+        let f = write_temp("\n\n---\nfooter\n");
+        append_gbiv_entry(f.path(), "red", "C").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [red] C\n\n\n---\nfooter\n");
+
+        let f = write_temp("---\n- [blue] example\n");
+        append_gbiv_entry(f.path(), "red", "C").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [red] C\n---\n- [blue] example\n");
+    }
+
+    // @spec FL-MUTATE-014
+    #[test]
+    fn append_creates_missing_file_with_just_the_entry() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("GBIV.md");
+        append_gbiv_entry(&path, "red", "Fix login bug").unwrap();
+        let on_disk = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(on_disk, "- [red] Fix login bug\n");
+    }
+
+    // @spec FL-MUTATE-015
+    #[test]
+    fn append_preserves_other_lines_byte_for_byte() {
+        let original = "# Tasks  \n- [red] A  \t\n\t  odd note\t\n---\n  footer with  spaces \n\n";
+        let f = write_temp(original);
+        append_gbiv_entry(f.path(), "blue", "B").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(
+            on_disk,
+            "# Tasks  \n- [red] A  \t\n\t  odd note\t\n- [blue] B\n---\n  footer with  spaces \n\n"
+        );
+    }
+
+    // @spec FL-MUTATE-015
+    #[test]
+    fn append_uses_crlf_when_file_does() {
+        let f = write_temp("- [red] A\r\n  note\r\n---\r\nfooter\r\n");
+        append_gbiv_entry(f.path(), "blue", "B").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(
+            on_disk,
+            "- [red] A\r\n  note\r\n- [blue] B\r\n---\r\nfooter\r\n"
+        );
+    }
+
+    // @spec FL-MUTATE-015
+    #[test]
+    fn append_keeps_missing_trailing_newline() {
+        let f = write_temp("- [red] A");
+        append_gbiv_entry(f.path(), "blue", "B").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [red] A\n- [blue] B");
+    }
+
+    // @spec FL-MUTATE-015
+    #[test]
+    fn append_crlf_without_trailing_newline() {
+        let f = write_temp("- [red] A\r\n- [green] G");
+        append_gbiv_entry(f.path(), "blue", "B").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [red] A\r\n- [green] G\r\n- [blue] B");
+    }
+
+    // @spec FL-MUTATE-015
+    #[test]
+    fn append_mid_file_keeps_missing_trailing_newline() {
+        let f = write_temp("- [red] A\n---\nfooter");
+        append_gbiv_entry(f.path(), "blue", "B").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [red] A\n- [blue] B\n---\nfooter");
+    }
+
+    // ---- gbv-1ht: remove_gbiv_entry --------------------------------------------
+
+    // @spec FL-MUTATE-016
+    #[test]
+    fn remove_entry_removes_matching_entry_notes_and_following_blank() {
+        let f = write_temp("- [red] A\n  note\n\n- [blue] B\n---\nfooter\n");
+        remove_gbiv_entry(f.path(), "red", "A").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [blue] B\n---\nfooter\n");
+    }
+
+    // @spec FL-MUTATE-016
+    #[test]
+    fn remove_entry_removes_only_the_entry_whose_text_matches() {
+        let f = write_temp("- [red] A\n  note a\n- [red] B\n  note b\n- [blue] B\n");
+        remove_gbiv_entry(f.path(), "red", "B").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [red] A\n  note a\n- [blue] B\n");
+    }
+
+    // @spec FL-MUTATE-016
+    #[test]
+    fn remove_entry_matches_text_with_text_tags() {
+        let f = write_temp("# Tasks\n- [green] [gbv-1ht] [blocked-by:x] Title\n- [blue] B\n");
+        remove_gbiv_entry(f.path(), "green", "[gbv-1ht] [blocked-by:x] Title").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "# Tasks\n- [blue] B\n");
+    }
+
+    // @spec FL-MUTATE-016
+    #[test]
+    fn remove_entry_reads_current_file_contents() {
+        let f = write_temp("- [red] Old\n");
+        // The file changed after it was first written; removal works from what is on disk now.
+        std::fs::write(f.path(), "- [blue] B\n- [red] New\n").unwrap();
+        remove_gbiv_entry(f.path(), "red", "New").unwrap();
+        let on_disk = std::fs::read_to_string(f.path()).unwrap();
+        assert_eq!(on_disk, "- [blue] B\n");
+    }
+
+    // @spec FL-MUTATE-017
+    #[test]
+    fn remove_entry_errors_and_leaves_file_when_text_differs() {
+        let original = "- [red] A\n- [blue] B\n";
+        let f = write_temp(original);
+        let result = remove_gbiv_entry(f.path(), "red", "B");
+        assert!(matches!(result, Err(GbivMdError::EntryNotFound { .. })));
+        assert_eq!(std::fs::read_to_string(f.path()).unwrap(), original);
+    }
+
+    // @spec FL-MUTATE-017
+    #[test]
+    fn remove_entry_errors_and_leaves_file_when_color_differs() {
+        let original = "- [red] A\n";
+        let f = write_temp(original);
+        let result = remove_gbiv_entry(f.path(), "blue", "A");
+        assert!(matches!(result, Err(GbivMdError::EntryNotFound { .. })));
+        assert_eq!(std::fs::read_to_string(f.path()).unwrap(), original);
+    }
+
+    // @spec FL-MUTATE-017
+    #[test]
+    fn remove_entry_does_not_match_below_separator() {
+        let original = "- [blue] B\n---\n- [red] A\n";
+        let f = write_temp(original);
+        let result = remove_gbiv_entry(f.path(), "red", "A");
+        assert!(result.is_err());
+        assert_eq!(std::fs::read_to_string(f.path()).unwrap(), original);
+    }
+
+    // @spec FL-MUTATE-017
+    #[test]
+    fn remove_entry_errors_when_file_missing() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("GBIV.md");
+        assert!(remove_gbiv_entry(&path, "red", "A").is_err());
+        assert!(!path.exists());
+    }
 }
