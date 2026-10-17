@@ -985,7 +985,7 @@ mod tests {
         out
     }
 
-    // @spec CLI-CFG-006
+    // @spec CLI-CFG-006, EXT-LOAD-009
     #[test]
     #[serial_test::serial]
     fn exec_ignores_broken_global_config_and_extensions_tables() {

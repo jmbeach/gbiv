@@ -20,7 +20,7 @@ shared `gbiv_core` primitives (`root`, `tmux`, `gitignore`, `palette`,
 - [x] **HTTP-SRV-006**: The daemon shall bind a TCP listener on `127.0.0.1:0` (kernel-assigned ephemeral port); since this always requests a fresh port from the kernel, a bind failure here reflects a genuine OS-level problem (resource exhaustion, permission), not a port already in use by another gbiv daemon (see HTTP-SRV-060 for that case) — the process shall exit non-zero with a message naming the likely cause.
 - [x] **HTTP-SRV-007**: The daemon shall create `<gbiv-root>/main/<repo>/.gbiv/` if it does not already exist.
 - [x] **HTTP-SRV-008**: The daemon shall write the bound port to `<gbiv-root>/main/<repo>/.gbiv/port` as plain ASCII decimal followed by a newline (e.g. `54321\n`), overwriting any existing content.
-- [ ] **HTTP-SRV-009**: The daemon shall ensure `.gbiv/` is present in `.git/info/exclude` via `core::gitignore::ensure_gitignore_entry`, idempotently (a second `gbiv fleet start` does not duplicate the entry).
+- [x] **HTTP-SRV-009**: The daemon shall ensure `.gbiv/` is present in `.git/info/exclude` via `core::gitignore::ensure_gitignore_entry`, idempotently (a second `gbiv fleet start` does not duplicate the entry).
 - [x] **HTTP-SRV-010**: On successful bind, the daemon shall print `gbiv listening on http://127.0.0.1:<port>` to stdout and log an equivalent `info`-level line (host, port, tmux session name, gbiv root path).
 - [x] **HTTP-SRV-011**: After startup, the daemon shall block in a request-accept loop until a shutdown signal is received.
 
