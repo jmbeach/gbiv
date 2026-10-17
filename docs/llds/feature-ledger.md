@@ -138,7 +138,7 @@ An entry **carries the (text) tag** `[X]` when its text contains the exact brack
 One pair of surrounding brackets is stripped from the argument first, so `gbiv done [gbv-1ht]` works like `gbiv done gbv-1ht`.
 
 1. If the argument is a name in the active palette (exact, case-sensitive match, like every other color argument) → that color. Color names are checked first, so a palette name always means the color even if some entry's text also carries it as a tag.
-2. Otherwise, if it is given → the entry that carries the text tag `[<arg>]`, or whose whole text equals the argument (case-insensitive; this finds a one-word free-text entry like `refactor`). None → error `no GBIV.md entry carries [<arg>]`; more than one → error listing them and asking for the color instead.
+2. Otherwise, if it is given → the entry that carries the text tag `[<arg>]`. An entry is never matched by its plain text: a free-text entry such as `refactor` is taken off by color (`gbiv done red`). None → error `no GBIV.md entry carries [<arg>]`; more than one → error listing them and asking for the color instead.
 3. If omitted → infer the color from CWD via `infer_color_from_path()`; error if that fails.
 
 A color resolves to the entry tagged with it. No entry → error `no GBIV.md entry for <color>`. More than one entry with that color tag (only possible through hand edits) → error listing them.

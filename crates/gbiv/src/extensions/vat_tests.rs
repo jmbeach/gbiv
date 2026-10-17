@@ -1287,6 +1287,29 @@ fn done_on_already_completed_id_changes_nothing() {
     assert_eq!(v.snapshot(), before);
 }
 
+// @spec VATX-DONE-003
+#[test]
+fn done_removes_the_bullets_unsynced_note_lines_too() {
+    let v = Vat::with_backlog(&format!(
+        "{HEADER}- [vat-g5y] A task\n  a note line\n  another note\n- [vat-h8x] Other\n"
+    ));
+    let mut rt = v.rt_anon();
+    done(&mut rt, "[vat-g5y] A task").unwrap();
+    assert_eq!(v.read("backlog.md"), format!("{HEADER}- [vat-h8x] Other\n"));
+}
+
+// @spec VATX-DONE-004, VATX-DONE-005
+#[test]
+fn done_with_missing_backlog_md_but_id_in_used_ids_succeeds() {
+    let v = Vat::with_backlog("");
+    std::fs::remove_file(v.backlog.join("backlog.md")).expect("remove backlog.md");
+    v.write(".used-ids", "vat-g5y\n");
+    let before = v.snapshot();
+    let mut rt = v.rt_anon();
+    done(&mut rt, "[vat-g5y] A task").unwrap();
+    assert_eq!(v.snapshot(), before);
+}
+
 // @spec VATX-DONE-005
 #[test]
 fn done_on_unknown_id_vetoes() {

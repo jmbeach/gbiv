@@ -60,7 +60,7 @@ Specs for GBIV.md parsing and mutation, and the `gbiv start` / `gbiv done` comma
 
 - [ ] FL-DONE-001: The system shall provide a top-level `gbiv done [<color|tag>]` command.
 - [ ] FL-DONE-002: When the `gbiv done` argument exactly matches (case-sensitively) a name in the active palette, the system shall resolve it to the entry with that color tag.
-- [ ] FL-DONE-003: When the `gbiv done` argument is not a palette name, the system shall resolve it to the entry that carries the text tag `[<argument>]` (FL-TAG-001) or whose whole text equals the argument case-insensitively.
+- [ ] FL-DONE-003: When the `gbiv done` argument is not a palette name, the system shall resolve it to the entry that carries the text tag `[<argument>]` (FL-TAG-001); an entry whose text has no matching tag (e.g. free text like `refactor`) is never matched by its text and can be taken off only by color.
 - [ ] FL-DONE-004: When `gbiv done` is invoked without an argument, the system shall infer the color from the current working directory via `infer_color_from_path` and resolve it as in FL-DONE-002, exiting `1` with an error if inference fails.
 - [ ] FL-DONE-005: If no entry matches the resolved color or tag, then `gbiv done` shall exit `1` with `no GBIV.md entry for <color>` or `no GBIV.md entry carries [<tag>]` and change nothing.
 - [ ] FL-DONE-006: If more than one entry matches the resolved color or tag, then `gbiv done` shall exit `1` with an error listing the matching entries and change nothing.

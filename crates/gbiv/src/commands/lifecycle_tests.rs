@@ -1190,15 +1190,16 @@ fn done_text_tag_matches_anywhere_in_text() {
     );
 }
 
-// @spec FL-DONE-003
+// @spec FL-DONE-003, FL-DONE-005
 #[test]
-fn done_whole_text_match_is_case_insensitive() {
+fn done_untagged_text_is_not_addressable_by_its_text() {
     let w = ws();
-    w.write_md("- [red] refactor\n- [blue] B\n");
-    let (r, rec) = w.done(Some("Refactor"));
-    r.unwrap();
-    assert_eq!(w.read_md().as_deref(), Some("- [blue] B\n"));
-    assert_eq!(rec.outs(), vec!["done red: refactor".to_string()]);
+    let md = "- [red] refactor\n- [blue] B\n";
+    w.write_md(md);
+    let (r, _rec) = w.done(Some("refactor"));
+    let e = err_of(r);
+    assert!(e.contains("no GBIV.md entry carries [refactor]"), "{e}");
+    assert_eq!(w.read_md().as_deref(), Some(md));
 }
 
 // @spec FL-DONE-003, FL-DONE-005
@@ -1334,15 +1335,18 @@ fn done_errors_listing_entries_when_tag_matches_several() {
     assert_eq!(w.read_md().as_deref(), Some(md));
 }
 
-// @spec FL-DONE-006
+// @spec FL-DONE-003
 #[test]
-fn done_tag_and_whole_text_matching_different_entries_is_ambiguous() {
+fn done_tag_match_ignores_an_untagged_entry_with_the_same_text() {
     let w = ws();
-    let md = "- [red] refactor\n- [blue] [refactor] the auth module\n";
-    w.write_md(md);
-    let (r, _rec) = w.done(Some("refactor"));
-    assert!(r.is_err());
-    assert_eq!(w.read_md().as_deref(), Some(md));
+    w.write_md("- [red] refactor\n- [blue] [refactor] the auth module\n");
+    let (r, rec) = w.done(Some("refactor"));
+    r.unwrap();
+    assert_eq!(w.read_md().as_deref(), Some("- [red] refactor\n"));
+    assert_eq!(
+        rec.outs(),
+        vec!["done blue: [refactor] the auth module".to_string()]
+    );
 }
 
 // @spec FL-DONE-010

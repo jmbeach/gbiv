@@ -38,9 +38,9 @@ the extension does with them.
 
 - [ ] **VATX-DONE-001**: When `ctx.text` contains no bracketed tag that is this backlog's ID, `before_done` shall return and change nothing.
 - [ ] **VATX-DONE-002**: When `ctx.text` contains this backlog's ID as a bracketed tag, `before_done` shall use the first such tag as the task ID.
-- [ ] **VATX-DONE-003**: When the task's bullet exists, `before_done` shall complete it regardless of who claimed it: append the ID to `.used-ids` if absent, then rewrite `backlog.md` with the bullet removed (dropping one adjacent blank line if removal would leave a double blank) and `[blocked-by:<id>]` stripped from every other bullet, then delete `items/<id>.md` if it exists.
+- [ ] **VATX-DONE-003**: When the task's bullet exists, `before_done` shall complete it regardless of who claimed it: append the ID to `.used-ids` if absent, then rewrite `backlog.md` with the bullet and any note lines under it removed (dropping one adjacent blank line if removal would leave a double blank) and `[blocked-by:<id>]` stripped from every other bullet, then delete `items/<id>.md` if it exists.
 - [ ] **VATX-DONE-004**: When the task's bullet is absent and its ID is in `.used-ids`, `before_done` shall change nothing and not veto.
-- [ ] **VATX-DONE-005**: If the task's bullet is absent and its ID is not in `.used-ids`, or `backlog.md` is missing, then `before_done` shall veto with `unknown id: <id>`.
+- [ ] **VATX-DONE-005**: If the task's bullet is absent (including when `backlog.md` is missing) and its ID is not in `.used-ids`, then `before_done` shall veto with `unknown id: <id>`; when the ID is in `.used-ids`, VATX-DONE-004 applies even if `backlog.md` is missing.
 - [ ] **VATX-DONE-006**: If the task's ID is on more than one bullet, then `before_done` shall veto with vat's duplicate-ID message.
 - [ ] **VATX-DONE-007**: If `<backlog>/vat.toml` is missing or has no valid `project.id`, then `before_done` shall veto with vat's init-pointer message when `ctx.text` contains a bracketed tag matching the vat ID shape, and otherwise return and change nothing.
 

@@ -118,8 +118,8 @@ Mirrors `vat done`:
    its color. If it's absent and not in `.used-ids` (or `backlog.md` is missing),
    veto with `unknown id: <id>`, as `vat done` does. An ID on two bullets vetoes
    with vat's message.
-3. Remove the bullet line (dropping one adjacent blank line if removal would leave
-   a double blank), delete `items/<id>.md` if present, append `<id>` to
+3. Remove the bullet line and any note lines under it, as `vat done` does
+   (dropping one adjacent blank line if removal would leave a double blank), delete `items/<id>.md` if present, append `<id>` to
    `.used-ids` if absent, and strip `[blocked-by:<id>]` from every remaining
    bullet.
 4. Write the files (or run the claim loop), in this order: append to
